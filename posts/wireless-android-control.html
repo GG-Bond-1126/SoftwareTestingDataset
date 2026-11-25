@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>不插线不 root：扫码隔空操控 Android 真机 · 软件测试资料集</title>
+<meta name="description" content="手机扫码配对后电脑即可驱动真机，讲清它的连接原理、命令、权限边界与不适合换掉的场景。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/wireless-android-control.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="不插线不 root：扫码隔空操控 Android 真机">
+<meta property="og:description" content="手机扫码配对后电脑即可驱动真机，讲清它的连接原理、命令、权限边界与不适合换掉的场景。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/wireless-android-control.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="不插线不 root：扫码隔空操控 Android 真机">
+<meta name="twitter:description" content="手机扫码配对后电脑即可驱动真机，讲清它的连接原理、命令、权限边界与不适合换掉的场景。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"不插线不 root：扫码隔空操控 Android 真机","description":"手机扫码配对后电脑即可驱动真机，讲清它的连接原理、命令、权限边界与不适合换掉的场景。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/wireless-android-control.html","articleSection":"APP 自动化","keywords":"android-automation, wireless-device, element-tree","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../links.html">外链</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-25</span>
+          <span>·</span>
+          <span>8 min read</span>
+        </div>
+        <h1>不插线不 root：扫码隔空操控 Android 真机</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="wireless-android-control">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <p>真机自动化最琐碎的部分不是写脚本，而是让脚本能碰到手机。设备一多就是一排数据线；线松了、驱动抽风、手机息屏，半夜挂掉的用例常死在这些地方。想不插线，多数团队只能买按小时计费的云真机。外链介绍的 Droidline 换了个方向：手机装一个普通 App，扫码配对，之后由电脑用命令驱动这台真机。PC 端用 Go、手机端用 Kotlin，MIT 协议，2026 年 10 月 7 日开源，作者是韩国开发者 KnifeLemon，官网 droidline.dev，App、报错与文档均提供中英韩三语。</p>
+
+        <h2>一、它替掉的不是 Appium，而是插线与 ADB 那一段</h2>
+        <p>Appium 与 uiautomator2 跑了很多年，好用，但前提一样不少：开发者选项、USB 调试、数据线。Droidline 把这层拿掉——手机端只装普通 App，开无障碍服务和自带键盘，扫码后手机自己往外连，PC 一个端口都不用开。方向反过来，安全模型也顺了：配对决定谁能控这台手机，握手后每行通信端到端加密，隧道和中继只搬密文。断网重连从断点接着跑，执行中的命令由手机侧缓存应答，不会整条重跑。</p>
+        <p>它并不替换定位体系：定位仍按 text、id 去找，等待逻辑内置，换掉的只是「怎么连上手机」。脚本资产多的团队，迁移成本落在连接层与等待策略，用例设计本身可以搬过去。</p>
+        <table>
+          <thead>
+            <tr><th>环节</th><th>传统 adb 链路</th><th>扫码直连</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>连接前提</td><td>开发者选项、USB 调试、数据线</td><td>装普通 App，开无障碍与自带键盘</td></tr>
+            <tr><td>网络方向</td><td>电脑连手机，需可达地址</td><td>手机主动外连，电脑不开端口</td></tr>
+            <tr><td>跨网络</td><td>端口映射或内网穿透</td><td>同 Wi-Fi 直连，在外走隧道或中继</td></tr>
+            <tr><td>传输安全</td><td>由隧道方案自行决定</td><td>握手后端到端加密，中继只见密文</td></tr>
+            <tr><td>断线恢复</td><td>多数情况整条脚本重跑</td><td>手机侧缓存应答，重连后接着跑</td></tr>
+          </tbody>
+        </table>
+        <p>表里真正改变体验的是后两行：加密决定远程控真机能否过安全评审，断点续跑决定弱网和换网时用例会不会成片失败。</p>
+
+        <h2>二、两条命令完成配对，先用设置页跑一个最小闭环</h2>
+        <p>PC 端三个平台都有发布包，手机要求 Android 9 及以上；发布包带 fakephone 模拟器，没真机也能照官方教程写第一个脚本。装好后两条命令：</p>
+        <div class="code-head"><span>bash · 首次配对</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>droidline serve          # 常驻服务，所有入口都连它的 8780 端口
+droidline pair           # 弹出二维码，手机 App 扫码即配对</code></pre>
+        <p>没有摄像头就点 App 里的「在此 Wi-Fi 下配对」，输入 6 位码一样能连。先用系统设置页确认通路，再写进业务脚本：</p>
+        <div class="code-head"><span>bash · 第一次触碰真机</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>droidline launch com.android.settings
+droidline touch text "Network &amp; internet"</code></pre>
+        <p>Python 侧 <code>pip install droidline</code>，接着跑仓库自带的演示 App 登录：</p>
+        <div class="code-head"><span>python · login_demo.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from droidline import connect
+
+d = connect()
+d.launch("dev.droidline.demo")
+
+if d.exists("text", "Close ad"):
+    d.touch("text", "Close ad")
+
+d.input("id", "email", "knife")
+d.touch("text", "Log in")
+print(d.get_text("id", "greeting"))</code></pre>
+        <p>示例先判断关闭广告弹窗再登录，值得留意：启动广告、权限弹窗、升级提示是真机上最常见的脏动作，写进流程开头比在断言里补救稳。组件记三个就够：serve 是常驻服务，pair 管配对，mcp 是给 Agent 用的适配器；inspect 能录脚本并推荐选择器，webdriver 让 Appium 客户端直接接管，按需再开。</p>
+
+        <h2>三、一份规格生成五个入口，多端 SDK 不会各说各话</h2>
+        <p>仓库根目录的 spec/commands.json 定义全部命令与三语错误文案，Python、Node.js、.NET 三个 SDK 和 MCP 工具清单都由它生成，CI 里跑一致性校验，对不上直接挂。所以 touch 在五个入口里都叫 touch，文档只维护一份。</p>
+        <p>这一点比工具本体更值得抄。多端 SDK 贵在不一致：Python 叫 tap、Node 叫 click、就描述再各写一遍，文档三份、错误文案三套，改一处要追五个仓库，最后没人敢动。把命令、参数、错误消息收敛成一份机器可读的规格，再让 CI 做门禁，改一处就全局生效。封装 <a class="ilink" href="api-ai-mcp.html">MCP 工具</a>时，同样的坑会以工具描述与参数 schema 的形式再来一次。</p>
+        <p>报错也照这个思路做。找不到元素时直接给出停在哪个页面、等了多久，形如 <code>NOT_FOUND: Could not find text 'Log in' within 10s</code>；配合 dump() 把屏幕拉成元素树，失败时一眼能看出是文案改了还是页面没跳过去。定位方式的取舍见 <a class="ilink" href="app-element-locators.html">App 元素定位</a>。</p>
+
+        <h2>四、权限边界：把做不到的事写进 README 更值钱</h2>
+        <p>手机端只用无障碍服务和自装键盘，也就是普通 App 能拿到的权限。代价 README 直接列了清单：解不开 PIN 锁，没有强停、清数据的单命令，打不开别的 App 未导出的页面。这三条恰好是测试里最常用的小动作，接入前得先确认用例有没有踩到。</p>
+        <p>还有两条上限属于路线决定的天花板，不是修一版能解决的。游戏和自绘界面拿不到元素，只能退回坐标点击加颜色判断，稳定性立刻掉一档；Android 15 起系统把一次性验证码从通知里藏起来，工具只能知道码到了，仍然得进 App 里读。</p>
+        <p>版本还在 0.1。作者在 Status 页写明，服务端与 SDK 的测试目前都是对着手机模拟器跑的，跨品牌真机验证仍在进行。这意味着它现在适合先拿自己的机器趟一遍，不适合直接压进生产回归流水线。</p>
+
+        <h2>五、谁适合用，以及怎么小步接入</h2>
+        <p>接入顺序建议这样走：一台备机跑系统设置页，确认连接与元素定位；再跑仓库自带的演示 App 登录，确认输入与读文本；第三步才是跨 App 收短信验证码的完整流程，这也是它相对插线方案真正的差异点——不需要为跳转额外准备连接配置。三步都过了再谈多机并行。</p>
+        <p>一台电脑带一排手机是另一个卖点：不同手机并行跑、每台有名字，还能给每台单独配 socks5 或 http 代理；配合 cuts_network 在飞行模式换 IP 后任务接着跑，这类需求常见于采集与造数。</p>
+        <p>不适合换的场景也说清楚：脚本资产已经稳稳跑在 <a class="ilink" href="app-automation-intro.html">App 自动化</a>框架上、用例需要强停或清数据、依赖云真机平台做弹性扩容的团队，为了省一根线搬家并不划算。真正可迁移的是两个设计：用单一规格生成多端入口，以及手机主动外连加端到端加密的远程控制模型。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://mp.weixin.qq.com/s/MSs03irW0-9Kh_desqxYNA" target="_blank" rel="noopener">测试开发技术 · 太牛了，不插线不 root，两行命令就能隔空操控 Android 真机</a></li>
+            <li><a href="https://github.com/KnifeLemon/Droidline" target="_blank" rel="noopener">KnifeLemon/Droidline — GitHub</a></li>
+            <li><a href="https://droidline.dev" target="_blank" rel="noopener">Droidline 官方网站与文档</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#android-automation</span>
+          <span class="tag">#wireless-device</span>
+          <span class="tag">#element-tree</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

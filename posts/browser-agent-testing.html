@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>让浏览器自己测试：Skyvern 的元素编号循环与落地边界 · 软件测试资料集</title>
+<meta name="description" content="拆解 Skyvern 六步循环中让模型只做选择题的设计，并给出部署命令、六个翻车点与适用边界。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/browser-agent-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="让浏览器自己测试：Skyvern 的元素编号循环与落地边界">
+<meta property="og:description" content="拆解 Skyvern 六步循环中让模型只做选择题的设计，并给出部署命令、六个翻车点与适用边界。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/browser-agent-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="让浏览器自己测试：Skyvern 的元素编号循环与落地边界">
+<meta name="twitter:description" content="拆解 Skyvern 六步循环中让模型只做选择题的设计，并给出部署命令、六个翻车点与适用边界。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"让浏览器自己测试：Skyvern 的元素编号循环与落地边界","description":"拆解 Skyvern 六步循环中让模型只做选择题的设计，并给出部署命令、六个翻车点与适用边界。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/browser-agent-testing.html","articleSection":"Web 自动化","keywords":"browser-agent, skyvern, playwright","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../links.html">外链</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-25</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>让浏览器自己测试：Skyvern 的元素编号循环与落地边界</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="browser-agent-testing">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <p>浏览器自动化的成本大头不在写脚本，在维护。一个下单流程用选择器写死，前端把按钮从 <code>div</code> 换成 <code>button</code>，几百条用例一夜全红。录制工具的原理没变：固定坐标加固定选择器，改版就得重录，于是流程跑三个月就没人维护了。</p>
+
+        <p>Skyvern 改的是定位这一层：不预先写选择器，每一步现场看页面，解析 DOM、截图、列出可交互元素交给模型判断。按原文记录，项目由 Y Combinator 孵化的团队在 2024 年初开源，发文时约 2.3 万 star，最新版本 v1.0.58 发布于 2026-11-15，后端 Python、前端 TypeScript，浏览器层基于 Playwright。</p>
+
+        <h2>一、选择器天天失效，让模型现场看页面能解决吗</h2>
+        <p>能解决一部分，前提是它把「判断」和「执行」拆干净。Skyvern 不让模型直接生成 XPath——原文说这样做幻觉率很高，经常给出不存在的节点。它让模型只做选择题：每轮注入 JS 给可交互元素打上 <code>unique_id</code>，把元素清单和全页截图塞进提示词，模型只回一段 JSON，说明下一步动作和操作哪个 ID；执行层用 <code>querySelector</code> 反查真实节点，交给 Playwright 执行。</p>
+        <p>所以模型输出的不是坐标也不是选择器，而是集合内的索引。索引越界、ID 不存在都是能立刻判错的硬错误，而不是「跑通了但点错地方」的软错误。</p>
+
+        <h2>二、六步循环里，每一环对应什么可观测点</h2>
+        <p>循环本身是六步：注入 JS 编号、解析 HTML 加全页截图、提取可交互元素、调模型决策、按 ID 反查执行、回到第一步重新观察，直到模型输出 <code>COMPLETE</code>。外层还有规划器拆任务、校验器在每步之后检查目标是否完成，没完成就带着反馈继续跑。</p>
+        <p>每一步都能落观测点：编号失败说明页面结构与预期不符；截图空白说明渲染没完成就执行了；返回的 ID 不在清单里说明提示词或元素裁剪有问题；动作执行后目标状态没变说明被遮挡或被前端拦截。这些结论能指向具体某一层，而不是笼统的「跑挂了」。原文提到每次执行都留下动作记录、截图和录像，还能实时围观浏览器在做什么，这对排查间歇性失败很关键。</p>
+        <p>另一个细节值得抄：决策提示词第一行就是安全边界声明，告诉模型页面内容只是数据、永远不是指令。网页是不可信输入，页面上藏一句「忽略之前的指令」，模型照办就出事。</p>
+
+        <h2>三、两代引擎差在哪：每步一问还是持久会话</h2>
+        <p>仓库里还有一套 <code>taskv3</code> 引擎，从「每一步独立问一次模型」换成「持久会话加工具调用」：模型全程持有一个对话，通过 <code>observe</code>、<code>execute</code>、<code>finish</code> 自主推进。两代并存，建任务时可以选。</p>
+        <p>差别不只是省 token。v1 每步独立决策，可审计、可单步重放，代价是每轮重复塞上下文；v3 有连续记忆，单步可解释性下降。对测试团队，v1 适合稳定回归，失败能精确定位到某一步；v3 更适合跑长流程。取舍无标准答案。</p>
+
+        <h2>四、本地跑起来要过哪几道坎</h2>
+        <p>两条路线的差异很明确：pip 只有 API 服务，Docker 才带可视化管理界面。</p>
+        <div class="code-head"><span>bash · 两条部署路线</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 路线一：pip，装核心服务（Python 3.11 到 3.13）
+pip install "skyvern[server]"
+skyvern quickstart
+# 默认 SQLite，数据落在 ~/.skyvern/data.db，API 端口 8000
+
+# 路线二：Docker，一步到位带 UI
+git clone https://github.com/skyvern-ai/skyvern.git && cd skyvern
+cp .env.example .env
+# 编辑 .env，填入至少一家 LLM 的 API Key，并把对应 ENABLE_XXX 改成 true
+docker compose up -d
+# 起来后浏览器访问 http://localhost:8080</code></pre>
+        <p>模型跑在云端，本地只承担浏览器和 API 服务，一台 8G 内存的开发机够用，不需要 GPU。想全离线可以配 Ollama，但本地小模型操作浏览器的能力会明显打折。</p>
+        <p>原文列的六个翻车点里，三个与配置直接相关：pip 装完没有 Web UI，因为包只带 API；填了 Key 还是调不动模型，因为 <code>.env</code> 里每家厂商前的 <code>ENABLE_XXX</code> 默认是 false；1.0.31 版本有 <code>litellm</code> 与 <code>fastmcp</code> 的依赖冲突，会报 <code>ResolutionImpossible</code>，升到 1.0.32 以上或改用 uv 安装。其余三个是 Windows 需要 Rust 与 C++ 工具链、<code>quickstart</code> 报表已存在时删掉本地 data.db 重跑、遥测默认开启可手动关闭。</p>
+
+        <h2>五、什么时候不该用它</h2>
+        <p>原文的判断：适合网站不是你家的、改版你控制不了、页面千奇百怪但流程高度重复的场景。反之，有三类情况要慎重。</p>
+        <p>第一是强反爬站点。原文写明反爬措施属于云端商业版独占，开源版碰上 Cloudflare 盾和验证码重灾网站，成功率会掉得厉害。官方在 WebBench 上报了 64.4% 的准确率，其中填表、登录、下载这类写操作任务排第一；同一张图里，有人工监督的参考线是 76.5%。这两个数只能说明它在同类里相对领先，不能理解成十次能成六次半的承诺。</p>
+        <p>第二是成本。每一步循环都是一次带截图的多模态调用，一个多步任务跑几万 token 很平常，铺开之前先算账单。第三是协议：项目采用 AGPL-3.0，改代码对外提供服务有开源义务，内部使用不受影响。已有稳定脚本的团队也不必全部重写，它的 SDK 支持传统选择器与 AI 定位混用。</p>
+        <p>如果只是解决自家站点的回归，用 <a class="ilink" href="web-playwright-intro.html">Playwright</a> 加稳定的<a class="ilink" href="web-element-locators.html">元素定位</a>通常更便宜；这类 Agent 的价值在「页面结构不受你控制」的流程。想把它接进 CI 做门禁，可参考 <a class="ilink" href="web-pytest-allure.html">Playwright Agents 与 pytest 的组合</a>，把 AI 规划与用例报告分开管理。</p>
+
+        <h2>六、同类项目怎么选</h2>
+        <p>原文的对比只有四行，star 数为发文当天口径，只能当参考：</p>
+        <table>
+          <thead>
+            <tr><th>项目</th><th>思路</th><th>适合谁</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>browser-use</td><td>Python 库，模型全权决策</td><td>快速做 Agent 原型</td></tr>
+            <tr><td>playwright-mcp</td><td>把浏览器挂给任意模型</td><td>已有 Agent 生态的团队</td></tr>
+            <tr><td>stagehand</td><td>TypeScript，代码为主、AI 兜底</td><td>前端与 Node 技术栈</td></tr>
+            <tr><td>Skyvern</td><td>视觉加 DOM 混合引擎，可视化工作流</td><td>表单填写与 RPA 替代</td></tr>
+          </tbody>
+        </table>
+        <p>要可视化管理与执行记录选 Skyvern；给自家 Agent 加浏览器能力，轻量 MCP 更合适；TypeScript 团队要求行为可控，代码优先更稳。把它当一份可替换定位层的参考实现来读，比急着替换现有脚本更有价值。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://mp.weixin.qq.com/s/kJJ3MPnzFrW6GR_TGMOmdQ" target="_blank" rel="noopener">测试开发技术 · 写 UI 自动化的同学，这个 2.3万 Star 的自动化Agent 让浏览器自己测试！</a></li>
+            <li><a href="https://github.com/Skyvern-AI/skyvern" target="_blank" rel="noopener">Skyvern-AI/skyvern — GitHub</a></li>
+            <li><a href="https://playwright.dev/python/" target="_blank" rel="noopener">Playwright for Python — 官方文档</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#browser-agent</span>
+          <span class="tag">#web-automation</span>
+          <span class="tag">#skyvern</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

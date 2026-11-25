@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>安卓端的 AI Agent 运行时：Droy 如何把 Harness 塞进一个 APK · 软件测试资料集</title>
+<meta name="description" content="拆解 Droy 的三层架构、快照绑定与硬件工具安全阀，并从测试视角看安卓 Agent 该验证哪些边界。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/android-ai-agent-harness.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="安卓端的 AI Agent 运行时：Droy 如何把 Harness 塞进一个 APK">
+<meta property="og:description" content="拆解 Droy 的三层架构、快照绑定与硬件工具安全阀，并从测试视角看安卓 Agent 该验证哪些边界。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/android-ai-agent-harness.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="安卓端的 AI Agent 运行时：Droy 如何把 Harness 塞进一个 APK">
+<meta name="twitter:description" content="拆解 Droy 的三层架构、快照绑定与硬件工具安全阀，并从测试视角看安卓 Agent 该验证哪些边界。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"安卓端的 AI Agent 运行时：Droy 如何把 Harness 塞进一个 APK","description":"拆解 Droy 的三层架构、快照绑定与硬件工具安全阀，并从测试视角看安卓 Agent 该验证哪些边界。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/android-ai-agent-harness.html","articleSection":"AI 测试","keywords":"android-agent, mobile-automation, agent-harness","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../links.html">外链</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-25</span>
+          <span>·</span>
+          <span>9 min read</span>
+        </div>
+        <h1>安卓端的 AI Agent 运行时：Droy 如何把 Harness 塞进一个 APK</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="android-ai-agent-harness">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <p>手机上的 Agent 一直有个绕不过去的前提：它得先连上一台电脑。电脑开着 ADB 守护进程和隧道，界面才能被外部读到；电脑一合盖，链路就断。套网页壳的方案能装上手机，却只能聊天，碰不到系统界面，也发不出点击。</p>
+
+        <p>Droy 换了个思路：把整套 DeepSeek Harness 运行时连同运行环境一起封进安装包，填好 API Key、拔掉数据线就能独立跑。按原文记录，它当时是 v0.0.3，AGPL-3.0 协议，356 个 star，由个人开发者维护，并非 DeepSeek 官方出品。版本号这么早，更适合当工程样本来读。</p>
+
+        <h2>一、为什么安卓 Agent 总被一根数据线拴住</h2>
+        <p>传统做法的耦合点在「谁持有执行能力」：ADB 方案里执行权在电脑侧的守护进程，手机只是被操控的终端；网页壳方案里干脆没有执行权。于是 Agent 的可用性会随一条线、一台机器、一个进程的存活状态波动。</p>
+        <p>搬进 APK 后，模型调用、任务规划、动作派发合并到一个进程。原文提到安装包已带好运行环境，手机不需要另装 Node、npm 或 DSH。少一层外部依赖，就少一类环境没配对导致的故障。</p>
+
+        <h2>二、三层架构拆开，测试该盯住哪一层</h2>
+        <p>原文把工程拆成交互层、引擎层、执行层。三层的不确定性来源不同，能施加的控制手段也不同。</p>
+        <table>
+          <thead>
+            <tr><th>层级</th><th>核心组件</th><th>负责的事</th><th>测试该盯什么</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>交互层</td><td>Kotlin 加 Jetpack Compose 客户端</td><td>文字、语音、桌宠与任务空间</td><td>急停入口是否随时可达</td></tr>
+            <tr><td>引擎层</td><td>内嵌 DSH（原文记录为 0.2.1-rc.5）</td><td>规划、长会话、Skills、插件、MCP 与模型调用</td><td>动作序列、步数上限、上下文裁剪</td></tr>
+            <tr><td>执行层</td><td>授权控制加 Android Use</td><td>权限校验、急停、无障碍 / Shizuku / Root 派发</td><td>越权负向用例、快照时效</td></tr>
+          </tbody>
+        </table>
+        <p>引擎层最难测：模型是黑盒，工具是真实系统接口，时序还受手机性能影响。执行层最好测，它有明确的前置校验和拒绝路径，可以把每条限制写成负向用例。交互层最该验证的不是界面，而是急停能否在任意时刻生效——Agent 在后台切应用时，用户只剩这一个刹车。</p>
+        <p>团队若要照着做，建议先把引擎层的动作序列当成<a class="ilink" href="ai-agent-testing-advanced.html">轨迹断言</a>的对象：顺序、参数、终止各断一层，而不是只看最后一句回复。</p>
+
+        <h2>三、坐标动作为什么必须绑快照和允许范围</h2>
+        <p>「截张图猜坐标再瞎点」是真实事故来源：弹个广告、来条通知、页面自己滚一下，坐标就落到别处。Droy 在 <code>android-use</code> 模块给坐标动作加了两道约束：绑定当次的 <code>snapshotId</code>，限定允许范围；页面突变或目标有歧义时直接停手。</p>
+        <p>两个参数值得列为验收项：多指手势支持 2 到 5 条同步轨迹，<code>android_sequence</code> 一次串行 2 到 6 步。串联越长，中间任何一步落空，后面全歪。</p>
+        <p>登录和验证码交给本人，且用户答完后 Agent 仍要重新观察页面，不能把口头回复当成验证通过。翻译成测试语言就是：人工介入后必须重新取快照，后续动作绑在新快照上。对应两条负向用例——过期快照发起动作必须被拒绝；人工答复后不重新观察就继续动作，判失败。</p>
+
+        <h2>四、NFC、红外和进程内存开放后，安全阀怎么验</h2>
+        <p>硬件工具组最特别，也最容易出事。原文给出的边界本身就是一份验收清单。</p>
+        <table>
+          <thead>
+            <tr><th>能力域</th><th>代表工具</th><th>原文写明的限制</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>近场通信</td><td><code>android_nfc</code>、<code>android_nfc_emulation</code></td><td>贴卡认证密钥走 AndroidKeyStore；HCE 只跑本地状态机，不写原卡 UID，不执行模型临时生成的脚本</td></tr>
+            <tr><td>红外与无线</td><td><code>android_infrared</code>、<code>android_wifi</code></td><td>单段红外波形短于 2 秒；Wi-Fi 密码走本地 <code>credentialRef</code>，不回显给模型</td></tr>
+            <tr><td>进程内存</td><td><code>android_process_memory</code>、<code>android_memory_write</code></td><td>需 Root 与 64 位普通第三方应用；单次标量写入上限 8 字节；只碰已确认的私有可写非执行页</td></tr>
+          </tbody>
+        </table>
+        <p>细节能看出作者踩过真机坑：卡模拟首版用 <code>exact_apdu_state_v1</code>，本地匹配完整 APDU 报文与状态流转，不碰厂商钱包安全元件；文档还写明内置 NFC 读不了 125 kHz 低频门卡。内存工具把会话绑在任务、包版本、UID、PID 与进程启动时间上，进程一重启旧引用即作废，写入前还要核对预期字节。大块数据走 <code>dataRef</code> 放私有目录分页读，上限 4 MiB。</p>
+        <p>测试重点不是能否读出内存，而是不该读时能否被挡住。这和常规<a class="ilink" href="app-permission-testing.html">APP 权限测试</a>同思路：每条限制配一条拒绝用例，比如非 Root 调用内存工具应报错、写入超 8 字节应拒绝、进程重启后旧会话应失效。只测正向能力，等于没测安全阀。</p>
+
+        <h2>五、什么场景现在还不该用它</h2>
+        <p>原文列了四条现实边界。成熟度：v0.0.3，仅支持 Android 11 以上、ARM64 与竖屏，不适合压生产关键流程。保活：国产系统易强杀引擎，需要持续后台运行、电池不受限、最近任务加锁。权限门槛：通知静默接管与进程内存读写必须有 Root。演示口径：仓库海报里的对话与清单属于本地演示数据，真实稳定度取决于配置的视觉模型与当前界面。</p>
+        <p>安装有两条路。一是装签名 APK，从 Release 下载 ARM64 包，核对 SHA-256 与签名指纹。二是交给电脑脚本跑 <code>tools/setup.py</code> 的 <code>scan</code>、<code>plan</code>、<code>apply</code>、<code>verify</code> 四步，看过 <code>approvalDigest</code> 才真动手机；API Key 始终只在手机本地手填，不进日志。</p>
+        <p>它的价值不在今天能替你点外卖，而在把权限分级、离线语音、本地记忆、射频约束、签名校验写成可检查的规格。对做移动端 Agent 的团队，<a class="ilink" href="app-automation-intro.html">App 自动化</a>的下一步不是让模型更聪明，而是让每条「不许干什么」都能被测试证明。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://mp.weixin.qq.com/s/GXMM8eqTw6zkfzXclxR7nA" target="_blank" rel="noopener">晴天的码场 · DeepSeek Harness 住进安卓手机：免电脑控屏，连 NFC 都能调</a></li>
+            <li><a href="https://github.com/moonoops/Droy" target="_blank" rel="noopener">moonoops/Droy — GitHub</a></li>
+            <li><a href="https://developer.android.com/guide/topics/connectivity/nfc/hce" target="_blank" rel="noopener">Host-based card emulation overview — Android Developers</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#android-agent</span>
+          <span class="tag">#mobile-automation</span>
+          <span class="tag">#agent-runtime</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

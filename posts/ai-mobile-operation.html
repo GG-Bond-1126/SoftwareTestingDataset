@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mobile MCP 实战：让 AI Agent 直接操作安卓与 iPhone 真机 · 软件测试资料集</title>
+<meta name="description" content="无障碍元素树优先、截图坐标兜底，讲清接入命令、指令写法、能力边界与不该托付的场景。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-mobile-operation.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Mobile MCP 实战：让 AI Agent 直接操作安卓与 iPhone 真机">
+<meta property="og:description" content="无障碍元素树优先、截图坐标兜底，讲清接入命令、指令写法、能力边界与不该托付的场景。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-mobile-operation.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Mobile MCP 实战：让 AI Agent 直接操作安卓与 iPhone 真机">
+<meta name="twitter:description" content="无障碍元素树优先、截图坐标兜底，讲清接入命令、指令写法、能力边界与不该托付的场景。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Mobile MCP 实战：让 AI Agent 直接操作安卓与 iPhone 真机","description":"无障碍元素树优先、截图坐标兜底，讲清接入命令、指令写法、能力边界与不该托付的场景。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-mobile-operation.html","articleSection":"APP 自动化","keywords":"mobile-mcp, accessibility-tree, ai-agent","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../links.html">外链</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-25</span>
+          <span>·</span>
+          <span>8 min read</span>
+        </div>
+        <h1>Mobile MCP 实战：让 AI Agent 直接操作安卓与 iPhone 真机</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="ai-mobile-operation">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <p>移动端自动化一直卡在同一个地方：脚本写得起，维护不起。选择器一改、弹窗一变，回归就红一片；让人工点一遍，成本又高得离谱。外链介绍的 Mobile MCP 换了条路：不写死选择器，而是把屏幕讲给模型听，让它自己判断该点哪里、填什么。它是开源 MCP 服务器，安卓与 iOS、真机与模拟器都能接，可挂进 Claude Code、Cursor 这类支持 MCP 的客户端，在对话里描述要完成的手机操作。</p>
+
+        <h2>一、两条通道：无障碍树优先，截图加坐标兜底</h2>
+        <p>它最关键的取舍是优先利用系统提供的无障碍信息。它本来是给视障用户用的，App 会给元素附说明，能告诉模型页面上有哪些文字、按钮、输入框及位置；对暴露完整的界面，大部分操作靠这份清单就能完成。信息不完整或控件难识别时，才退回第二条通道：取截图，让具备图像理解能力的模型看画面，再用坐标去点。</p>
+        <table>
+          <thead>
+            <tr><th>维度</th><th>无障碍元素树</th><th>截图加坐标</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>模型看到什么</td><td>文字、控件类型、属性与位置</td><td>一张画面，元素靠视觉推断</td></tr>
+            <tr><td>调用节奏</td><td>一次取回整屏元素清单</td><td>每步基本都要重新截图</td></tr>
+            <tr><td>稳定性</td><td>轻微改版仍能按文字与属性定位</td><td>分辨率、主题、遮罩都会干扰</td></tr>
+            <tr><td>适用界面</td><td>原生控件完整的常规页面</td><td>自绘界面、游戏、标签缺失的页面</td></tr>
+            <tr><td>主要风险</td><td>元素未暴露时找不到目标</td><td>坐标漂移误点，且难复现</td></tr>
+          </tbody>
+        </table>
+        <p>这个顺序别反过来。一上来就截图，模型每步都在猜坐标，操作看着能动，错在哪一步说不清；先拿元素树，失败时会明确停在没找到某个按钮。传统定位思路可以对照 <a class="ilink" href="app-element-locators.html">App 元素定位</a>。</p>
+
+        <h2>二、四步接入：从 adb devices 到 MCP 连上</h2>
+        <p>外链给的是电脑连本地设备的路径。先备好 Node.js 22 或更高版本与可用的 MCP 客户端，再确认系统层面能看到设备：</p>
+        <div class="code-head"><span>bash · 确认设备可见</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 安卓：装 Android SDK Platform-Tools，设置 ANDROID_HOME，确保终端能跑 adb
+adb devices
+
+# iOS 模拟器：在 Simulator 里启动一台设备后检查
+xcrun simctl list devices booted</code></pre>
+        <p>安卓真机要开开发者选项与 USB 调试，用支持数据传输的线连接，并在手机上允许调试。列表出现设备编号、状态为 device 才算通；显示 unauthorized 先看手机授权提示，列表为空则查线、USB 模式与驱动。接着注册服务：</p>
+        <div class="code-head"><span>bash · 注册 MCP 服务</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>claude mcp add mobile-mcp -- npx -y @mobilenext/mobile-mcp@latest</code></pre>
+        <p>Cursor 这类支持 mcpServers 的客户端，把配置合并进自己的 MCP 文件，两条路选一条：</p>
+        <div class="code-head"><span>json · mcp 配置片段</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>{
+  "mcpServers": {
+    "mobile-mcp": {
+      "command": "npx",
+      "args": ["-y", "@mobilenext/mobile-mcp@latest"]
+    }
+  }
+}</code></pre>
+        <p>首次启动需联网拉包。保存后重新加载服务，在 Claude Code 里用 /mcp 看状态。验收时先让它列设备，再读屏并截图，都正常返回才去试打开 App 与输入。</p>
+
+        <h2>三、指令怎么写，Agent 才不会乱点</h2>
+        <p>四类能力是设备管理、应用管理、屏幕交互、输入导航，落到日常就是装包、启动、点击输入、截图录屏、取日志。指令写得粗，模型就自己补细节，补出来往往不是你想要的。</p>
+        <p>稳的写法是把一次操作拆成三句：先指定设备，再要求列出可交互元素，最后执行动作并要求回传证据。多设备时必须写明设备名称或编号，否则模型可能连到另一台机器，日志一切正常，测的却是别的机型。要求每次返回元素清单与截图，等于顺手把取证做了。这类做法本质是把 MCP 当成受控的操作接口暴露给模型，封装原则见 <a class="ilink" href="api-ai-mcp.html">MCP 工具封装</a>；区别在于它的返回里含大量界面文本，脱敏要求更高——屏幕上什么都可能出现。</p>
+
+        <h2>四、四条最常见的失败链路</h2>
+        <table>
+          <thead>
+            <tr><th>现象</th><th>常见原因</th><th>处理顺序</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>adb devices 显示 unauthorized</td><td>手机上的调试授权未确认</td><td>看手机弹窗，重新信任这台电脑</td></tr>
+            <tr><td>adb devices 列表为空</td><td>线不支持数据传输、USB 模式不对、驱动缺失</td><td>换线、切模式、装驱动逐项排除</td></tr>
+            <tr><td>服务已连接但找不到手机</td><td>设备层没连上，MCP 只负责转发</td><td>回到 adb devices 或模拟器状态重查</td></tr>
+            <tr><td>iOS 模拟器命令无输出</td><td>Xcode 与运行时未装齐，或设备未启动</td><td>补齐运行时，启动后再查</td></tr>
+          </tbody>
+        </table>
+        <p>规律很清楚：绝大多数「AI 连不上手机」都出在设备层，不在模型层。排查顺序必须是设备可见、授权完成、服务连接，最后才轮到指令。跳过前两步改提示词，只会浪费时间。</p>
+        <p>iPhone 真机也支持，但除 USB 连接与授权外，还要完成对应的 iOS 自动化环境配置；原文没有展开具体组件与版本，只提醒旧教程里的命令要按当前文档核对。</p>
+
+        <h2>五、能干什么，不该用来干什么</h2>
+        <p>最直接的用法是页面检查。改完页面让 AI 自己打开 App，核对按钮位置、文案与跳转，本来要靠人点，现在交给 Agent，还顺手留下元素清单与截图。再往前是探索与冒烟：给它一段流程描述，让它按界面实际反馈往下走，走到哪出问题，截图就是现场证据。这条路线与 <a class="ilink" href="ai-app-testing-intro.html">AI 驱动的 App 测试</a>同源，重点在覆盖未知路径，而不是重复执行已知步骤。</p>
+        <p>不适合的地方也要说清。确定性回归不该交给它：同一份清单要每次结果一致、失败可复现，而这套机制每步都依赖模型判断，天然带随机性，正确做法是把探索出的路径固化成脚本。性能、弱网、耗电这类要量化数据的场景也不行，它只能操作界面，给不出可信指标。并发能力与流水线集成细节，原文未说明，别默认它能顶替传统自动化的编排。</p>
+        <p>一个务实的定位：把它当人手的延伸，而不是脚本的替代。人工点太贵、写脚本又太早的探索阶段最划算；路径稳定下来就固化成常规脚本。工具开源、接入只有一条命令，门槛在环境准备与指令习惯，半天能练出来。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://mp.weixin.qq.com/s/_QBtjGJLDcwianAsQPoB9g" target="_blank" rel="noopener">逛逛GitHub · 让 AI 帮你操作手机，这个 GitHub 开源项目支持安卓和 iPhone。</a></li>
+            <li><a href="https://github.com/mobile-next/mobile-mcp" target="_blank" rel="noopener">mobile-next/mobile-mcp — GitHub</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#mobile-mcp</span>
+          <span class="tag">#accessibility-tree</span>
+          <span class="tag">#ai-agent</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

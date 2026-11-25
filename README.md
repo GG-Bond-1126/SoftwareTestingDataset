@@ -5,7 +5,7 @@
 **在线阅读：<https://37lh5701lxo5frtwh6h.traesite.cn>**
 **源码仓库：<https://github.com/GG-Bond-1126/SoftwareTestingDataset>**
 
-纯静态的测试知识库，124 篇文章，覆盖 Web / APP / PC 自动化、接口测试、Python、Git、数据库，以及 AI 测试与 AI 提效落地。每篇文章按「机制拆解 → 从最小可用到生产可用 → 常见坑 → 上线检查清单」组织，代码示例可直接运行。
+纯静态的测试知识库，133 篇文章，覆盖 Web / APP / PC 自动化、接口测试、Python、Git、数据库，以及 AI 测试与 AI 提效落地。每篇文章按「机制拆解 → 从最小可用到生产可用 → 常见坑 → 上线检查清单」组织，代码示例可直接运行。
 
 ---
 
@@ -26,7 +26,7 @@
 
 | 维度 | 数量 | 说明 |
 |---|---|---|
-| 文章 | 124 篇 | 每篇 2500 字以上，8–13 个章节，6–12 个代码块 |
+| 文章 | 133 篇 | 原创 124 篇（每篇 2500 字以上），外链解读 9 篇 |
 | 学习路径 | 4 条 | 四周入门 / Web 自动化进阶 / AI 测试落地 / 大模型应用测试 |
 | 架构图 | 15 张 | 内联 SVG，深浅色自适应，随文章一起走 |
 | 可下载 Skill | 10 个 | AI 生成类任务的 `SKILL.md`，见下表 |
@@ -71,7 +71,7 @@
 ├── manifest.webmanifest    PWA 清单（相对路径）
 ├── sw.js                   Service Worker（相对路径，network-first + 缓存回退）
 ├── sitemap.xml / robots.txt / rss.xml
-├── posts/                  124 篇文章
+├── posts/                  133 篇文章（含 9 篇外链解读）
 ├── data/
 │   └── external.json       精选外链数据（源站、标题、导读、要点）
 ├── assets/

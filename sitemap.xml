@@ -15,6 +15,7 @@
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-hallucination-testing.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-llm-evaluation.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-log-analysis.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
+<url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-mobile-operation.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-model-testing.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-prompt-testing.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-qa-metrics.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
@@ -25,6 +26,7 @@
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-test-case-prompt.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-testdata-generation.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-testpoint-generation.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
+<url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/android-ai-agent-harness.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/api-ai-mcp.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-automation-intro.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-automation-pitfalls.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
@@ -44,6 +46,7 @@
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-test-data-management.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-test-report.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-weak-network-testing.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
+<url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/browser-agent-testing.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/electron-app-testing.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-basics-for-testers.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-bisect-find-bug.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
@@ -58,6 +61,8 @@
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-stash-workflow.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-submodule-automation.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-tag-release-testing.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
+<url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/google-mobile-ai-testing.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
+<url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/mobile-mcp-cases.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/mongodb-schema-testing.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-concurrent-transactions.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-data-integrity-testing.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
@@ -66,6 +71,7 @@
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-slow-query-audit.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-transaction-rollback.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/nl2test-agent.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
+<url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/open-source-testing-projects.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/opencv-image-recognition.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-ci-integration.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-cross-platform.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
@@ -106,6 +112,8 @@
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/sql-aggregate-verification.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/sql-basics-for-testers.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/sql-joins-in-testing.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
+<url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/testing-skill-build.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
+<url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/traffic-replay-api-testing.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-api-testing.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-automation-pitfalls.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-cicd-integration.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
@@ -129,4 +137,5 @@
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-test-report.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-visual-regression.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 <url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-wait-strategies.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
+<url><loc>https://37lh5701lxo5frtwh6h.traesite.cn/posts/wireless-android-control.html</loc><lastmod>2026-11-25</lastmod><priority>0.8</priority></url>
 </urlset>

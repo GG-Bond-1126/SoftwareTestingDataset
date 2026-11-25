@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>谷歌 ARTEMIS 拆解：自然语言驱动安卓真机测试 · 软件测试资料集</title>
+<meta name="description" content="从 Flash 与 Pro 双模式到无障碍 helper 与 SDK 接入，讲清自然语言跑安卓用例能做到什么。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/google-mobile-ai-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="谷歌 ARTEMIS 拆解：自然语言驱动安卓真机测试">
+<meta property="og:description" content="从 Flash 与 Pro 双模式到无障碍 helper 与 SDK 接入，讲清自然语言跑安卓用例能做到什么。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/google-mobile-ai-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="谷歌 ARTEMIS 拆解：自然语言驱动安卓真机测试">
+<meta name="twitter:description" content="从 Flash 与 Pro 双模式到无障碍 helper 与 SDK 接入，讲清自然语言跑安卓用例能做到什么。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"谷歌 ARTEMIS 拆解：自然语言驱动安卓真机测试","description":"从 Flash 与 Pro 双模式到无障碍 helper 与 SDK 接入，讲清自然语言跑安卓用例能做到什么。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/google-mobile-ai-testing.html","articleSection":"APP 自动化","keywords":"artemis, android-automation, mcp","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../links.html">外链</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-25</span>
+          <span>·</span>
+          <span>8 min read</span>
+        </div>
+        <h1>谷歌 ARTEMIS 拆解：自然语言驱动安卓真机测试</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="google-mobile-ai-testing">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <p>谷歌开源的 ARTEMIS 把自然语言指令变成 Android 真机上的操作。它通过 MCP 协议接入 Antigravity、Claude Code、Windsurf 一类开发环境，在 IDE 里直接驱动手机跑流程，顺手把 Logcat 输出和截图收回来。跟常见的设备控制层相比，它的重心在任务级：一条需求进去，出来的是计划、操作轨迹和诊断报告。</p>
+        <p>它的价值不在替代脚本，而在补上脚本覆盖不到的那一段：需求刚评审完、脚本还没写，先用它把流程走一遍，看产品卡在哪。</p>
+
+        <h2>一、它占据的是从计划到报告这一段</h2>
+        <p>原文的描述是跨应用自动化：根据自然语言指令，在 Android 上执行测试流程和日常任务。定位采用多模态策略，优先用元素索引，遇到自绘界面再退回坐标与视觉。启动后自动打开本地控制台，提供设备连接向导、实时投屏、任务演练和状态回放，能看到推理流、目标坐标、任务队列和任务生命周期。</p>
+        <p>这决定了它的正确用法：适合人盯着看、随时纠偏的半自动测试，而不是无人值守的批量执行。状态回放尤其值钱，一条任务跑完可以按时间线倒回去看每步的感知与动作，失败时比一句报错清楚得多。</p>
+
+        <h2>二、Flash 与 Pro 是两种取舍</h2>
+        <table>
+          <thead>
+            <tr><th>维度</th><th>Flash 模式</th><th>Pro 模式</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>执行方式</td><td>观察、执行循环，配合异步历史摘要</td><td>每个动作前先校验目标</td></tr>
+            <tr><td>单步耗时</td><td>通常约三到五秒</td><td>原文未给出</td></tr>
+            <tr><td>被拦截的动作</td><td>不涉及</td><td>交回 Operator 处理</td></tr>
+            <tr><td>适合的活</td><td>冒烟、快速探索、简单任务批量跑</td><td>长时探索、稳定性巡检、易误触的流程</td></tr>
+            <tr><td>代价</td><td>快，但可能走偏一步</td><td>稳，但更慢</td></tr>
+          </tbody>
+        </table>
+        <p>选择标准不是哪个更强，而是这一步错了要不要重来。登录、支付、删除这类动作走 Pro，动作前校验目标，多花的时间远小于误操作的代价；纯浏览、翻页、取值，Flash 就够。</p>
+
+        <h2>三、装一次，跑通第一条指令</h2>
+        <p>前提是一台开了 USB 调试的 Android 真机，或一个模拟器。一键脚本会自动检测并安装 ADB、scrcpy、FFmpeg 和 Python 运行时，再把 MCP 服务和一份移动端测试准则挂到你所用的 IDE 上，支持 Antigravity、Cursor、Claude Code、Codex、Windsurf、VS Code、Cline 等。</p>
+        <div class="code-head"><span>powershell · 启动与首条任务</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 克隆并一键启动（Windows）
+git clone https://github.com/google/artemis.git
+cd artemis
+.\start.bat
+
+# 不用控制台，直接跑一条任务
+uv run artemis run "打开系统设置，找到电池选项并告诉我当前电量" --profile flash
+
+# 预装无障碍 helper，避免首个任务多等约三秒
+uv run artemis helper install
+uv run artemis helper status</code></pre>
+        <p>两个细节：PowerShell 默认不从当前目录查找可执行脚本，必须写 .\start.bat；用 CMD 则是 start.bat。macOS 与 Linux 走 start.sh。</p>
+
+        <h2>四、99% 这个数字该怎么读</h2>
+        <p>原文说它在 Google Research 的 AndroidWorld 基准评测中取得 99% 以上的任务完成率，该基准包含一百多个多步任务。这个数字说明的是标准化环境、公开任务定义、自动评分下的表现，回答不了业务应用上的问题。真实 App 有登录态、弹窗、灰度开关、验证码、弱网，原文未给出业务场景的完成率，也没有按系统版本或厂商 ROM 拆分。</p>
+        <p>更实用的做法是自建小基准：挑二十条多步任务，分别跑 Flash 和 Pro，记录完成率、平均步数、人工接管次数。这个基准跑两周，比看任何公开数字都准。</p>
+
+        <h2>五、无障碍 helper：它和 UiAutomator 路线的分歧点</h2>
+        <p>首次在某台设备上执行任务时，ARTEMIS 会装一个小型无障碍服务，用来读取屏幕布局。原文说明它不占用 UiAutomation 连接；而使用 UiAutomation 的工具需要开启 FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES，否则可能让它暂停。它在手机上表现为一条折叠通知和设置里的无障碍条目，且只监听回环地址，不向外发数据。</p>
+        <p>可运维的点都给了：helper install 预装、helper status 与 doctor 查状态、helper uninstall 移除；想改回 UiAutomator2 就设 ARTEMIS_HIERARCHY_BACKEND=uiautomator；不想自动安装就设 ARTEMIS_HELPER_AUTO_INSTALL=false。helper 中途失效时它会回退到 UiAutomator2，并在时间线和报告里写明。</p>
+        <p>回退对测试是有含义的：两种后端拿到的元素结构不完全一样，同一条用例可能一次过、一次卡。所以用例应记录本次用的是哪个后端，报告里也保留这条信息，否则失败原因会被误判成产品缺陷。崩溃与日志的取法可参考 <a class="ilink" href="app-crash-testing.html">APP 崩溃测试</a> 的采集口径。</p>
+
+        <h2>六、三条入口，选哪条取决于你要跑几次</h2>
+        <p>控制台适合人工探索，投屏加自然语言下发，边看边改。MCP 适合泡在 IDE 里的场景，改完代码直接让 Agent 上机复现。命令行和 SDK 适合重复执行：SDK 给的是基于 Pydantic 的强类型结果，可接进 pytest 或流水线，断言落在任务结果与关键步骤上。</p>
+        <p>这条路线值得照搬：先用 MCP 手动探索，确认流程能走通；再把稳定路径改写成 SDK 调用加断言；最后只把固化用例放进 CI。断言怎么写才不脆，<a class="ilink" href="ai-agent-testing-advanced.html">Agent 测试</a> 里那套轨迹分层思路可以直接用，只是把工具调用换成设备操作。</p>
+
+        <h2>七、踩坑与不适用场景</h2>
+        <ul>
+          <li><strong>首个任务慢三秒左右。</strong>原因是现场装 helper，提前执行 helper install 即可。</li>
+          <li><strong>第三方工具让 helper 停摆。</strong>同一台设备跑别的 UiAutomation 工具时注意那个标志位，否则会出现元素读取失败。</li>
+          <li><strong>系统级弹窗打断流程。</strong>权限申请、更新提示、厂商安全中心的弹窗不在应用内，跨机型差异要单独验证，可参考 <a class="ilink" href="app-compatibility-testing.html">APP 兼容性测试</a> 的分组方式。</li>
+          <li><strong>把视觉兜底当像素比对。</strong>视觉定位是在元素缺失时找一个可点的位置，界面样式问题它测不出来。</li>
+          <li><strong>多设备并发。</strong>原文未说明并行调度能力，按单设备使用来规划更稳妥。</li>
+        </ul>
+        <p>三类场景不建议用：需要毫秒级时序断言的性能测试给不了精度；需要严格可复现的回归门禁，路径本身有随机性，必须固化成脚本；逐像素比对的视觉验收仍要用截图基线加图像差分。</p>
+        <p>把它定位成脚本写出来之前的那双手：需求能跑通、Bug 能复现、证据能收齐，这三件事做到，它就已经值回票价。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://mp.weixin.qq.com/s/NcfkszPn0A85pQEMbpn2ow" target="_blank" rel="noopener">GitHubStore · 谷歌开源移动端AI自动化测试神器</a></li>
+            <li><a href="https://github.com/google/artemis" target="_blank" rel="noopener">google/artemis — GitHub</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#artemis</span>
+          <span class="tag">#android-automation</span>
+          <span class="tag">#mcp</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

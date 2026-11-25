@@ -11,8 +11,11 @@
         "坐标动作绑定快照与范围，登录验证码交回本人，安全阀收得紧",
         "开放 NFC、红外、传感器与进程内存工具，高阶能力需 Root"
       ],
-      "topics": ["大模型应用", "APP 自动化"],
-      "related_post": "ai-agent-testing-advanced"
+      "topics": [
+        "大模型应用",
+        "APP 自动化"
+      ],
+      "related_post": "android-ai-agent-harness"
     },
     {
       "url": "https://mp.weixin.qq.com/s/kJJ3MPnzFrW6GR_TGMOmdQ",
@@ -25,8 +28,12 @@
         "六步循环加校验器，每步截图留痕，失败可重试并分类",
         "开源版必须自备模型 Key，反爬能力只在云端商业版"
       ],
-      "topics": ["Web 自动化", "AI 测试", "落地实践"],
-      "related_post": "web-pytest-allure"
+      "topics": [
+        "Web 自动化",
+        "AI 测试",
+        "落地实践"
+      ],
+      "related_post": "browser-agent-testing"
     },
     {
       "url": "https://mp.weixin.qq.com/s/NWFcRtlGTnMBDZ7fw5qZsQ",
@@ -39,8 +46,12 @@
         "数据库、缓存与消息队列一起录成 Mock，离线也能跑回归",
         "AI 子命令可从文档和录制里补边界用例，进 Git 前要脱敏"
       ],
-      "topics": ["接口测试", "落地实践", "CI/CD"],
-      "related_post": "web-api-testing"
+      "topics": [
+        "接口测试",
+        "落地实践",
+        "CI/CD"
+      ],
+      "related_post": "traffic-replay-api-testing"
     },
     {
       "url": "https://mp.weixin.qq.com/s/MSs03irW0-9Kh_desqxYNA",
@@ -53,8 +64,11 @@
         "一份命令规格自动生成 Python、Node、.NET 与 MCP 多端入口",
         "只用无障碍服务与自装键盘，也把做不到的事列得很清楚"
       ],
-      "topics": ["APP 自动化", "落地实践"],
-      "related_post": "app-automation-intro"
+      "topics": [
+        "APP 自动化",
+        "落地实践"
+      ],
+      "related_post": "wireless-android-control"
     },
     {
       "url": "https://mp.weixin.qq.com/s/3AzBw53sxZaBOD0EzDEaaA",
@@ -67,8 +81,12 @@
         "拆出 system、prompts、cases、workflows 等八个分区",
         "以消息中心测试 Skill 为例，逐步演示写法与验证"
       ],
-      "topics": ["AI 测试", "大模型应用", "落地实践"],
-      "related_post": "ai-api-testcase-generation"
+      "topics": [
+        "AI 测试",
+        "大模型应用",
+        "落地实践"
+      ],
+      "related_post": "testing-skill-build"
     },
     {
       "url": "https://mp.weixin.qq.com/s/_QBtjGJLDcwianAsQPoB9g",
@@ -81,8 +99,11 @@
         "通过一条命令接入 Claude Code、Cursor 等 MCP 客户端",
         "适合页面检查与日常操作，环境准备步骤讲得细"
       ],
-      "topics": ["APP 自动化", "大模型应用"],
-      "related_post": "app-automation-intro"
+      "topics": [
+        "APP 自动化",
+        "大模型应用"
+      ],
+      "related_post": "ai-mobile-operation"
     },
     {
       "url": "https://mp.weixin.qq.com/s/xdswKo9XBWKAY7ujahXJRA",
@@ -95,8 +116,11 @@
         "Lightpanda 是给 AI 和自动化脚本用的无头浏览器，快且省内存",
         "其余多为本地语音输入、模型推理等效率工具"
       ],
-      "topics": ["大模型应用", "Web 自动化"],
-      "related_post": ""
+      "topics": [
+        "大模型应用",
+        "Web 自动化"
+      ],
+      "related_post": "open-source-testing-projects"
     },
     {
       "url": "https://mp.weixin.qq.com/s/RMVG_x0arVDglnOZboe1lQ",
@@ -109,8 +133,12 @@
         "三十多个工具覆盖装包、点击输入、截图录屏、日志与崩溃",
         "适合探索和冒烟，确定性回归要固化成脚本"
       ],
-      "topics": ["APP 自动化", "AI 测试", "落地实践"],
-      "related_post": "app-cicd-integration"
+      "topics": [
+        "APP 自动化",
+        "AI 测试",
+        "落地实践"
+      ],
+      "related_post": "mobile-mcp-cases"
     },
     {
       "url": "https://mp.weixin.qq.com/s/NcfkszPn0A85pQEMbpn2ow",
@@ -123,8 +151,12 @@
         "Flash 模式单步约三到五秒，Pro 模式动作前先校验目标",
         "在 AndroidWorld 基准上报告九成九以上的任务完成率"
       ],
-      "topics": ["APP 自动化", "AI 测试", "大模型应用"],
-      "related_post": "ai-agent-testing-advanced"
+      "topics": [
+        "APP 自动化",
+        "AI 测试",
+        "大模型应用"
+      ],
+      "related_post": "google-mobile-ai-testing"
     }
   ],
   "github": [
@@ -133,140 +165,194 @@
       "title": "microsoft/playwright",
       "stars": 101021,
       "summary": "微软开源的 Web 自动化框架，一套 API 驱动三大浏览器内核。",
-      "topics": ["Web 自动化"]
+      "topics": [
+        "Web 自动化"
+      ]
     },
     {
       "url": "https://github.com/cypress-io/cypress",
       "title": "cypress-io/cypress",
       "stars": 51039,
       "summary": "面向浏览器的端到端测试框架，自带交互式运行器与自动等待，适合前端回归。",
-      "topics": ["Web 自动化", "CI/CD"]
+      "topics": [
+        "Web 自动化",
+        "CI/CD"
+      ]
     },
     {
       "url": "https://github.com/grafana/k6",
       "title": "grafana/k6",
       "stars": 32401,
       "summary": "面向开发者的性能压测工具，脚本用 JavaScript 写，适合接口压测与负载场景。",
-      "topics": ["性能测试"]
+      "topics": [
+        "性能测试"
+      ]
     },
     {
       "url": "https://github.com/locustio/locust",
       "title": "locustio/locust",
       "stars": 28312,
       "summary": "用 Python 写场景的分布式压力测试工具，支持实时网页看板，适合接口与服务容量评估。",
-      "topics": ["性能测试", "Python 进阶"]
+      "topics": [
+        "性能测试",
+        "Python 进阶"
+      ]
     },
     {
       "url": "https://github.com/promptfoo/promptfoo",
       "title": "promptfoo/promptfoo",
       "stars": 27657,
       "summary": "针对大模型提示词与应用的开源评测工具，支持断言与多模型对比，适合做回归。",
-      "topics": ["AI 测试", "大模型应用"]
+      "topics": [
+        "AI 测试",
+        "大模型应用"
+      ]
     },
     {
       "url": "https://github.com/Skyvern-AI/skyvern",
       "title": "Skyvern-AI/skyvern",
       "stars": 23521,
       "summary": "用大模型加视觉驱动浏览器完成重复网页流程，不写死选择器，页面改版也不易失效。",
-      "topics": ["Web 自动化", "AI 测试", "大模型应用"]
+      "topics": [
+        "Web 自动化",
+        "AI 测试",
+        "大模型应用"
+      ]
     },
     {
       "url": "https://github.com/appium/appium",
       "title": "appium/appium",
       "stars": 22254,
       "summary": "跨平台移动端自动化框架，基于 W3C WebDriver 协议驱动多端应用。",
-      "topics": ["APP 自动化"]
+      "topics": [
+        "APP 自动化"
+      ]
     },
     {
       "url": "https://github.com/keploy/keploy",
       "title": "keploy/keploy",
       "stars": 19988,
       "summary": "录制真实流量生成接口测试与依赖 Mock，回放无需真实数据库，适合补齐回归覆盖。",
-      "topics": ["接口测试", "落地实践"]
+      "topics": [
+        "接口测试",
+        "落地实践"
+      ]
     },
     {
       "url": "https://github.com/joke2k/faker",
       "title": "joke2k/faker",
       "stars": 19504,
       "summary": "生成姓名、地址、手机号等仿真数据的 Python 库，适合填充测试库与构造用例数据。",
-      "topics": ["单元测试", "Python 编程入门"]
+      "topics": [
+        "单元测试",
+        "Python 编程入门"
+      ]
     },
     {
       "url": "https://github.com/mobile-dev-inc/maestro",
       "title": "mobile-dev-inc/maestro",
       "stars": 16515,
       "summary": "用 YAML 描述流程的移动端 UI 自动化工具，内置等待与容错，适合 App 冒烟与回归。",
-      "topics": ["APP 自动化"]
+      "topics": [
+        "APP 自动化"
+      ]
     },
     {
       "url": "https://github.com/vibrantlabsai/ragas",
       "title": "vibrantlabsai/ragas",
       "stars": 16422,
       "summary": "评估检索增强生成流水线的开源工具，量化答案相关性与忠实度，适合 RAG 质量把关。",
-      "topics": ["AI 测试", "大模型应用"]
+      "topics": [
+        "AI 测试",
+        "大模型应用"
+      ]
     },
     {
       "url": "https://github.com/metersphere/metersphere",
       "title": "metersphere/metersphere",
       "stars": 13654,
       "summary": "开源持续测试平台，覆盖用例、接口、性能与缺陷管理，内置 AI 助手辅助测试工作。",
-      "topics": ["落地实践", "接口测试", "CI/CD"]
+      "topics": [
+        "落地实践",
+        "接口测试",
+        "CI/CD"
+      ]
     },
     {
       "url": "https://github.com/mobile-next/mobile-mcp",
       "title": "mobile-next/mobile-mcp",
       "stars": 10870,
       "summary": "MCP 服务器，让 AI Agent 读无障碍元素并操作 iOS、Android 真机与模拟器。",
-      "topics": ["APP 自动化", "大模型应用"]
+      "topics": [
+        "APP 自动化",
+        "大模型应用"
+      ]
     },
     {
       "url": "https://github.com/apache/jmeter",
       "title": "apache/jmeter",
       "stars": 9613,
       "summary": "老牌开源压测与性能测试工具，图形化编排协议请求，适合接口与负载测试。",
-      "topics": ["性能测试"]
+      "topics": [
+        "性能测试"
+      ]
     },
     {
       "url": "https://github.com/wiremock/wiremock",
       "title": "wiremock/wiremock",
       "stars": 7440,
       "summary": "可编程的 HTTP 接口 Mock 服务，支持录制与故障注入，适合联调与异常场景测试。",
-      "topics": ["接口测试", "落地实践"]
+      "topics": [
+        "接口测试",
+        "落地实践"
+      ]
     },
     {
       "url": "https://github.com/atinfo/awesome-test-automation",
       "title": "atinfo/awesome-test-automation",
       "stars": 7233,
       "summary": "按编程语言整理的测试自动化框架、工具与库精选清单，做技术选型时可直接查阅。",
-      "topics": ["落地实践"]
+      "topics": [
+        "落地实践"
+      ]
     },
     {
       "url": "https://github.com/schemathesis/schemathesis",
       "title": "schemathesis/schemathesis",
       "stars": 3815,
       "summary": "基于接口规范自动生成用例并校验响应，能发现边界与异常问题，适合接口回归。",
-      "topics": ["接口测试"]
+      "topics": [
+        "接口测试"
+      ]
     },
     {
       "url": "https://github.com/reportportal/reportportal",
       "title": "reportportal/reportportal",
       "stars": 2041,
       "summary": "聚合自动化测试结果的报告平台，支持日志、截图与失败归类，适合持续测试看板。",
-      "topics": ["落地实践", "CI/CD"]
+      "topics": [
+        "落地实践",
+        "CI/CD"
+      ]
     },
     {
       "url": "https://github.com/pact-foundation/pact-js",
       "title": "pact-foundation/pact-js",
       "stars": 1828,
       "summary": "消费驱动的契约测试工具，用契约文件校验服务双方，适合微服务接口联调。",
-      "topics": ["接口测试", "CI/CD"]
+      "topics": [
+        "接口测试",
+        "CI/CD"
+      ]
     },
     {
       "url": "https://github.com/kiwitcms/kiwitcms",
       "title": "kiwitcms/kiwitcms",
       "stars": 1304,
       "summary": "开源测试用例管理系统，支持用例编写、执行与缺陷跟踪，适合小团队落地测试流程。",
-      "topics": ["落地实践"]
+      "topics": [
+        "落地实践"
+      ]
     }
   ],
   "excluded": [

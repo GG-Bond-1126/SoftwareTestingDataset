@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mobile-mcp 实战：一句话在真机上跑用例 · 软件测试资料集</title>
+<meta name="description" content="用无障碍元素树替代反复截图，讲清 mobile-mcp 的接入门槛、取证闭环与不适合回归的边界。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mobile-mcp-cases.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="mobile-mcp 实战：一句话在真机上跑用例">
+<meta property="og:description" content="用无障碍元素树替代反复截图，讲清 mobile-mcp 的接入门槛、取证闭环与不适合回归的边界。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mobile-mcp-cases.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="mobile-mcp 实战：一句话在真机上跑用例">
+<meta name="twitter:description" content="用无障碍元素树替代反复截图，讲清 mobile-mcp 的接入门槛、取证闭环与不适合回归的边界。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"mobile-mcp 实战：一句话在真机上跑用例","description":"用无障碍元素树替代反复截图，讲清 mobile-mcp 的接入门槛、取证闭环与不适合回归的边界。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/mobile-mcp-cases.html","articleSection":"APP 自动化","keywords":"mobile-mcp, mcp, accessibility","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../links.html">外链</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-25</span>
+          <span>·</span>
+          <span>8 min read</span>
+        </div>
+        <h1>mobile-mcp 实战：一句话在真机上跑用例</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="mobile-mcp-cases">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <p>做过移动端自动化的人都熟悉这种割裂：安卓一套 Espresso 或 Appium，iOS 一套 XCUITest，两套技术栈、两套选择器。真机插上测试架，驱动环境先配半天；脚本跟着版本走，界面一改版就成片飘红，时间多半花在维护脚本上。</p>
+        <p>mobile-mcp 换了个思路。它是 Mobile Next 团队开源的 MCP 服务器，Apache-2.0 协议，TypeScript 实现，一套工具覆盖 iOS 模拟器、iOS 真机、Android 仿真器与真机。底层是一个叫 mobilecli 的设备命令行，向下统一接管 adb 与 Xcode 通道，向上对任何 Agent 暴露同一组工具。</p>
+
+        <h2>一、它真正换掉的是定位方式</h2>
+        <p>多数 AI 手机自动化方案走截图路线：隔几步截一次屏，看图认界面，再换算坐标去点。能跑，但慢，一步一张截图来回传；也贵，每张都是视觉 token，长流程下来额度烧得心疼。</p>
+        <p>mobile-mcp 走无障碍优先。iOS 和 Android 都内置无障碍服务，应用每渲染一个界面，系统本身就在维护一棵元素树，控件类型、文案、坐标、是否可点全在里面。它把这棵树读出来交给 Agent，Agent 拿到的是一份结构化清单，要点哪个就按元素的 ref 点，全程不烧视觉 token，截图加坐标只作兜底。收益是快和稳：元素清单一次拿全，按 ref 点的是真实控件，界面轻微改版只要元素还在就不失效。</p>
+        <p>代价也明确：自绘界面、游戏引擎渲染的页面、部分跨端框架页面，元素树可能缺项，只能退回坐标或视觉定位，稳定性立刻回到截图路线。原文未说明对 Flutter、Unity 这类页面的支持情况，接入前应拿自己的页面做小样本验证，通用定位方法见 <a class="ilink" href="app-element-locators.html">APP 元素定位</a>。</p>
+
+        <h2>二、按用例生命周期看这套工具</h2>
+        <p>三十多个工具，按一条用例从准备到收尾的顺序看最清楚。</p>
+        <table>
+          <thead>
+            <tr><th>阶段</th><th>工具</th><th>测试里怎么用</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>准备</td><td>list_available_devices、install_app、launch_app</td><td>确认设备在线，装待测版本</td></tr>
+            <tr><td>准备</td><td>terminate_app、uninstall_app、clear_app_data</td><td>用例之间重置状态</td></tr>
+            <tr><td>执行</td><td>list_elements_on_screen、click_on_screen_at_coordinates</td><td>主干流程点击</td></tr>
+            <tr><td>执行</td><td>type_keys、swipe_on_screen、press_button、open_url</td><td>表单、列表、返回键、深链</td></tr>
+            <tr><td>取证</td><td>take_screenshot、start_screen_recording</td><td>失败现场留档</td></tr>
+            <tr><td>取证</td><td>get_device_logs、list_crashes、get_crash</td><td>缺陷单的复现材料</td></tr>
+            <tr><td>提效</td><td>batch_commands</td><td>合并连续动作，省上下文</td></tr>
+          </tbody>
+        </table>
+        <p>另有几项零散能力：GPS 位置伪造，测外卖和打车用得上；剪贴板读写；横竖屏切换；折叠屏开合。它们不是主角，但恰好覆盖了平时要写一堆 adb 命令才能造出的状态。</p>
+
+        <h2>三、接入：Android 三步，iOS 四件事</h2>
+        <p>门槛是 Node.js 20 以上、Xcode 命令行工具、adb，再加一个支持 MCP 的客户端。配置是标准片段，大多数客户端直接抄。</p>
+        <div class="code-head"><span>json · mcp 配置</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>{
+  "mcpServers": {
+    "mobile-mcp": {
+      "command": "npx",
+      "args": ["-y", "@mobilenext/mobile-mcp@latest"]
+    }
+  }
+}</code></pre>
+        <p>Claude Code 用户可用一条命令代替配置文件，配完发一句 list available devices，能列出在线设备就说明通路正常。</p>
+        <div class="code-head"><span>bash · 安装与验证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>claude mcp add mobile-mcp -- npx -y @mobilenext/mobile-mcp@latest
+
+# Android 真机三步
+adb devices
+
+# iOS 真机（仅 macOS）：go-ios + 隧道 + 端口转发 + WDA
+npm install -g go-ios
+ios list
+ios tunnel start --userspace
+ios forward 8100 8100
+
+xcodebuild -project WebDriverAgent.xcodeproj -scheme WebDriverAgentRunner \
+  -destination 'platform=iOS,id=&lt;你的udid&gt;' test</code></pre>
+        <p>Android 只有三步：开开发者模式与 USB 调试、插线选数据传输、adb devices 看到设备。iOS 真机麻烦得多且只支持 macOS：装 go-ios、开隧道、转发 8100 端口，这两步的终端要一直挂着，最后把 WebDriverAgent 装进手机。第四步最容易卡住，Bundle Identifier 必须改成自己的，免费开发者账号签名就够。</p>
+
+        <h2>四、用例写成一句话，比写成脚本更难</h2>
+        <p>原文的两条示例很有代表性：一条安装冒烟，要求装包、注册、走引导、下单、全程录屏，结束后检查崩溃；一条探索式回归，要求搜索、播放、点赞、评论，换关键词重复三轮，并记录每轮耗时。</p>
+        <p>写这类指令有两个要点。目标要具体，注册一个账号走完引导下一单，远好于测试注册功能，后者只能让模型自己猜。取证要求直接写进指令，录屏、崩溃检查、耗时统计一次跑完一次交齐，别等 Agent 收工再补。这也是它跟脚本的差别：脚本定义每一步，指令只定义验收结果，好处是覆盖你想不到的路径，坏处是两次跑出来的路径可能不同。</p>
+
+        <h2>五、取证是它最被低估的能力</h2>
+        <p>跑完一轮探索，直接问设备上有没有新增崩溃，Agent 会把崩溃列表和报告原文取回来，贴进缺陷单就是现成的复现材料，省去连 Xcode 翻日志的工夫。录屏同理，失败时的操作过程比一句报错有用。这套逻辑和 <a class="ilink" href="app-test-report.html">App 自动化报告</a> 里的三件套一致：截图看现场、录屏看过程、日志看原因。</p>
+        <p>长流程要主动控上下文。元素清单比截图省，但来回几十轮一样吃满窗口，点击、输入、再点击这类固定组合就用 batch_commands 合并。</p>
+
+        <h2>六、五个容易踩的坑</h2>
+        <ul>
+          <li><strong>遥测默认开着。</strong>原文说明它走 PostHog 和 Scarf 做匿名统计，介意就设 MOBILEMCP_DISABLE_TELEMETRY=1，内网要先过安全评审。</li>
+          <li><strong>用 @latest 装包。</strong>好处是拿到最新修复，坏处是行为可能变。要进 CI 应锁版本，原文提到 1.0.12 于 10 月 18 日发布。</li>
+          <li><strong>iOS 签名过期。</strong>免费账号签的 WDA 有有效期，过期重跑一次 Test 即可，这是苹果的限制，跟工具无关。</li>
+          <li><strong>隧道被关掉。</strong>两个终端一关设备就掉线，报错通常与真实原因无关，排查先看进程还在不在。</li>
+          <li><strong>远程共享没加鉴权。</strong>加 --listen 3000 会把 MCP 转成 HTTP 服务，这时必须配 MOBILEMCP_AUTH 加 Bearer token。</li>
+        </ul>
+
+        <h2>七、哪些场景别指望它</h2>
+        <p>原文说得很直白：它擅长探索、冒烟、数据录入这类开放场景，替代不了确定性回归套件。要每次提交都跑的用例，得把探索出的路径固化下来，同团队的 mobilewright 就做这件事，接入流水线的方式见 <a class="ilink" href="app-cicd-integration.html">APP 测试 CI/CD</a>。</p>
+        <p>另外三种情况别硬上。需要精确数值基线的性能用例，它给的耗时只是粗略观测。需要多设备并发的场景，一个会话对应一台设备，调度得自己搭。合规要求高的项目，默认遥测加外部 npm 依赖这两点要先解决。</p>
+        <p>把它放对位置：探索和取证用它，回归和门禁用固化脚本。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://mp.weixin.qq.com/s/RMVG_x0arVDglnOZboe1lQ" target="_blank" rel="noopener">测试开发技术 · GitHub上开源真机测试工具mobile-mcp，说句话就能让AI在手机上跑用例！</a></li>
+            <li><a href="https://github.com/mobile-next/mobile-mcp" target="_blank" rel="noopener">mobile-next/mobile-mcp — GitHub</a></li>
+            <li><a href="https://mobilenext.ai" target="_blank" rel="noopener">Mobile Next 官网</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#mobile-mcp</span>
+          <span class="tag">#accessibility-tree</span>
+          <span class="tag">#real-device</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

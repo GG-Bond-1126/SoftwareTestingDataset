@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>把测试经验做成可复用 Skill：八个部件从零搭起 · 软件测试资料集</title>
+<meta name="description" content="提示词只管一次输出，Skill 管一类任务的下限。按八个分区把踩坑、口径与模板沉淀成可复用资产。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/testing-skill-build.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="把测试经验做成可复用 Skill：八个部件从零搭起">
+<meta property="og:description" content="提示词只管一次输出，Skill 管一类任务的下限。按八个分区把踩坑、口径与模板沉淀成可复用资产。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/testing-skill-build.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="把测试经验做成可复用 Skill：八个部件从零搭起">
+<meta name="twitter:description" content="提示词只管一次输出，Skill 管一类任务的下限。按八个分区把踩坑、口径与模板沉淀成可复用资产。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"把测试经验做成可复用 Skill：八个部件从零搭起","description":"提示词只管一次输出，Skill 管一类任务的下限。按八个分区把踩坑、口径与模板沉淀成可复用资产。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/testing-skill-build.html","articleSection":"AI 测试","keywords":"test-skill, prompt-engineering, case-design","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../links.html">外链</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-25</span>
+          <span>·</span>
+          <span>7 min read</span>
+        </div>
+        <h1>把测试经验做成可复用 Skill：八个部件从零搭起</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="testing-skill-build">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <p>做 AI 测试做久了会陷进一个循环：想让模型写用例或拆 Bug，第一步永远是重新描述背景——什么业务、按什么标准判、输出成什么格式。这次勉强能用，隔天新开会话，同样的指令产出又变了味道；一年攒下的踩坑记录与评审口径，一条都没跟着过去。外链的解法是把这些沉淀成可复用的测试 Skill，并拿消息中心当样板，从目录怎么建讲到怎么验收。</p>
+
+        <h2>一、提示词管这一次的输出，Skill 管这一类任务的下限</h2>
+        <p>外链里最值得抄走的一句话是：提示词决定这一次的输出，Skill 决定这一类任务的下限。区别不在长短，而在有没有把身份、标准、案例与验收口径钉下来。</p>
+        <table>
+          <thead>
+            <tr><th>维度</th><th>单条提示词</th><th>测试 Skill</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>生命周期</td><td>用完即弃</td><td>常驻角色与边界，每次从同一身份出发</td></tr>
+            <tr><td>质量来源</td><td>好坏靠运气，人眼验收</td><td>内置验收口径，先自检再交人</td></tr>
+            <tr><td>上下文</td><td>只见当前对话</td><td>挂着案例库与经验资产，可被检索引用</td></tr>
+            <tr><td>知识归属</td><td>留在个人脑子里</td><td>流程与模板固化，换人不换标准</td></tr>
+            <tr><td>产出形态</td><td>格式随模型心情</td><td>字段固定，产出来就能进流程</td></tr>
+          </tbody>
+        </table>
+        <p>外链把最小单位写成公式：system + prompts + cases + workflows + outputs + scoring + templates + assets。八个部件各管一件事，缺哪个，偏科就出在哪个方向。</p>
+
+        <h2>二、先摆八个分区，再往里填内容</h2>
+        <p>第一步不是写内容，而是摆骨架。目录建错位置、命名不统一，模型就找不到该读哪份文件，这是后面所有问题的根源。</p>
+        <div class="code-head"><span>bash · 初始化目录</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>mkdir -p msg_test_skill/{system,prompts,cases,workflows,outputs,scoring,templates,assets}
+cd msg_test_skill</code></pre>
+        <table>
+          <thead>
+            <tr><th>分区</th><th>职责</th><th>消息中心至少要放什么</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>system</td><td>角色与规矩</td><td>角色文件加风险优先、边界取值两份原则</td></tr>
+            <tr><td>prompts</td><td>任务入口</td><td>用例生成、故障定位两个入口</td></tr>
+            <tr><td>cases</td><td>踩坑记忆</td><td>重复推送、离线丢失、已读数不一致</td></tr>
+            <tr><td>workflows</td><td>执行顺序</td><td>七步链路加每步产出物</td></tr>
+            <tr><td>outputs</td><td>交付格式</td><td>八列用例表加编号规则</td></tr>
+            <tr><td>scoring</td><td>合格标准</td><td>百分制维度与两档阈值</td></tr>
+            <tr><td>templates</td><td>必测清单</td><td>送达、重连、乱序等勾选项</td></tr>
+            <tr><td>assets</td><td>经验资产</td><td>高危规则库、故障库、日志特征库</td></tr>
+          </tbody>
+        </table>
+
+        <h2>三、system、cases、scoring 三块决定产出像不像老手</h2>
+        <p><strong>system 钉死角色与红线。</strong>角色写四件事：身份是资深消息通道测试工程师；判断顺序强制固定，先送达与不丢，再顺序与去重，然后延迟与限流、多端同步，最后才是文案与展示兜底；禁止只写发送成功与失败这种二分场景，禁止跳过弱网、断线重连与重复点击；禁止漏掉风险等级和是否需要回归两个字段。验证办法很直接：丢一句「按消息测试角色，分析群消息未读数同步的需求」，它若主动提到乱序、多端已读回写、离线补推，角色才算钉住。</p>
+        <p><strong>cases 提供踩坑记忆。</strong>案例用固定字段记：触发场景、表现、涉及链路、原因概括、回归关注点，再补一段同类风险延伸。入口指令里必须写死一条：出用例前先检索 cases 并标注引用了哪条，否则案例库只是摆设。</p>
+        <p><strong>scoring 把合格变成可量化。</strong>外链给的维度是送达与可靠性 20 分、顺序与去重 20 分、异常与弱网 15 分、历史案例引用 15 分、高敏链路 20 分、判定依据可验证性 10 分。85 分以上直接评审，70 到 84 分补缺口再用，70 分以下推倒重来。产出后追加一句「按评分文件自检，列出扣分项」，比人工逐条挑刺快得多。</p>
+
+        <h2>四、workflows 与 outputs：让产出能直接进流水线</h2>
+        <p>七步链路是：读需求拆模块、对照风险库定高危点、补边界与异常取值、检索历史案例、产出用例、按评分自检、给出回归建议。每步都有产出物，一步做完再进下一步，模型才不会一口气吐一大坨。</p>
+        <p>outputs 的价值在字段固定：编号、所属链路、验证场景、前置状态、操作路径、判定依据、优先级、回归标记。编号自定规则，比如 MSG-链路代码-三位序号；优先级按 P0 消息丢失或错乱、P1 主链路不可用、P2 体验与展示来分。字段固定后，导表格、贴用例平台都不用重排。<a class="ilink" href="ai-api-testcase-generation.html">用模型生成用例</a>时最容易丢判定依据与回归标记两列，靠模板反而不会漏。</p>
+        <p>templates 是勾选表：正常送达、发送失败、断线重连补推、离线拉取、重复推送、乱序到达、多端已读同步、免打扰与折叠、通知权限关闭、弱网与超时。出用例前先输出勾选状态，再逐项展开；模型不会漏项，评审的人只看没勾的几行。</p>
+        <p>assets 是唯一越用越强的一块。先列高危 Top 5：消息丢失、重复推送、乱序、已读不同步、限流误伤正常用户；再补改动牵连关系：改推送网关要回归离线补推与去重，改已读回写要回归多端同步与未读数。这张表决定了 <a class="ilink" href="ai-testpoint-generation.html">测试点梳理</a>能不能从改动直接推到风险。</p>
+
+        <h2>五、端到端验收、四个高频坑与不适用场景</h2>
+        <p>八个部件填完要跑一次验收：拿一段群消息未读数同步的需求，说「按消息测试角色出用例并自检」。合格产出应含风险清单、勾选表、固定字段用例、自评分数与扣分说明，四样齐全才算能交付。</p>
+        <p>练手可用一个 45 分钟的缩小版，把文件上传按同样八块填一遍：角色写安全与断点续传，案例放分片丢失与超大文件超时，评分覆盖正常、异常、边界、安全，资产放历史故障与牵连关系。做完跟同事互换目录，同一段需求各跑一遍，谁的产出先过评审一眼可见。</p>
+        <ul>
+          <li><strong>只建空目录。</strong>八个文件夹不等于 Skill，每个目录至少一份可执行文件才算立起来。</li>
+          <li><strong>一次想做全业务。</strong>先挑一条重复度最高的链路跑通 1.0，案例与规则慢慢长出来。</li>
+          <li><strong>资产库不更新。</strong>复盘结论不进 assets，用一年还是第一天的水平。</li>
+          <li><strong>输出不贴现有流程。</strong>字段跟用例平台对不上，产出再漂亮也得人工重排。</li>
+        </ul>
+        <p>也有明确不适用的时候：一次性临时任务，为它建八个目录纯属浪费；团队没有复盘机制，assets 会长期空转，Skill 退化成写得比较长的提示词；需求还在剧烈变动，模板与评分维度刚写下就过期。判断标准很简单——这条链路一年要重复很多次、每次判断标准基本一致，才值得沉淀。</p>
+        <p>它真正的意义不在省下写用例的几十分钟，而在于把判断、踩过的坑、评审口径从「只有你知道」变成「拷个目录就带走」：人走了经验还在，新人不必再靠口口相传。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://mp.weixin.qq.com/s/3AzBw53sxZaBOD0EzDEaaA" target="_blank" rel="noopener">测试届bug · 超详细版测试Skill从0到1搭建完整教程，有手就能学会（0基础小白版）</a></li>
+            <li><a href="https://github.com/anthropics/skills" target="_blank" rel="noopener">anthropics/skills：Claude Skills 示例与 Agent Skills 规范 — GitHub</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#test-skill</span>
+          <span class="tag">#prompt-engineering</span>
+          <span class="tag">#case-design</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>七个热门开源项目，哪些能进测试工具箱 · 软件测试资料集</title>
+<meta name="description" content="按可编程、可重复、可担责三条判据，逐项判定七个开源项目的测试用途与替代方案。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/open-source-testing-projects.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="七个热门开源项目，哪些能进测试工具箱">
+<meta property="og:description" content="按可编程、可重复、可担责三条判据，逐项判定七个开源项目的测试用途与替代方案。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/open-source-testing-projects.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="七个热门开源项目，哪些能进测试工具箱">
+<meta name="twitter:description" content="按可编程、可重复、可担责三条判据，逐项判定七个开源项目的测试用途与替代方案。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"七个热门开源项目，哪些能进测试工具箱","description":"按可编程、可重复、可担责三条判据，逐项判定七个开源项目的测试用途与替代方案。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/open-source-testing-projects.html","articleSection":"落地实践","keywords":"oss-selection, test-tooling, headless-browser","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../links.html">外链</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-25</span>
+          <span>·</span>
+          <span>8 min read</span>
+        </div>
+        <h1>七个热门开源项目，哪些能进测试工具箱</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="open-source-testing-projects">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <p>这类项目合集读起来每个都想装，但对测试团队来说，好玩和能用是两件事：能不能被脚本调用、能不能进 CI、失败时能不能定位。三条过不去，装上也只是一个新的维护负担。</p>
+        <p>结论先给：只有一个能直接进测试链路，一个能当接口测试的数据源，两个语音工具只在测语音时有意义，剩下三个值得借的是结构。</p>
+
+        <h2>一、三条判据，先把热度放一边</h2>
+        <p>原文只交代了用途和地址，没有给性能数据与版本情况，所以这里不引用星标数与发布节奏，判断基于能力描述。</p>
+        <ol>
+          <li><strong>可编程</strong>：有没有命令行、HTTP 接口、SDK 或 MCP，只能靠点鼠标的工具进不了流水线。</li>
+          <li><strong>可重复</strong>：能否无头运行、离线使用，同一输入两次结果是否一致；一半的价值来自可重复。</li>
+          <li><strong>可担责</strong>：许可证能否商用、有没有默认遥测、数据会不会出内网。金融和医疗项目里这是硬门槛。</li>
+        </ol>
+
+        <h2>二、七个项目的实际位置</h2>
+        <table>
+          <thead>
+            <tr><th>项目</th><th>实际是什么</th><th>对测试的价值</th><th>建议</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Lightpanda</td><td>无头浏览器</td><td>可进自动化与 CI</td><td>试用</td></tr>
+            <tr><td>Public APIs</td><td>公开 API 目录</td><td>接口测试的靶场</td><td>采用</td></tr>
+            <tr><td>Handy</td><td>离线语音输入</td><td>语音链路的输入侧</td><td>按需</td></tr>
+            <tr><td>Hex</td><td>本地语音输入</td><td>同上，带纠正词</td><td>按需</td></tr>
+            <tr><td>FreeToken</td><td>本地模型推理引擎</td><td>私有化评测</td><td>观望</td></tr>
+            <tr><td>OpenMausBot</td><td>多 Agent 聊天编排</td><td>借审批卡片设计</td><td>只看设计</td></tr>
+            <tr><td>Game Studios</td><td>游戏角色与 Skill 模板</td><td>借流程编排</td><td>只看结构</td></tr>
+          </tbody>
+        </table>
+
+        <h2>三、Lightpanda：唯一能直接进测试链路的项目</h2>
+        <p>原文的描述是：给 AI 和自动化脚本用的浏览器，程序在后台控制，不需要窗口；能打开网页、执行脚本、读取内容、点击按钮、填写表单；最大的特点是把网页绘制成画面的流程省掉，因此运行快、省内存；已经在用 Puppeteer、Playwright 的也可以连接它执行其支持的操作。</p>
+        <p>这正好对上测试里最贵的开销：批量页面检查。上线前扫内链、给 Agent 提供网页通道、CI 里做轻量冒烟，这些不要求像素正确，只要求 DOM 与交互可用。原文未说明它支持哪些浏览器特性、兼容范围多大，引入前必须用自己站点的页面对照，挑出不支持的 API。需要真实渲染、视觉回归、多内核矩阵的项目仍要留在真实浏览器上，做法可参考 <a class="ilink" href="web-playwright-intro.html">Playwright 入门</a>。</p>
+        <p>也别把它当免费提速：渲染省掉后，懒加载触发时机、滚动高度这类依赖布局的行为会变，断言元素可见时要用真实浏览器复核。</p>
+
+        <h2>四、Public APIs：靶场不是被测对象</h2>
+        <p>原文说它按天气、图书、地理信息等类别整理，每条列出用途、认证方式、HTTPS 与跨站调用支持，另有检索入口可筛选。</p>
+        <p>正确用法是做结构真实但不受你控制的响应样本：给接口自动化补字段、给 Mock 找参考结构。错误用法是当稳定性基线，这类服务随时可能改字段、限流或下线。要长期跑就把一次响应录成固定样本，思路同 <a class="ilink" href="python-api-testing-with-requests.html">接口测试</a> 里的录制回放。</p>
+        <div class="code-head"><span>python · shortlist_public_apis.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from pathlib import Path
+
+# 先把目录仓库克隆到本地
+# git clone --depth 1 https://github.com/public-apis/public-apis
+text = Path("public-apis/README.md").read_text(encoding="utf-8")
+rows = [
+    line for line in text.splitlines()
+    if line.startswith("| [") and "| No |" in line and "| Yes |" in line
+]
+print("免认证且支持 HTTPS 的条目数：", len(rows))
+for line in rows[:10]:
+    print(line.split("|")[1].strip())</code></pre>
+        <p>脚本只做粗筛：挑认证为 No、HTTPS 为 Yes 的行，真正的可用性还得自己发请求确认。</p>
+
+        <h2>五、Handy 与 Hex：只在你测语音输入时才相关</h2>
+        <p>Handy 支持三个桌面系统，用快捷键把讲话转成文字并粘到光标处，不需注册账号，模型可选 Whisper、Parakeet，基础识别可离线。Hex 同类，按住快捷键讲话，松开上屏，基础听写走本地模型，支持纠正词，原文的例子是 Claude 常被识别成 Cloud。</p>
+        <p>用得上它的只有两个场景。一是构造输入：往被测应用灌一段转写结果，比手工打字快。二是做对照：拿第三方输出当参考文本，看偏差落在哪些词。不能拿它当断言口径，识别本身有误差，用它做标准答案等于把产品缺陷算成工具噪声。原文未说明准确率与硬件要求。</p>
+
+        <h2>六、剩下三个：借结构，不借工具</h2>
+        <p>FreeToken 是本地模型推理引擎，面向消费级硬件跑大型 MoE，让显卡、CPU 和内存一起参与，带桌面界面，还能通过兼容 OpenAI、Anthropic 的接口把 Claude Code、Codex 接到本地模型。对测试的意义是私有化评测：含真实用户数据的用例先在本地跑一轮，不出内网。原文未说明支持的模型清单与最低硬件。</p>
+        <p>OpenMausBot 把 Agent 做成聊天软件里的联系人，可以分组、设职责与模型，接入已登录的 Claude、Codex，也能连 Gmail、GitHub；需要操作网页或桌面时挂云端 Linux 或隔离环境；有屏幕预览，需要确认的步骤以审批卡片出现在聊天里。它不是测试工具，没有断言和报告，但审批卡片值得抄：把写操作卡在人工确认之前，本质就是 <a class="ilink" href="ai-agent-testing-advanced.html">Agent 测试</a> 里要求的写操作前置校验。</p>
+        <p>Game Studios 把游戏工作室的分工做成模板，含 49 个 Agent 角色和 74 套 Skill，覆盖设计到发布。可借鉴的是角色分工加 Skill 化流程，测试团队可照此把用例设计、执行、缺陷分析拆成角色。</p>
+
+        <h2>七、落地方式与不该碰的情况</h2>
+        <p>选型最常见的错是一次引进三个，最后说不清哪个有用。验证方式是同一组样本各跑一遍：挑十个真实页面或接口，用候选与现有方案同时跑，只看首次跑通耗时、失败能否直接定位、一周后重跑通过率。替换渲染层的工具还要与真实浏览器对照同一批用例，差异必须能解释。</p>
+        <ul>
+          <li>回归套件已稳定，换工具只是转移维护成本。</li>
+          <li>合规审计、默认遥测、数据流向要先过法务。</li>
+          <li>没人能维护 Node、Go 运行时。</li>
+        </ul>
+        <p>盘点提供的是候选不是答案，七个里真正能改变流程的通常只有一个。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://mp.weixin.qq.com/s/xdswKo9XBWKAY7ujahXJRA" target="_blank" rel="noopener">逛逛GitHub · 7 个近期 GitHub 上贼火火的开源项目，又是质量很高的一波。</a></li>
+            <li><a href="https://github.com/public-apis/public-apis" target="_blank" rel="noopener">public-apis — GitHub</a></li>
+            <li><a href="https://github.com/lightpanda-io/browser" target="_blank" rel="noopener">lightpanda-io/browser — GitHub</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#oss-selection</span>
+          <span class="tag">#test-tooling</span>
+          <span class="tag">#headless-browser</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

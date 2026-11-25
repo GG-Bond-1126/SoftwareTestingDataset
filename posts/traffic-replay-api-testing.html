@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>把真实流量录成接口测试：Keploy 的录制回放怎么落地 · 软件测试资料集</title>
+<meta name="description" content="Keploy 用 eBPF 抓真实流量生成用例与依赖 Mock，本文讲清原理、两条命令、脱敏与回放判失败的排查顺序。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/traffic-replay-api-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="把真实流量录成接口测试：Keploy 的录制回放怎么落地">
+<meta property="og:description" content="Keploy 用 eBPF 抓真实流量生成用例与依赖 Mock，本文讲清原理、两条命令、脱敏与回放判失败的排查顺序。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/traffic-replay-api-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="把真实流量录成接口测试：Keploy 的录制回放怎么落地">
+<meta name="twitter:description" content="Keploy 用 eBPF 抓真实流量生成用例与依赖 Mock，本文讲清原理、两条命令、脱敏与回放判失败的排查顺序。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"把真实流量录成接口测试：Keploy 的录制回放怎么落地","description":"Keploy 用 eBPF 抓真实流量生成用例与依赖 Mock，本文讲清原理、两条命令、脱敏与回放判失败的排查顺序。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/traffic-replay-api-testing.html","articleSection":"接口测试","keywords":"traffic-replay, ebpf, api-testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../links.html">外链</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">接口测试</span> <span class="post-fw">传统+AI 接口</span>
+          <span>2026-11-25</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>把真实流量录成接口测试：Keploy 的录制回放怎么落地</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="traffic-replay-api-testing">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <p>给上线半年的服务补接口测试，最耗时间的通常不是写断言。一条 GET 请求的断言五分钟能写完，真正卡住人的是让它跑起来：它依赖一个数据库、一个缓存、一个第三方支付回调，还有一条消息队列。每个依赖要么搭环境，要么单独做 Mock；服务一多，Mock 的维护成本会超过业务代码。</p>
+
+        <p>Keploy 换了个方向：先跑业务，把真实流量录下来，用例和依赖 Mock 一起自动生成。按原文记录，项目 2022 年初开源，Go 编写，Apache-2.0 协议，发文时约 19.8K star，最新版本 v3.7.3，已进入 CNCF Landscape。README 里「帮你做到 90% 测试覆盖率」属于宣传口径，原文也说明这类数字无法核验。</p>
+
+        <h2>一、写接口测试的时间，最后都花在了哪里</h2>
+        <p>把成本拆开：一是设计用例，二是准备数据，三是搭环境，四是维护。前两项是测试本身的活，后两项是工程负担，而且随服务数量线性增长。一个服务对接五个外部依赖，十个服务就是五十个 Mock，任何一个上游改了返回结构，都要回来改 Mock。</p>
+        <p>录制回放把「准备数据」和「搭环境」一起省掉了，代价是覆盖上限由录制决定：真实用户没走到的分支，录不到，也就测不到。这不是缺陷，是这类工具必须先说清的前提。</p>
+
+        <h2>二、eBPF 抓包为什么能做到业务零改造</h2>
+        <p>流量录制不是新概念，差别在抓包位置。Keploy 在网络层用 eBPF 抓内核里流过的流量，不侵入应用：代码一行不改，SDK 一个不装，也不依赖某种语言的 agent 注入。录制时应用照常启动，正常操作页面或打接口，请求、响应以及背后真实的数据库查询都会落进 keploy 目录，一边是用例文件，一边是 Mock 文件。</p>
+        <div class="code-head"><span>bash · 录制与回放</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 安装（Linux / macOS / Windows）
+source /dev/stdin &lt;&lt;&lt;"$(curl -fsSL https://keploy.io/install.sh)"
+
+# 录制：应用照常启动，正常操作产生流量
+keploy record -c "python main.py"
+
+# 回放：重放录制的请求，与录制响应做对比
+keploy test -c "python main.py" --delay 10</code></pre>
+        <p><code>--delay 10</code> 是给应用启动留的时间。这个参数说明回放是在真实启动应用的前提下进行，只把依赖换成快照，而不是在纯 Mock 层做字符串比对，业务逻辑仍被真实执行。</p>
+
+        <h2>三、数据库和队列也录成 Mock，回放凭什么离线跑</h2>
+        <p>多数 Mock 工具只管 HTTP 接口，数据库和队列要另想办法。Keploy 录得更深：Postgres、MySQL、MongoDB、Redis 的查询，Kafka、RabbitMQ 的消息，gRPC 与 GraphQL 调用都跟着请求一起录。回放时这些依赖不用启动，应用发出的查询直接命中录制数据，官方把这个能力叫基础设施虚拟化。</p>
+        <p>对开发者，本地不用再装一整套中间件；对测试，回归不再被环境卡住，录一次可以反复回放，产物也能直接进 GitHub Actions 或 Jenkins。原文提到 Keploy 自己用自己的工具测自己，README 挂着 75% 的自测覆盖率，算一个正面信号，但终究是它自家团队的数据。另一处值得学的设计是覆盖率拆分：开发者看语句与分支覆盖，测试看接口结构与业务场景覆盖，同一份录制产物分别统计。</p>
+
+        <h2>四、第一次回放大面积失败，先查什么</h2>
+        <p>回放是快照对比，任何每次都变的字段都会判失败：时间戳、随机 ID、自增主键、trace id。第一次跑 <code>test</code> 大面积挂，先别怀疑业务回归，按顺序处理这些不变量，再看差异。</p>
+        <table>
+          <thead>
+            <tr><th>子命令</th><th>作用</th><th>什么时候用</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>record</code></td><td>录制真实流量，生成用例与 Mock</td><td>补测试覆盖的第一步</td></tr>
+            <tr><td><code>test</code></td><td>回放请求并对比响应</td><td>本地回归与 CI</td></tr>
+            <tr><td><code>test-gen</code></td><td>AI Agent 从录制与 OpenAPI 文档补边界用例</td><td>真实流量覆盖不到的边角场景</td></tr>
+            <tr><td><code>sanitize</code></td><td>对用例中的敏感数据脱敏</td><td>提交进 Git 之前</td></tr>
+            <tr><td><code>templatize</code> / <code>normalize</code></td><td>参数化时间戳、随机数等不稳定字段</td><td>回放误报过多时</td></tr>
+            <tr><td><code>export</code></td><td>导出为 Postman 集合</td><td>交给习惯 Postman 的同学</td></tr>
+          </tbody>
+        </table>
+        <p><code>test-gen</code> 由 AI Agent 驱动，从已有录制和 Swagger、OpenAPI 文档里找问题，边界值、缺字段、多字段、类型错误、调用顺序颠倒，找到就补成新用例。它补的是「录制没覆盖的输入组合」，不是替代人工设计业务场景。想看这类自动补用例的边界，可参考<a class="ilink" href="web-api-testing.html">从接口文档生成用例</a>的做法，两者思路互补。</p>
+
+        <h2>五、什么团队不适合用它</h2>
+        <p>第一类是接口还在快速改结构、契约一天一变的服务。录制的用例绑定了当时的请求与响应形态，契约一动，回放产物就腐烂，维护成本并不比手写低。第二类是核心结果依赖外部服务实时返回的流程，把对方响应录成快照后，回放验证的只是「同样的输入我们处理对不对」，验证不了「对方变了我们会怎样」。</p>
+        <p>第三类是合规压力大的业务。录制产物里会有真实账号、手机号，进 Git 前必须用 <code>sanitize</code> 过一遍，而脱敏规则本身要评审，漏一个字段就是数据事故。第四类是环境太旧的团队：原文给出的要求是 Linux 内核 5.10 以上、macOS Apple Silicon、Windows x86-64，支持 Docker 与 Podman。还有一条要提前问清：核心 CLI 是 Apache-2.0，但 Mock Registry、时间冻结、Console 挂在官方云服务下，用到就得看付费方案。</p>
+
+        <h2>六、怎么判断它值不值得接</h2>
+        <p>原文的标准很实用：后端服务多、依赖杂的团队值得认真试一次，因为它把成本从写用例挪到了跑业务上，而跑业务本来每天都在发生。落地可分三步：拿一个本地小服务确认 <code>record</code> 与 <code>test</code> 能跑通；脱敏、参数化后进仓库跑一次完整 CI，重点看误报率；最后挑一个真实复杂服务试点，与现有<a class="ilink" href="python-api-testing-with-requests.html">requests 测试脚本</a>并存，比较谁先发现问题。像<a class="ilink" href="mysql-concurrent-transactions.html">并发扣库存</a>这类依赖数据库时序的场景，仍要专门设计用例，录制回放补不了。</p>
+        <p>不装它也能学走思路：流量就是用例，依赖可用录制数据顶替，回放前先处理不稳定字段。对照自己的测试方案，通常能找到几处可省掉的重复劳动。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://mp.weixin.qq.com/s/NWFcRtlGTnMBDZ7fw5qZsQ" target="_blank" rel="noopener">测试开发技术 · 太狠了！GitHub 19.8K star，真实接口流量直接录成测试！</a></li>
+            <li><a href="https://github.com/keploy/keploy" target="_blank" rel="noopener">keploy/keploy — GitHub</a></li>
+            <li><a href="https://keploy.io/docs/" target="_blank" rel="noopener">Keploy 官方文档</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#traffic-replay</span>
+          <span class="tag">#api-testing</span>
+          <span class="tag">#ebpf</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>
