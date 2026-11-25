@@ -64,13 +64,16 @@
 ├── index.html              首页（搜索、只看收藏、最近阅读）
 ├── about.html              关于
 ├── tags.html               标签总览
-├── paths.html              学习路径（4 条阅读顺序）
+├── paths.html              学习路径（4 条阅读顺序 + 专题合集）
+├── links.html              精选外链（公众号长文与 GitHub 项目导读，构建生成）
 ├── favorites.html          我的收藏（导入 / 导出）
 ├── 404.html
 ├── manifest.webmanifest    PWA 清单（相对路径）
 ├── sw.js                   Service Worker（相对路径，network-first + 缓存回退）
 ├── sitemap.xml / robots.txt / rss.xml
 ├── posts/                  124 篇文章
+├── data/
+│   └── external.json       精选外链数据（源站、标题、导读、要点）
 ├── assets/
 │   ├── style.css           全站样式（深浅色变量 + 组件样式）
 │   ├── main.js             搜索、目录、收藏、主题、最近阅读、SW 注册

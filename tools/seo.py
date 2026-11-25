@@ -66,6 +66,7 @@ for name, title, desc in [
     ("tags.html", "标签总览 · 软件测试资料集", "按标签浏览全部测试笔记：自动化框架、AI 测试、性能、数据与工具链。"),
     ("paths.html", "学习路径 · 软件测试资料集", "按目标编排的阅读顺序：自动化入门、Web 进阶、AI 测试落地与大模型应用测试。"),
     ("favorites.html", "我的收藏 · 软件测试资料集", "查看已收藏的测试笔记，支持导出与导入收藏列表。"),
+    ("links.html", "精选外链 · 软件测试资料集", "站外精选：公众号测试长文与开源项目导读，按主题整理并链接原文。"),
 ]:
     p = os.path.join(ROOT, name)
     if os.path.exists(p) and inject(p, BASE + "/" + name, title, desc, False):
@@ -74,7 +75,7 @@ print("og injected:", n)
 
 # ---------------- sitemap ----------------
 rows = []
-for name in ["index.html", "about.html", "tags.html", "paths.html"]:
+for name in ["index.html", "about.html", "tags.html", "paths.html", "links.html"]:
     p = os.path.join(ROOT, name)
     rows.append((BASE + "/" + name, mtime_iso(p), "1.0" if name == "index.html" else "0.6"))
 for f in sorted(glob.glob(os.path.join(POSTS, "*.html"))):

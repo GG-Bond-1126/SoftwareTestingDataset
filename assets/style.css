@@ -1571,3 +1571,59 @@ html[data-theme="light"] mark.hit { background: rgba(15, 157, 88, 0.16); }
 .series-steps small { flex: none; font-size: 11px; color: var(--text-faint); }
 .series-steps li.done a { color: var(--text-faint); text-decoration: line-through; }
 .series-item .path-progress { margin: 0; }
+
+/* ---------------- v9: 精选外链 ---------------- */
+.link-block { margin-bottom: 44px; }
+.link-block h2 { display: flex; align-items: baseline; gap: 10px; }
+.link-count { font-family: var(--mono); font-size: 12px; color: var(--text-faint); font-weight: 400; }
+.link-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+}
+.link-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card-solid, var(--bg-card));
+  transition: border-color .18s, transform .18s;
+}
+.link-card:hover { border-color: var(--green); transform: translateY(-2px); }
+.link-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.link-account { color: var(--green); }
+.link-card h3 { margin: 0; font-size: 16px; line-height: 1.5; }
+.link-card h3 a { color: var(--text-strong); }
+.link-card h3 a:hover { color: var(--green); }
+.link-summary { margin: 0; font-size: 13.5px; line-height: 1.7; color: var(--text-body); }
+.link-points { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.75; color: var(--text-dim); }
+.link-points li { margin: 2px 0; }
+.link-points li::marker { color: var(--green); }
+.link-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: auto; padding-top: 6px; }
+.link-topics { display: flex; flex-wrap: wrap; gap: 6px; }
+.link-tag { font-size: 11px; color: var(--text-faint); }
+.link-related { margin-left: auto; font-size: 12px; color: var(--green); }
+.repo-list { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 12px; }
+.repo-item {
+  padding: 14px 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card-solid, var(--bg-card));
+}
+.repo-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.repo-head a { font-family: var(--mono); font-size: 14px; color: var(--text-strong); }
+.repo-head a:hover { color: var(--green); }
+.repo-stars { margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--amber); }
+.repo-item p { margin: 0 0 8px; font-size: 13px; line-height: 1.7; color: var(--text-body); }
+.link-note { margin-top: 12px; font-size: 12.5px; color: var(--text-faint); }
+@media print { .link-block, .link-note { display: none !important; } }

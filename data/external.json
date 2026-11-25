@@ -1,0 +1,194 @@
+{
+  "wechat": [
+    {
+      "url": "https://mp.weixin.qq.com/s/GXMM8eqTw6zkfzXclxR7nA",
+      "title": "DeepSeek Harness 住进安卓手机：免电脑控屏，连 NFC 都能调",
+      "account": "晴天的码场",
+      "date": "2026-11-25",
+      "summary": "把 DeepSeek Harness 打进安卓 APK，拔线就能跑 Agent，还支持 NFC。",
+      "points": [
+        "单个 APK 内置原生客户端与 Agent 引擎，不依赖电脑隧道和 Node",
+        "坐标动作绑定快照与范围，登录验证码交回本人，安全阀收得紧",
+        "开放 NFC、红外、传感器与进程内存工具，高阶能力需 Root"
+      ],
+      "topics": ["大模型应用", "APP 自动化"],
+      "related_post": "ai-agent-testing-advanced"
+    },
+    {
+      "url": "https://mp.weixin.qq.com/s/kJJ3MPnzFrW6GR_TGMOmdQ",
+      "title": "写 UI 自动化的同学，这个 2.3万 Star 的自动化Agent 让浏览器自己测试！",
+      "account": "测试开发技术",
+      "date": "2026-11-25",
+      "summary": "开源浏览器 Agent：说一句自然语言，它靠视觉加 DOM 自己看页面、点按钮填表并带回结果。",
+      "points": [
+        "LLM 只在编号元素里做选择，实际执行交给 Playwright，减少定位幻觉",
+        "六步循环加校验器，每步截图留痕，失败可重试并分类",
+        "开源版必须自备模型 Key，反爬能力只在云端商业版"
+      ],
+      "topics": ["Web 自动化", "AI 测试", "落地实践"],
+      "related_post": "web-pytest-allure"
+    },
+    {
+      "url": "https://mp.weixin.qq.com/s/NWFcRtlGTnMBDZ7fw5qZsQ",
+      "title": "太狠了！GitHub 19.8K star，真实接口流量直接录成测试！",
+      "account": "测试开发技术",
+      "date": "2026-11-16",
+      "summary": "把真实接口流量录下来，自动生成可回放的接口测试与依赖 Mock，回放时不需真实数据库和中间件。",
+      "points": [
+        "用 eBPF 在网络层抓包，业务代码零改造，录制与回放各一条命令",
+        "数据库、缓存与消息队列一起录成 Mock，离线也能跑回归",
+        "AI 子命令可从文档和录制里补边界用例，进 Git 前要脱敏"
+      ],
+      "topics": ["接口测试", "落地实践", "CI/CD"],
+      "related_post": "web-api-testing"
+    },
+    {
+      "url": "https://mp.weixin.qq.com/s/MSs03irW0-9Kh_desqxYNA",
+      "title": "太牛了，不插线不 root，两行命令就能隔空操控 Android 真机",
+      "account": "测试开发技术",
+      "date": "2026-11-12",
+      "summary": "不用 ADB 和数据线，也不需 root，手机扫码配对后电脑即可远程驱动真机。",
+      "points": [
+        "手机主动外连，电脑不开端口，全程端到端加密",
+        "一份命令规格自动生成 Python、Node、.NET 与 MCP 多端入口",
+        "只用无障碍服务与自装键盘，也把做不到的事列得很清楚"
+      ],
+      "topics": ["APP 自动化", "落地实践"],
+      "related_post": "app-automation-intro"
+    },
+    {
+      "url": "https://mp.weixin.qq.com/s/3AzBw53sxZaBOD0EzDEaaA",
+      "title": "超详细版测试Skill从0到1搭建完整教程，有手就能学会（0基础小白版）",
+      "account": "测试届bug",
+      "date": "2026-11-11",
+      "summary": "把测试经验沉淀成可复用的测试 Skill，按八个部件讲清从建目录到验收的完整搭建路径。",
+      "points": [
+        "提示词只决定一次输出，Skill 决定这类任务的下限",
+        "拆出 system、prompts、cases、workflows 等八个分区",
+        "以消息中心测试 Skill 为例，逐步演示写法与验证"
+      ],
+      "topics": ["AI 测试", "大模型应用", "落地实践"],
+      "related_post": "ai-api-testcase-generation"
+    },
+    {
+      "url": "https://mp.weixin.qq.com/s/_QBtjGJLDcwianAsQPoB9g",
+      "title": "让 AI 帮你操作手机，这个 GitHub 开源项目支持安卓和 iPhone。",
+      "account": "逛逛GitHub",
+      "date": "2026-09-25",
+      "summary": "Mobile MCP 让 AI 读屏幕、点按钮、填文字，安卓与 iPhone 真机模拟器都能接。",
+      "points": [
+        "优先读系统无障碍信息，控件难识别时退回截图加坐标",
+        "通过一条命令接入 Claude Code、Cursor 等 MCP 客户端",
+        "适合页面检查与日常操作，环境准备步骤讲得细"
+      ],
+      "topics": ["APP 自动化", "大模型应用"],
+      "related_post": "app-automation-intro"
+    },
+    {
+      "url": "https://mp.weixin.qq.com/s/xdswKo9XBWKAY7ujahXJRA",
+      "title": "7 个近期 GitHub 上贼火火的开源项目，又是质量很高的一波。",
+      "account": "逛逛GitHub",
+      "date": "2026-11-09",
+      "summary": "盘点近期走红的七个开源项目，含公开 API 目录、多 Agent 聊天集成与给脚本用的无头浏览器。",
+      "points": [
+        "Public APIs 按类别整理开放接口，标注认证与跨站调用支持",
+        "Lightpanda 是给 AI 和自动化脚本用的无头浏览器，快且省内存",
+        "其余多为本地语音输入、模型推理等效率工具"
+      ],
+      "topics": ["大模型应用", "Web 自动化"],
+      "related_post": ""
+    },
+    {
+      "url": "https://mp.weixin.qq.com/s/RMVG_x0arVDglnOZboe1lQ",
+      "title": "GitHub上开源真机测试工具mobile-mcp，说句话就能让AI在手机上跑用例！",
+      "account": "测试开发技术",
+      "date": "2026-10-30",
+      "summary": "拆解 mobile-mcp：用无障碍元素树替代反复截图，让 AI 在真机上跑用例并顺手取证。",
+      "points": [
+        "无障碍优先，一次取全元素清单，快且不怕界面轻微改版",
+        "三十多个工具覆盖装包、点击输入、截图录屏、日志与崩溃",
+        "适合探索和冒烟，确定性回归要固化成脚本"
+      ],
+      "topics": ["APP 自动化", "AI 测试", "落地实践"],
+      "related_post": "app-cicd-integration"
+    },
+    {
+      "url": "https://mp.weixin.qq.com/s/NcfkszPn0A85pQEMbpn2ow",
+      "title": "谷歌开源移动端AI自动化测试神器",
+      "account": "GitHubStore",
+      "date": "2026-09-16",
+      "summary": "谷歌开源的移动端自动化工具，把自然语言指令变成 Android 真机操作，并输出日志与诊断报告。",
+      "points": [
+        "经 MCP 接入 Claude Code、Windsurf 等 IDE 驱动测试机",
+        "Flash 模式单步约三到五秒，Pro 模式动作前先校验目标",
+        "在 AndroidWorld 基准上报告九成九以上的任务完成率"
+      ],
+      "topics": ["APP 自动化", "AI 测试", "大模型应用"],
+      "related_post": "ai-agent-testing-advanced"
+    }
+  ],
+  "github": [
+    {
+      "url": "https://github.com/microsoft/playwright",
+      "title": "microsoft/playwright",
+      "stars": 101021,
+      "summary": "微软开源的 Web 自动化框架，一套 API 驱动三大浏览器内核。",
+      "topics": ["Web 自动化"]
+    },
+    {
+      "url": "https://github.com/appium/appium",
+      "title": "appium/appium",
+      "stars": 22254,
+      "summary": "跨平台移动端自动化框架，基于 W3C WebDriver 协议驱动多端应用。",
+      "topics": ["APP 自动化"]
+    },
+    {
+      "url": "https://github.com/keploy/keploy",
+      "title": "keploy/keploy",
+      "stars": 19988,
+      "summary": "录制真实流量生成接口测试与依赖 Mock，回放无需真实数据库，适合补齐回归覆盖。",
+      "topics": ["接口测试", "落地实践"]
+    },
+    {
+      "url": "https://github.com/Skyvern-AI/skyvern",
+      "title": "Skyvern-AI/skyvern",
+      "stars": 23521,
+      "summary": "用大模型加视觉驱动浏览器完成重复网页流程，不写死选择器，页面改版也不易失效。",
+      "topics": ["Web 自动化", "AI 测试", "大模型应用"]
+    },
+    {
+      "url": "https://github.com/mobile-next/mobile-mcp",
+      "title": "mobile-next/mobile-mcp",
+      "stars": 10870,
+      "summary": "MCP 服务器，让 AI Agent 读无障碍元素并操作 iOS、Android 真机与模拟器。",
+      "topics": ["APP 自动化", "大模型应用"]
+    },
+    {
+      "url": "https://github.com/grafana/k6",
+      "title": "grafana/k6",
+      "stars": 32401,
+      "summary": "面向开发者的性能压测工具，脚本用 JavaScript 写，适合接口压测与负载场景。",
+      "topics": ["性能测试"]
+    },
+    {
+      "url": "https://github.com/metersphere/metersphere",
+      "title": "metersphere/metersphere",
+      "stars": 13654,
+      "summary": "开源持续测试平台，覆盖用例、接口、性能与缺陷管理，内置 AI 助手辅助测试工作。",
+      "topics": ["落地实践", "接口测试", "CI/CD"]
+    },
+    {
+      "url": "https://github.com/atinfo/awesome-test-automation",
+      "title": "atinfo/awesome-test-automation",
+      "stars": 7233,
+      "summary": "按编程语言整理的测试自动化框架、工具与库精选清单，做技术选型时可直接查阅。",
+      "topics": ["落地实践"]
+    }
+  ],
+  "excluded": [
+    {
+      "url": "https://mp.weixin.qq.com/s/_B3DwCbJv1DowOq9Wv86hw",
+      "reason": "WebFetch 连续多次返回微信验证页，页面提示尝试太多了并自动刷新验证码，未能取得正文，故不收录。"
+    }
+  ]
+}

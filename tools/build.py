@@ -10,6 +10,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 STEPS = [
     ("生成文章索引", "build_data.py"),
     ("重建首页卡片", "rebuild_index2.py"),
+    ("生成精选外链页", "build_links.py"),
     ("生成 sitemap / rss / OG", "seo.py"),
     ("生成 PWA 与分享图元信息", "pwa_seo.py"),
     ("HTML 结构校验", "validate.py"),
