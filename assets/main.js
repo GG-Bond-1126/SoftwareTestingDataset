@@ -416,15 +416,56 @@
 
     /* last query hint */
     var LASTQ_KEY = "ggbond_lastq";
-    var basePlaceholder = searchInput.getAttribute("placeholder") || "";
+    var RECENTQ_KEY = "ggbond_recentq";
+    var getRecentQ = function () {
+      try {
+        var v = JSON.parse(localStorage.getItem(RECENTQ_KEY));
+        return Array.isArray(v) ? v.filter(function (x) { return typeof x === "string"; }) : [];
+      } catch (e) { return []; }
+    };
+    var pushRecentQ = function (q) {
+      if (!q) return;
+      try {
+        var list = getRecentQ().filter(function (x) { return x !== q; });
+        list.unshift(q);
+        localStorage.setItem(RECENTQ_KEY, JSON.stringify(list.slice(0, 6)));
+      } catch (e) {}
+    };
+
     try {
       var lastQ = localStorage.getItem(LASTQ_KEY);
       if (lastQ) searchInput.setAttribute("placeholder", "上次搜索：" + lastQ);
     } catch (e) {}
+
+    /* recent query chips */
+    var chipsEl = document.createElement("div");
+    chipsEl.className = "recent-q";
+    chipsEl.id = "recent-q";
+    chipsEl.setAttribute("aria-label", "最近搜索");
+    searchInput.parentNode.insertBefore(chipsEl, searchInput.nextSibling);
+    var renderChips = function () {
+      var list = getRecentQ();
+      if (!list.length) { chipsEl.innerHTML = ""; chipsEl.classList.remove("show"); return; }
+      chipsEl.classList.add("show");
+      chipsEl.innerHTML = '<span class="recent-q-label">最近搜索</span>' +
+        list.map(function (q) {
+          return '<button type="button" class="recent-q-chip" data-q="' + esc(q) + '">' + esc(q) + "</button>";
+        }).join("");
+    };
+    chipsEl.addEventListener("click", function (e) {
+      var btn = e.target.closest(".recent-q-chip");
+      if (!btn) return;
+      searchInput.value = btn.getAttribute("data-q") || "";
+      hydrate();
+      runFilter();
+      searchInput.focus();
+    });
+    renderChips();
+
     searchInput.addEventListener("blur", function () {
       try {
         var v = searchInput.value.trim();
-        if (v) localStorage.setItem(LASTQ_KEY, v);
+        if (v) { localStorage.setItem(LASTQ_KEY, v); pushRecentQ(v); renderChips(); }
       } catch (e) {}
     });
 
@@ -531,6 +572,33 @@
             }).join("") + "</ul></section>";
         }).join("");
       }
+    });
+  }
+
+  /* ---------------- paths page: reading progress ---------------- */
+  var pathCards = $$(".path-card");
+  if (pathCards.length) {
+    var readSet = {};
+    getRecent().forEach(function (r) { readSet[r.slug] = 1; });
+    pathCards.forEach(function (card) {
+      var steps = $$(".path-steps li", card);
+      if (!steps.length) return;
+      var done = 0;
+      steps.forEach(function (li) {
+        var a = li.querySelector("a");
+        if (!a) return;
+        var slug = (a.getAttribute("href") || "").replace(/^.*\//, "").replace(/\.html$/, "");
+        if (readSet[slug]) { li.classList.add("done"); done++; }
+      });
+      var bar = document.createElement("div");
+      bar.className = "path-progress";
+      bar.innerHTML = '<span class="path-progress-num">已读 ' + done + " / " + steps.length +
+        '</span><span class="path-progress-track"><span class="path-progress-fill"></span></span>';
+      var head = card.querySelector("h2");
+      if (head && head.nextSibling) card.insertBefore(bar, head.nextSibling);
+      else card.appendChild(bar);
+      var fill = bar.querySelector(".path-progress-fill");
+      if (fill) fill.style.width = Math.round((done / steps.length) * 100) + "%";
     });
   }
 

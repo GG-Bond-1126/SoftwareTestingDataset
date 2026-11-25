@@ -1385,3 +1385,67 @@ html[data-theme="light"] mark.hit { background: rgba(15, 157, 88, 0.16); }
   line-height: 18px;
   white-space: nowrap;
 }
+
+/* ---------------- v6: 最近搜索 + 路径进度 ---------------- */
+.recent-q {
+  display: none;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -4px 0 14px;
+}
+.recent-q.show { display: flex; }
+.recent-q-label {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-right: 2px;
+}
+.recent-q-chip {
+  font: inherit;
+  font-size: 12px;
+  line-height: 20px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--field-bg);
+  color: var(--text-body);
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.recent-q-chip:hover { border-color: var(--green); color: var(--green); }
+.recent-q-chip:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+
+.path-card .path-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 2px 0 12px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.path-progress-track {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+.path-progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  border-radius: 999px;
+  background: var(--green);
+  transition: width .4s ease;
+}
+.path-steps li.done > a { color: var(--text-faint); }
+.path-steps li.done > a::after {
+  content: "已读";
+  margin-left: 6px;
+  font-size: 11px;
+  color: var(--green);
+  border: 1px solid var(--green);
+  border-radius: 3px;
+  padding: 0 3px;
+}
