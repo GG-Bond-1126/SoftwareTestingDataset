@@ -536,8 +536,10 @@
 
   /* ---------------- service worker (offline reading) ---------------- */
   if ("serviceWorker" in navigator && location.protocol === "https:") {
+    var swSrc = document.currentScript ? document.currentScript.src : "";
+    var swRoot = swSrc ? new URL("../", swSrc).pathname : location.pathname.replace(/[^/]*$/, "");
     window.addEventListener("load", function () {
-      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
+      navigator.serviceWorker.register(swRoot + "sw.js", { scope: swRoot }).catch(function () {});
     });
   }
 

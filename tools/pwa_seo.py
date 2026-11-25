@@ -12,29 +12,30 @@ MANIFEST = {
     "name": "软件测试资料集 · GG Bond",
     "short_name": "测试资料集",
     "description": "自动化测试与 AI 测试的实践笔记，覆盖 AI 用例生成、Agent 测试与脚本自愈。",
-    "start_url": "/index.html",
-    "scope": "/",
+    "start_url": "index.html",
+    "scope": "./",
     "display": "standalone",
     "orientation": "portrait-primary",
     "background_color": "#0d141d",
     "theme_color": "#0d141d",
     "lang": "zh-CN",
     "icons": [
-        {"src": "/assets/icon-192.png", "sizes": "192x192", "type": "image/png"},
-        {"src": "/assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+        {"src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png"},
+        {"src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
     ],
 }
 open(os.path.join(ROOT, "manifest.webmanifest"), "w", encoding="utf-8").write(
     json.dumps(MANIFEST, ensure_ascii=False, indent=2))
 
 SW = """/* 软件测试资料集 · Service Worker */
-const VERSION = "ggbond-v1";
+const VERSION = "ggbond-v2";
+const BASE = new URL("./", self.location.href).href;
 const SHELL = [
-  "/index.html",
-  "/assets/style.css",
-  "/assets/main.js",
-  "/assets/icon-192.png"
-];
+  "index.html",
+  "assets/style.css",
+  "assets/main.js",
+  "assets/icon-192.png"
+].map((p) => BASE + p);
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -63,7 +64,7 @@ self.addEventListener("fetch", (e) => {
           return res;
         })
         .catch(() =>
-          caches.match(req).then((hit) => hit || caches.match("/index.html"))
+          caches.match(req).then((hit) => hit || caches.match(BASE + "index.html"))
         )
     );
     return;

@@ -1,11 +1,12 @@
 /* 软件测试资料集 · Service Worker */
-const VERSION = "ggbond-v1";
+const VERSION = "ggbond-v2";
+const BASE = new URL("./", self.location.href).href;
 const SHELL = [
-  "/index.html",
-  "/assets/style.css",
-  "/assets/main.js",
-  "/assets/icon-192.png"
-];
+  "index.html",
+  "assets/style.css",
+  "assets/main.js",
+  "assets/icon-192.png"
+].map((p) => BASE + p);
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -34,7 +35,7 @@ self.addEventListener("fetch", (e) => {
           return res;
         })
         .catch(() =>
-          caches.match(req).then((hit) => hit || caches.match("/index.html"))
+          caches.match(req).then((hit) => hit || caches.match(BASE + "index.html"))
         )
     );
     return;
