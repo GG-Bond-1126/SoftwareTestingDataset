@@ -3,7 +3,7 @@
 import os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 """Build assets/posts-index.json: metadata + headings + text excerpt + prev/next/related."""
-import os, re, json, glob, html as H
+import os, re, json, glob, html as H, subprocess
 
 try:
     from pypinyin import lazy_pinyin, Style
@@ -33,6 +33,17 @@ CAT_RANK = {
     "数据库测试": 11, "Git 版本控制": 12, "自动化": 13,
 }
 
+def last_commit_date(rel_path):
+    """取该文件最后一次提交日期；非 git 环境返回空串。"""
+    try:
+        out = subprocess.check_output(
+            ["git", "log", "-1", "--format=%ad", "--date=short", "--", rel_path],
+            cwd=ROOT, stderr=subprocess.DEVNULL)
+        return out.decode("utf-8", "ignore").strip()
+    except Exception:
+        return ""
+
+
 def parse(f):
     src = open(f, encoding="utf-8").read()
     slug = os.path.basename(f)[:-5]
@@ -52,10 +63,13 @@ def parse(f):
     tags = [x for x in tags if x and x != 'tags'][:4]
     nocode = re.sub(r'<pre>.*?</pre>', '', body, flags=re.S)
     txt = H.unescape(re.sub(r'<[^>]+>', ' ', nocode))
-    txt = re.sub(r'\s+', ' ', txt).strip()[:1200]
+    txt = re.sub(r'\s+', ' ', txt).strip()
+    mins = max(3, int(round(len(txt) / 400)))
+    level = "入门" if mins <= 10 else ("深入" if mins >= 17 else "进阶")
+    updated = last_commit_date(os.path.relpath(f, ROOT).replace("\\", "/"))
     return {"slug": slug, "title": title, "cat": cat.strip(), "fw": fw.strip(),
-            "desc": desc, "tags": tags, "headings": headings, "text": txt,
-            "py": pinyin_initials(title)}
+            "desc": desc, "tags": tags, "headings": headings, "text": txt[:1200],
+            "py": pinyin_initials(title), "mins": mins, "level": level, "updated": updated}
 
 items = [parse(f) for f in sorted(glob.glob(os.path.join(POSTS, "*.html")))]
 items.sort(key=lambda it: (FW_RANK.get(it["fw"], 9), CAT_RANK.get(it["cat"], 20), it["slug"]))

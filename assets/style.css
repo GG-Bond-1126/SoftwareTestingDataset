@@ -1512,3 +1512,62 @@ html[data-theme="light"] mark.hit { background: rgba(15, 157, 88, 0.16); }
   .article-body table, .article-body figure { page-break-inside: avoid; }
   .article-body a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 9pt; color: #666; }
 }
+
+/* ---------------- v8: 难度标识 / 最后更新 / 专题合集 ---------------- */
+.post-level {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+.post-level.lv-basic { color: #3ddc84; }
+.post-level.lv-mid { color: #f2c66d; }
+.post-level.lv-deep { color: #b48ef0; }
+
+.article-foot .updated {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.series-block { margin-top: 44px; }
+.series-title { margin-bottom: 6px; }
+.series-sub { color: var(--text-dim); font-size: 14px; margin-bottom: 20px; }
+.series-item {
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card-solid, var(--bg-card));
+}
+.series-item h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 16px;
+}
+.series-count { font-family: var(--mono); font-size: 12px; color: var(--text-faint); font-weight: 400; }
+.series-steps { list-style: none; margin: 12px 0 0; padding: 0; }
+.series-steps li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.series-steps li:last-child { border-bottom: 0; }
+.series-num {
+  flex: none;
+  width: 22px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.series-steps a { flex: 1; font-size: 14px; }
+.series-steps small { flex: none; font-size: 11px; color: var(--text-faint); }
+.series-steps li.done a { color: var(--text-faint); text-decoration: line-through; }
+.series-item .path-progress { margin: 0; }

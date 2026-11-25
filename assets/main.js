@@ -271,6 +271,25 @@
       if (!cur) return;
       var bySlug = {};
       items.forEach(function (it) { bySlug[it.slug] = it; });
+      /* 难度标识 + 最后更新 */
+      var metaEl = $(".post-meta");
+      if (metaEl && !metaEl.querySelector(".post-level")) {
+        var lvEl = document.createElement("span");
+        lvEl.className = "post-level " + (cur.level === "入门" ? "lv-basic" : cur.level === "深入" ? "lv-deep" : "lv-mid");
+        lvEl.textContent = cur.level || "进阶";
+        metaEl.appendChild(lvEl);
+      }
+      if (cur.updated) {
+        var footEl = $(".article-foot");
+        var backEl = footEl ? footEl.querySelector(".back-link") : null;
+        if (footEl && !footEl.querySelector(".updated")) {
+          var upEl = document.createElement("span");
+          upEl.className = "updated";
+          upEl.textContent = "最后更新 " + cur.updated;
+          if (backEl) footEl.insertBefore(upEl, backEl); else footEl.appendChild(upEl);
+        }
+      }
+
       var wrapEl = document.createElement("section");
       wrapEl.className = "article-more";
       var navHtml = '<div class="pn-row">' +
@@ -681,6 +700,35 @@
       else card.appendChild(bar);
       var fill = bar.querySelector(".path-progress-fill");
       if (fill) fill.style.width = Math.round((done / steps.length) * 100) + "%";
+    });
+  }
+
+  /* ---------------- paths page: series collections ---------------- */
+  var seriesList = document.getElementById("series-list");
+  if (seriesList) {
+    loadIndex().then(function (items) {
+      if (!items.length) return;
+      var readSet2 = {};
+      getRecent().forEach(function (r) { readSet2[r.slug] = 1; });
+      var groups = {};
+      items.forEach(function (it) { (groups[it.cat] = groups[it.cat] || []).push(it); });
+      var cats = Object.keys(groups)
+        .filter(function (c) { return groups[c].length >= 4; })
+        .sort(function (a, b) { return groups[b].length - groups[a].length || a.localeCompare(b); });
+      seriesList.innerHTML = cats.map(function (c) {
+        var list = groups[c];
+        var done = list.filter(function (it) { return readSet2[it.slug]; }).length;
+        var pct = Math.round((done / list.length) * 100);
+        return '<section class="series-item"><h3>' + esc(c) +
+          ' <span class="series-count">' + list.length + " 篇 · 已读 " + done +
+          '</span></h3><div class="path-progress"><span class="path-progress-track">' +
+          '<span class="path-progress-fill" style="width:' + pct + '%"></span></span></div><ol class="series-steps">' +
+          list.map(function (it, i) {
+            return '<li' + (readSet2[it.slug] ? ' class="done"' : "") + '><span class="series-num">' + (i + 1) +
+              '</span><a href="' + postUrl(it.slug) + '">' + esc(it.title) + '</a>' +
+              '<small>' + it.mins + " 分钟 · " + it.level + "</small></li>";
+          }).join("") + "</ol></section>";
+      }).join("");
     });
   }
 
