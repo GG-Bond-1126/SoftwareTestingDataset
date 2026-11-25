@@ -15,6 +15,7 @@ STEPS = [
     ("HTML 结构校验", "validate.py"),
     ("全站链接体检", "health_check.py"),
     ("引号与 meta 检查", "final_check.py"),
+    ("资源体积守卫", "asset_guard.py"),
 ]
 
 for label, script in STEPS:

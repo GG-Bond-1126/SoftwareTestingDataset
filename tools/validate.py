@@ -59,3 +59,4 @@ for f in sorted(glob.glob(os.path.join(POSTS, "*.html"))):
 print("BAD:", len(bad))
 for n, e, m in bad:
     print(" ", n, m, e)
+raise SystemExit(1 if bad else 0)
