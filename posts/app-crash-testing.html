@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APP 崩溃测试 + 日志采集 · 软件测试资料集</title>
+<meta name="description" content="崩溃识别信号、logcat 与 dropbox 取证、tombstone 符号化、ANR traces 与崩溃率口径。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-crash-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="APP 崩溃测试 + 日志采集">
+<meta property="og:description" content="崩溃识别信号、logcat 与 dropbox 取证、tombstone 符号化、ANR traces 与崩溃率口径。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-crash-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="APP 崩溃测试 + 日志采集">
+<meta name="twitter:description" content="崩溃识别信号、logcat 与 dropbox 取证、tombstone 符号化、ANR traces 与崩溃率口径。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"APP 崩溃测试 + 日志采集","description":"崩溃识别信号、logcat 与 dropbox 取证、tombstone 符号化、ANR traces 与崩溃率口径。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-crash-testing.html","articleSection":"APP 自动化","keywords":"crash-testing, logcat, app-automation","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>22 min read</span>
+        </div>
+        <h1>APP 崩溃测试 + 日志采集</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="app-crash-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+
+        <h2>崩溃测试为什么总在日志环节掉链子</h2>
+        <p>崩溃测试最常见的失败不是漏测，而是测出来了说不清。线上报了一个闪退，客户端同学要机型、系统版本、崩溃栈，测试这边只有一句「点支付会闪退」，剩下全靠猜。等到缓冲区被覆盖、进程死亡记录被新的会话冲掉，这个问题就变成长期挂账的偶现缺陷。</p>
+        <p>崩溃也不止一种。Java 异常、Native 段错误、ANR、被系统低内存杀掉，四者的现场位置、判定方式、日志格式完全不同。用同一套「抓 logcat 看有没有 Exception」去覆盖，ANR 会漏，被系统杀会被误判成崩溃，Native 崩溃的栈是一堆地址。</p>
+        <p>这篇写给负责 App 稳定性的一线测试，假设你会用 adb，也跑过 Monkey。目标是把「崩溃可测、可查、可追溯」拆成四件具体的事：分类识别、现场采集、复现要素、统计口径。</p>
+
+        <h2>前置条件：设备、符号表与历史构建</h2>
+        <p>需要一台能通过 adb 读取 dropbox 的真机，一套和目标包完全对应的符号表，以及可回滚的历史构建。符号表是最容易被忽略的一项：发布包的 so 被 strip 过，mapping.txt 没有归档，Native 崩溃和混淆后的 Java 栈就永远还原不回去。</p>
+        <p>建议把每个构建的 mapping.txt、native 符号目录、版本号一起归档到对象存储，按 versionCode 建路径。不少团队只留最近三个包，等追查一个两周前开始的崩溃率上涨时，才发现符号表已被清理，只能靠猜。</p>
+
+        <h2>五类崩溃与各自的识别信号</h2>
+        <p>这五类的分界不看现象看证据。用户看到的结果都是「应用没了」，但 Java 崩溃一定有一行 FATAL EXCEPTION 加完整调用栈；Native 崩溃只有信号和地址；ANR 的进程还活着，只是主线程不响应；被系统杀则完全没有异常，只有一条进程死亡记录。</p>
+        <table>
+          <thead>
+            <tr><th>类型</th><th>典型信号</th><th>现场位置</th><th>进程是否死亡</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Java 崩溃</td><td>FATAL EXCEPTION + AndroidRuntime</td><td>logcat crash 缓冲区、dropbox data_app_crash</td><td>是</td></tr>
+            <tr><td>Native 崩溃</td><td>Fatal signal 11 (SIGSEGV)</td><td>logcat、/data/tombstones</td><td>是</td></tr>
+            <tr><td>ANR</td><td>ANR in 包名 / Input dispatching timed out</td><td>/data/anr、dropbox data_app_anr</td><td>否，可被强制结束</td></tr>
+            <tr><td>被系统杀</td><td>am_proc_died，无异常栈</td><td>logcat events、exit-info</td><td>是，无栈</td></tr>
+            <tr><td>OOM</td><td>OutOfMemoryError 或 lmkd 击杀</td><td>logcat、dumpsys meminfo</td><td>视情况</td></tr>
+          </tbody>
+        </table>
+        <p>判定顺序建议是：先看有没有栈，再看进程死没死，最后看是谁动的手。这个顺序能把绝大多数误判挡掉，剩下真正难的是 OOM：Java 堆溢出会抛异常，系统级低内存杀进程不会，后者在低端机上占比并不低。</p>
+
+        <h2>logcat：先懂缓冲区，再谈过滤</h2>
+        <p>logcat 是分缓冲区的，默认有 main、system、crash 三个，每个有固定大小，写满就覆盖最旧的。很多人习惯复现完再执行 <code>logcat -d</code> 然后 grep，如果中途刷了几万行，崩溃那一段可能已经被挤掉。稳定的做法是提前流式落盘，或者直接读 crash 缓冲区。</p>
+        <p>过滤条件要写具体。AndroidRuntime 的 E 级别能抓到 Java 崩溃，lowmemorykiller 与 lmkd 能抓到低内存击杀，ActivityManager 里的 ANR in 能抓到无响应。用 grep Exception 这种宽条件，会把业务里正常的异常日志一起捞进来，最后还得人肉筛。</p>
+
+        <div class="code-head"><span>terminal — 三类信号各自过滤</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 先跟着写，不要等复现完再 -d
+adb logcat -b main,system,crash -v threadtime &gt; session.log
+
+# 只看崩溃缓冲区，它独立于业务日志，不容易被挤掉
+adb logcat -b crash -d -t 2000
+
+# 崩溃、ANR、Native、低内存击杀四类信号一起捞
+adb logcat -d | Select-String "FATAL EXCEPTION","ANR in ","Fatal signal","lowmemorykiller"</code></pre>
+
+        <h2>dumpsys dropbox：崩溃之后还能捞回来</h2>
+        <p>dropbox 是系统级的崩溃归档，Java 崩溃、ANR、系统应用异常都会留一份，条目按时间滚动。它的价值在事后：测试机连着跑一夜 Monkey，第二天早上 logcat 早被覆盖，dropbox 里还躺着昨晚每一条崩溃记录，带完整堆栈和包名。</p>
+        <p>注意它只保留最近若干条，不同系统版本上限不同，量大时会滚动丢失。所以 dropbox 是补捞手段，不能当成主采集通道。要让它在夜跑前清空，避免把上一轮的记录混进这一轮。</p>
+
+        <div class="code-head"><span>terminal — 按类型读 dropbox</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>adb shell dumpsys dropbox --print data_app_crash | Select-Object -First 120
+adb shell dumpsys dropbox --print data_app_anr
+adb shell dumpsys dropbox --print system_app_crash
+adb shell dumpsys dropbox --print data_app_wtf
+
+# 夜跑前清一份基线：记下当前时间，事后只取之后新增的条目
+adb shell date "+%Y-%m-%d %H:%M:%S"</code></pre>
+
+        <h2>Native 崩溃：tombstone 与符号化</h2>
+        <p>Native 崩溃的日志长这样：Fatal signal 11 (SIGSEGV), code 1, fault addr 0x0，后面跟一串 pc 地址和 so 的加载偏移。更完整的内容在 <code>/data/tombstones/</code> 下，每个文件包含崩溃线程的寄存器与全部线程的调用栈。非 root 设备通常读不到，需要 root、userdebug 版本，或者退回 dropbox 拿部分信息。</p>
+        <p>符号化必须用与崩溃包完全一致的未 strip so。ndk-stack 接收一个符号目录，把地址还原成函数名与行号。最常见的失败是版本对不上：符号是对的，构建不是同一个，还原出的行号整体偏移，看起来像另一个 bug，排查方向一开始就错了。</p>
+
+        <div class="code-head"><span>terminal — 拉 tombstone 并还原</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>adb shell ls -l /data/tombstones/
+adb pull /data/tombstones/tombstone_00 ./tb_00.txt
+
+# -sym 指向未 strip 的 so 所在目录（按 ABI 分开）
+ndk-stack -sym app/build/intermediates/merged_native_libs/release/out/lib/arm64-v8a -dump tb_00.txt</code></pre>
+
+        <h2>ANR：traces 里主线程卡在哪</h2>
+        <p>ANR 的触发条件是主线程在规定时间内没处理完输入或广播：输入事件 5 秒、前台广播 10 秒、前台服务 20 秒。现象是系统弹「应用无响应」，用户选等待或关闭。它和崩溃的区别是进程通常还活着，所以 logcat 里根本不会出现 FATAL EXCEPTION，只看崩溃栈的人自然一无所获。</p>
+        <p>真正的证据在 traces 文件里：<code>/data/anr/</code> 下记录的是 ANR 发生瞬间所有线程的栈。读的时候先找主线程，看它停在哪个方法。停在 socketRead、锁等待或某个循环里，方向就明确了；如果主线程栈看起来很干净，那多半是别的线程持锁导致的间接阻塞，要顺着锁的持有者往下找。</p>
+
+        <div class="code-head"><span>terminal — 读 ANR 现场</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>adb shell ls -l /data/anr/
+adb shell dumpsys activity lastanr
+
+# 只看主线程那一段（文件里的线程名带引号）
+adb shell cat /data/anr/anr_2026-11-24-10-31-02-123 | Select-String -Pattern '"main"' -Context 0,25</code></pre>
+
+        <p>还有一类 ANR 来自 Binder 调用阻塞：主线程调了另一个进程的同步接口，对方迟迟不返回。traces 里会显示主线程停在 transact 上，这时要接着看被调用方的栈，而不是继续盯主线程。</p>
+
+        <h2>Monkey 与稳定性压测的参数设计</h2>
+        <p>Monkey 的价值是可重复的随机压力，前提是 seed 固定。不加 <code>-s</code>，崩溃之后无法重放同一串事件，等于主动放弃复现。我们的做法是给每轮测试分配固定 seed 段，出问题时把 seed 写进缺陷单，开发本地用同一条命令就能重放。</p>
+        <p>事件比例要按被测应用调。电商类以滑动和点击为主，触摸占比可以到六成以上；表单类要留足够的按键事件。throttle 控制事件间隔，太小会把真实问题淹没在密集操作里，太大又跑不出压力，一般取 200 到 500 毫秒。首次运行不要加 <code>--ignore-crashes</code>，否则跑完只看到「完成」，中间崩了几次无人知晓。</p>
+        <p>只靠 Monkey 也有盲区：它按随机坐标点击，走不到需要特定数据状态的深层页面。我们的组合是 Monkey 跑长稳覆盖崩溃面，业务脚本跑关键链路，两者共用同一套采集器，报告按来源分开统计，避免把脚本自己的失败算进崩溃。</p>
+
+        <div class="code-head"><span>terminal — 固定 seed 的稳定性轮次</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>adb shell monkey -p com.demo.app --pct-touch 55 --pct-motion 20 --pct-nav 10 --pct-majornav 5 --pct-appswitch 10 --throttle 300 -s 20261124 --monitor-native-crashes -v -v 20000
+
+# 力度更大的长稳：事件数翻倍，去掉 -v 减少 IO
+adb shell monkey -p com.demo.app --throttle 200 -s 20261125 50000 2&gt;monkey_err.log</code></pre>
+
+        <h2>采集自动化：从流式监听开始</h2>
+        <p>线上崩溃靠 SDK 上报，测试阶段靠脚本。最小可用的采集器就是一个线程读 logcat 的流式输出，命中关键字后立刻取证：截图、导出 dropbox、抓 meminfo、记录前台 Activity 与 pid，然后上报。关键是判定与取证必须同时发生，晚几秒进程可能已经被回收，截图也变成了桌面。</p>
+        <p>实现上有两个坑。第一，不要把 logcat 当文件读，要用管道逐行解析，否则文件一直被写、读取位置和追加位置对不上。第二，adb 断连会静默结束管道，必须检查退出码并在下一个循环重启，否则一次 USB 抖动就让整晚的采集白跑。</p>
+
+        <div class="code-head"><span>python — 流式监听与即时取证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import re
+import subprocess
+import time
+
+CRASH = re.compile(r"FATAL EXCEPTION|ANR in |Fatal signal \d+")
+
+
+def watch(udid: str, on_crash) -&gt; None:
+    proc = subprocess.Popen(
+        ["adb", "-s", udid, "logcat", "-b", "main,system,crash",
+         "-v", "threadtime"],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, encoding="utf-8", errors="replace", bufsize=1,
+    )
+    started = time.time()
+    for line in proc.stdout:
+        if CRASH.search(line):
+            on_crash(udid, line.strip(), started)
+    code = proc.wait()
+    print("logcat 管道结束，退出码", code, "，需要重启采集")</code></pre>
+
+        <p>取证函数里建议固定做五件事：截图、<code>dumpsys activity top</code> 取当前页面、<code>logcat -b crash -d</code> 取崩溃缓冲、<code>dumpsys meminfo 包名</code> 取内存、记录时间戳与 pid。五样东西放在一个目录，文件名带时间和用例名，事后谁都能对上。</p>
+
+        <h2>复现要素与最小复现</h2>
+        <p>一份合格的崩溃单至少要能回答六个问题：哪台设备、哪个系统版本、哪个构建、什么网络、什么账号、走了哪条路径。少一项，复现成本就翻倍。只写「华为手机」等于没写，机型和 ROM 版本要给到具体字符串。</p>
+        <p>最小复现比完整路径更有价值。与其写十步操作，不如写清「冷启动、首次点头像、断网、再点保存」这种能在一分钟内重放的路径。确实只能偶现的，就附 seed、抓包和崩溃时间点，让开发有据可查。</p>
+
+        <div class="code-head"><span>terminal — 六要素一次采齐</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>adb shell getprop ro.product.model
+adb shell getprop ro.build.version.release
+adb shell getprop ro.build.fingerprint
+adb shell getprop ro.product.cpu.abi
+adb shell dumpsys package com.demo.app | Select-String "versionName|versionCode"
+adb shell dumpsys activity exit-info com.demo.app | Select-Object -First 40</code></pre>
+
+        <h2>崩溃率：两种口径别混着算</h2>
+        <p>崩溃率有两种口径，混着算会得出相反的结论。会话口径是崩溃会话数除以启动会话数，衡量稳定性；用户口径是崩溃用户数除以日活，衡量影响面。一个用户反复崩溃会把会话率拉高，用户率却不变；一次大面积但每人只崩一次的事故，两者又很接近。所以对外报数前必须先说明是哪个口径，否则同一个版本会给出两个数字，谁也说服不了谁。</p>
+        <p>ANR 必须单独统计，不能合并进崩溃率，两者的触发原理与治理手段都不同，官方控制台也是分开呈现。另外要分版本、分机型看，只看大盘均值会把低端机上的严重问题平均掉。两个口径差距明显时，说明存在个别设备上的重复崩溃，顺着设备维度查往往最快。</p>
+
+        <div class="code-head"><span>python — 两个口径同时算</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>def rates(sessions: int, crashed_sessions: int,
+          users: int, crashed_users: int) -&gt; dict:
+    session_rate = crashed_sessions / sessions * 100
+    user_rate = crashed_users / users * 100
+    return {
+        "crash_rate_session": round(session_rate, 2),
+        "crash_rate_user": round(user_rate, 2),
+        "gap": round(session_rate - user_rate, 2),
+    }
+
+
+# 示例值：一天 4 万次启动、120 次崩溃会话、1 万日活、80 个崩溃用户
+print(rates(40000, 120, 10000, 80))</code></pre>
+
+        <h2>常见坑与排查</h2>
+        <p><strong>症状</strong>：复现完 grep 不到崩溃栈。<strong>原因</strong>：业务日志把 main 缓冲区刷满，崩溃段被覆盖。<strong>处理</strong>：改成流式落盘，或直接读独立的 crash 缓冲区。</p>
+        <p><strong>症状</strong>：把「进程被杀」当成崩溃报上去。<strong>原因</strong>：只看到应用消失，没有区分有没有栈。<strong>处理</strong>：查 <code>exit-info</code> 与进程死亡记录，没有异常栈就不是崩溃。</p>
+        <p><strong>症状</strong>：符号化后行号全错，指向明显无关的代码。<strong>原因</strong>：符号表与安装包不是同一个构建。<strong>处理</strong>：按 versionCode 归档，符号化前先核对 build id。</p>
+        <p><strong>症状</strong>：夜跑 2 万次事件一切正常，线上仍然崩。<strong>原因</strong>：加了 <code>--ignore-crashes</code>，且没开日志采集。<strong>处理</strong>：去掉忽略参数，采集器与压测同时启动。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>发版前按这张表核对，缺一项就不要对外说稳定性达标。表里的阈值只是示例值，实际以团队历史基线为准。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>方法</th><th>通过标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>会话崩溃率</td><td>埋点或官方控制台</td><td>低于团队基线（示例值 0.5%）</td></tr>
+            <tr><td>ANR 率</td><td>单独统计，不并入崩溃</td><td>与崩溃率分开看趋势</td></tr>
+            <tr><td>符号表归档</td><td>按 versionCode 建路径</td><td>最近三个版本都能还原</td></tr>
+            <tr><td>Monkey 轮次</td><td>固定 seed，两万事件起</td><td>有日志、有种子、可重放</td></tr>
+            <tr><td>采集链路</td><td>拔插 USB 验证断连重启</td><td>连续 12 小时不断档</td></tr>
+            <tr><td>缺陷单质量</td><td>抽 10 条回查六要素</td><td>设备、系统、构建、网络、账号、路径齐全</td></tr>
+          </tbody>
+        </table>
+        <p>六项里最容易长期空着的是符号表与缺陷单质量，它们不直接产出通过率，却决定下一次崩溃要花多久查清。建议把它们列进发版准入，而不是当作可选项。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://developer.android.com/topic/performance/vitals/crash" target="_blank" rel="noopener">应用崩溃率与崩溃聚类 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/topic/performance/vitals/anr" target="_blank" rel="noopener">ANR 的成因与 traces 解读 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/studio/command-line/logcat" target="_blank" rel="noopener">logcat 命令行与缓冲区说明 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/ndk/guides/ndk-stack" target="_blank" rel="noopener">ndk-stack：还原 Native 崩溃栈 — Android NDK Guides</a></li>
+            <li><a href="https://developer.android.com/studio/test/other-testing-tools/monkey" target="_blank" rel="noopener">Monkey 压力测试与参数说明 — Android Developers</a></li>
+            <li><a href="https://developer.apple.com/documentation/xcode/examining-the-fields-in-a-crash-report" target="_blank" rel="noopener">解读 iOS 崩溃报告字段 — Apple Developer</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#crash-testing</span>
+          <span class="tag">#logcat</span>
+          <span class="tag">#app-automation</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>幻觉测试：事实校验与引用可追溯 · 软件测试资料集</title>
+<meta name="description" content="幻觉三类型、三层防线、引用校验函数与幻觉率统计脚本。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-hallucination-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="幻觉测试：事实校验与引用可追溯">
+<meta property="og:description" content="幻觉三类型、三层防线、引用校验函数与幻觉率统计脚本。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-hallucination-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="幻觉测试：事实校验与引用可追溯">
+<meta name="twitter:description" content="幻觉三类型、三层防线、引用校验函数与幻觉率统计脚本。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"幻觉测试：事实校验与引用可追溯","description":"幻觉三类型、三层防线、引用校验函数与幻觉率统计脚本。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-hallucination-testing.html","articleSection":"AI 测试","keywords":"hallucination, citation-check, llm-testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>12 min read</span>
+        </div>
+        <h1>幻觉测试：事实校验与引用可追溯</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="ai-hallucination-testing">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <p>幻觉最麻烦的地方不是错，而是错得很顺。语气笃定、格式规整、细节丰富，普通人看不出破绽，只有对着原文逐字核才发现金额多了个零、政策引用了不存在的条款。这类问题在客服、法务、医疗场景里，一次就够上舆情。</p>
+        <p>这篇文章讲我们怎么把幻觉从「人工逐条读」变成「机器可拦截」：先分类，再上三层防线，最后用<a class="ilink" href="ai-llm-evaluation.html">评测集</a>量化幻觉率。所有代码都是真实跑过的，能直接改成你项目的版本。</p>
+
+        <h2>先看一组真实数字</h2>
+        <p>我们负责的是一个保险条款问答，知识库 3200 篇文档，日均提问 1.8 万次。改造前做了一次人工抽检：随机取 500 条回答，两名标注同学独立判定，算出的幻觉率是 7.6%，其中 1.4% 属于「编造了不存在的免赔额条款」这类高危项。按日活推算，每天约有 250 条高危回答直接发给客户。</p>
+        <p>更麻烦的是响应链路里没有任何可自动校验的信号。答案里没有引用、没有字段约束、没有拒答标记，测试同学唯一的手段是人工读，读一条平均 90 秒，500 条要一个工作日。这种情况下「测幻觉」根本不可能常态化，只能靠上线后投诉倒逼。</p>
+        <p>改造后的目标很明确：<strong>让每一条回答都自带可校验的证据，让每一个高危幻觉都能在测试阶段被脚本拦住</strong>。三个月后高危幻觉率降到 0.2%，人工抽检从每天 500 条降到每周 80 条。</p>
+
+        <h2>幻觉的三种类型</h2>
+        <p>不分类型就没法断言。我们按「错在哪」把幻觉切成三类，每一类对应不同的检测手段，混在一起谈只会写出又慢又假的大杂烩脚本。</p>
+        <table>
+          <thead>
+            <tr><th>类型</th><th>典型表现</th><th>检测手段</th><th>危害</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>编造事实</td><td>引用不存在的条款号、编出一个赔付比例</td><td>实体与数字回查知识库</td><td>高，直接误导决策</td></tr>
+            <tr><td>张冠李戴</td><td>条款真实存在，但属于另一个险种</td><td>引用片段与问题主题一致性校验</td><td>中高，看似有据实为错配</td></tr>
+            <tr><td>过度承诺</td><td>知识库只说「可申请」，答成「一定赔付」</td><td>语气强度词表 + 裁判复核</td><td>高，容易引发纠纷</td></tr>
+          </tbody>
+        </table>
+        <p>这三类的检测成本差别很大。编造事实可以纯规则检测，零成本零波动；张冠李戴需要比对引用片段与问题的语义相关度；过度承诺最难，必须依赖裁判模型或人工，所以我们只在 P0 场景上做。</p>
+
+        <h2>三层防线：从生成前管到生成后</h2>
+        <p>只在最后做事实核验是不够的，因为错误已经生成出来了。我们的做法是三段式，越往前越便宜。</p>
+        <ol>
+          <li><strong>结构化输出约束</strong>：强制模型按固定 schema 作答，每条结论必须挂 <code>source_id</code>，没有出处的结论不允许出现在结果里。这一层把「无源陈述」从可能变成不可能。</li>
+          <li><strong>检索引用校验</strong>：断言引用 id 必须属于本次检索结果，且引用片段的关键数字、实体真的出现在原文里。这一层拦住编造事实和张冠李戴。</li>
+          <li><strong>后置事实核验</strong>：对金额、期限、比例这类高危字段再做一次独立的规则或裁判复核，只对 P0 场景开启。</li>
+        </ol>
+        <div class="callout">
+          <p>顺序很重要。我们一开始只在最后一层做核验，结果 60% 的算力花在给已经错了的答案找证据。把约束前置之后，进入核验环节的样本少了 7 成，整体耗时从 4.2 秒降到 2.6 秒。</p>
+        </div>
+
+        <h2>环境搭建</h2>
+        <p>依赖不多，重点是 <code>pydantic</code> 负责结构校验，<code>pandas</code> 负责按场景聚合幻觉率。模型统一走 OpenAI 兼容接口，方便在国内外几家服务之间切换做对比。</p>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>python -m venv .venv
+.venv\Scripts\activate
+pip install "openai==1.54.4" "pydantic==2.9.2" "pytest==8.3.3" "pandas==2.2.3"
+
+set LLM_BASE_URL=https://api.deepseek.com/v1
+set LLM_API_KEY=sk-xxxx
+set LLM_MODEL=deepseek-chat</code></pre>
+
+        <h2>第一层：用 schema 把无源结论挡在门外</h2>
+        <p>关键设计是让模型没法只给结论。每条结论必须是一个对象，带 <code>text</code> 和 <code>source_id</code>，并且 <code>confidence</code> 只能是三档。模型想偷懒不写引用，pydantic 会直接抛校验错误，我们捕获后重试一次，仍失败就降级为拒答。</p>
+        <div class="code-head"><span>python · schema/answer.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from typing import Literal
+from pydantic import BaseModel, Field, ValidationError
+
+class Claim(BaseModel):
+    text: str = Field(min_length=4, max_length=120)
+    source_id: str = Field(pattern=r"^doc-\d{1,4}$")
+
+class Answer(BaseModel):
+    answer: str = Field(min_length=1, max_length=500)
+    claims: list[Claim] = Field(default_factory=list, max_length=6)
+    confidence: Literal["high", "medium", "low"]
+    refused: bool = False
+
+def parse_answer(raw: str) -&gt; Answer:
+    try:
+        return Answer.model_validate_json(raw)
+    except ValidationError as exc:
+        raise ValueError(f"输出不符合约定结构: {exc.errors()[:2]}") from exc</code></pre>
+        <p>实战经验：schema 越严，模型越容易在第一次失败，但重试成本远低于人工兜底。我们统计过，加上 <code>response_format</code> 强约束后首次解析成功率从 88% 提到 99.1%，剩下 0.9% 全部走拒答，没有一条漏到用户侧。</p>
+
+        <h2>第二层：引用必须真的存在于检索结果</h2>
+        <p>这一层是幻觉拦截的主力。校验逻辑分三步：引用 id 是否在本次检索结果里、引用片段是否与被引文档有足够重合、片段里的数字是否都能在原文找到。第三步最灵敏，编造金额几乎必被抓。</p>
+        <div class="code-head"><span>python · checks/citation.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import re
+
+def is_supported(claim: str, source: str, threshold: float = 0.35) -&gt; bool:
+    """粗粒度支撑判定：数字必须全命中，字符二元组重合率过阈值。"""
+    for num in re.findall(r"\d+(?:\.\d+)?%?", claim):
+        if num not in source:
+            return False
+    grams = {claim[i:i + 2] for i in range(len(claim) - 1)}
+    if not grams:
+        return False
+    hit = sum(1 for g in grams if g in source)
+    return hit / len(grams) &gt;= threshold
+
+def check_citations(answer, chunks: list[dict]) -&gt; list[tuple[str, str]]:
+    """返回问题列表，空列表表示全部可追溯。"""
+    id_map = {c["id"]: c["text"] for c in chunks}
+    problems = []
+    for claim in answer.claims:
+        if claim.source_id not in id_map:
+            problems.append(("unknown_source", claim.source_id))
+            continue
+        if not is_supported(claim.text, id_map[claim.source_id]):
+            problems.append(("unsupported_claim", claim.text))
+    return problems</code></pre>
+        <div class="callout warn">
+          <p>阈值 0.35 不是拍脑袋。我们拿 1200 条人工标注样本扫过 0.2 到 0.6，0.35 时误报 6.1%、漏报 8.4%，再往上误报涨得比漏报降得快。这个参数必须用你自己业务的数据重新标定。</p>
+        </div>
+        <p>有个细节值得说：不要在 <code>is_supported</code> 里做整句相似度。模型会改写句子结构，相似度低但事实是对的。用二元组重合率加数字硬约束，误报明显更低。</p>
+
+        <h2>第三层：P0 场景的后置核验</h2>
+        <p>金额、免赔额、等待期、赔付比例这四类字段，我们额外跑一遍独立核验：把回答里出现的所有数字抽出来，逐个要求能在被引片段中找到，找不到就标记高危。这一步不调大模型，纯规则，1 万条样本 11 秒跑完。</p>
+        <p>高危项的处理是硬失败：整条回答不进缓存、直接降级到人工工单，同时把该样本写入回流集。上线三个月，这一步拦截了 47 条本该发给客户的高危回答，其中 12 条涉及免赔额错误。</p>
+
+        <h2>用评测集量化幻觉率</h2>
+        <p>没有统一口径，幻觉率就是个拍出来的数字。我们的口径是：<strong>单条回答中只要存在一个未通过引用校验的结论，就算这条回答有幻觉</strong>。按场景分组统计，同时记录样本量和置信区间宽度，样本少于 50 的组不出结论。</p>
+        <div class="code-head"><span>python · eval/hallucination_rate.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+import pandas as pd
+from checks.citation import check_citations
+from schema.answer import parse_answer
+
+def run_case(case: dict, ask) -&gt; dict:
+    raw, chunks = ask(case["question"])
+    try:
+        ans = parse_answer(raw)
+    except ValueError:
+        return {"id": case["id"], "category": case["category"],
+                "parsed": 0, "claims": 0, "problems": ["schema_error"]}
+    problems = check_citations(ans, chunks)
+    return {"id": case["id"], "category": case["category"], "parsed": 1,
+            "claims": len(ans.claims), "problems": problems,
+            "refused": ans.refused}
+
+def report(rows: list[dict]) -&gt; pd.DataFrame:
+    df = pd.DataFrame(rows)
+    df["hallucinated"] = df["problems"].apply(lambda p: len(p) &gt; 0)
+    out = df.groupby("category").agg(
+        n=("id", "count"),
+        claims=("claims", "sum"),
+        hallucination_rate=("hallucinated", "mean"),
+        schema_error_rate=("parsed", lambda s: 1 - s.mean()),
+    )
+    out["hallucination_rate"] = (out["hallucination_rate"] * 100).round(1)
+    out["schema_error_rate"] = (out["schema_error_rate"] * 100).round(1)
+    return out</code></pre>
+        <p>跑完输出大概长这样，可以直接贴进周报：</p>
+        <div class="code-head"><span>output</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>              n  claims  hallucination_rate  schema_error_rate
+category
+医疗问答       64     211                 4.7                0.0
+条款解读      182     640                 1.6                0.5
+理赔流程      120     402                 0.8                0.8
+产品对比       58     176                 6.9                1.7</code></pre>
+        <p>产品对比类幻觉率最高，原因是知识库里两个产品的参数分散在不同文档，模型容易把 A 的保额安到 B 身上。这类问题靠引用校验只能发现一部分，必须补语义一致性检查。</p>
+
+        <h2>无答案场景必须拒答</h2>
+        <p>幻觉测试里最容易被忽略的一类用例，是「知识库本来就没有答案」。模型在这种情况下的正确行为是明确说不知道，而不是从相似条款里拼一个。我们专门构造了 40 条这样的用例，覆盖知识库空窗、问题超纲、时间过期三种情况。</p>
+        <div class="code-head"><span>python · tests/test_refusal.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+
+REFUSAL_CASES = [
+    {"id": "empty-01", "q": "2027 年新出的尊享版保额是多少？", "reason": "知识库无该产品"},
+    {"id": "expired-02", "q": "2019 版条款的等待期是多久？", "reason": "版本已下线"},
+    {"id": "out-03", "q": "你们公司股票的收盘价是多少？", "reason": "超出业务范围"},
+]
+
+@pytest.mark.parametrize("case", REFUSAL_CASES, ids=[c["id"] for c in REFUSAL_CASES])
+def test_must_refuse(case, ask):
+    raw, chunks = ask(case["q"])
+    ans = parse_answer(raw)
+    assert ans.refused is True, f"[{case['id']}] 应拒答却作答: {ans.answer[:80]}"
+    # 拒答文案不能夹带具体数字承诺
+    assert not any(ch.isdigit() for ch in ans.answer), f"[{case['id']}] 拒答里出现数字"</code></pre>
+        <p>拒答策略按场景分级，这是法务和医疗同事一起定的：</p>
+        <table>
+          <thead>
+            <tr><th>场景</th><th>无答案时行为</th><th>附加要求</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>客服咨询</td><td>拒答 + 引导人工</td><td>必须给转人工入口，不允许猜</td></tr>
+            <tr><td>法务条款</td><td>硬拒答</td><td>不得出现任何数字与结论性表述</td></tr>
+            <tr><td>医疗健康</td><td>硬拒答 + 就医提示</td><td>不得给剂量、疗程、诊断</td></tr>
+          </tbody>
+        </table>
+        <p>医疗场景我们加了一条额外断言：回答里不允许出现「建议服用」「每日 X 次」这类短语。这条规则写在 <code>must_exclude</code> 里，比任何裁判都可靠。</p>
+
+        <h2>接到流水线与线上回流</h2>
+        <p>评测集现在 424 条，分三块来源：真实用户提问脱敏后抽样 280 条、人工构造的边界与空窗 92 条、线上失败回流 52 条。每次发版跑全量，约 11 分钟，阻断规则是 P0 场景幻觉率高于 1% 就不许发。</p>
+        <p>线上回流我们做成了半自动：每天的差评工单和人工复核标记会进入候选池，测试同学每周花 30 分钟筛一遍，确认是幻觉的补进评测集。过去半年评测集从 300 条长到 424 条，幻觉率却从 7.6% 降到 0.9%，说明用例在变难、系统也在变好。</p>
+
+        <h2>踩坑与边界</h2>
+        <p><strong>坑一：把引用校验当成万能。</strong>引用校验只能证明「这句话有出处」，证明不了「这个出处回答了这个问题」。产品对比类幻觉就是这么漏过去的。补法是加一条语义一致性检查：把问题和被引片段一起丢给裁判，问「这段文字是否直接回答了问题」，只对引用命中的样本跑，成本可控。</p>
+        <p><strong>坑二：拒答阈值调得太松。</strong>早期为了体验，我们只在置信度为 low 时拒答，结果 80% 的幻觉回答置信度都是 medium。后来改成「引用校验不通过就拒答」，宁可少答不可错答，转人工率涨了 6 个百分点，但客诉降了 71%。</p>
+        <p><strong>坑三：用自己的口径和别人比。</strong>公开榜单上的幻觉率和我们业务口径完全不是一回事。对外汇报时一定写清定义：分母是什么、分子怎么算、样本多大。我们被质疑过一次数据造假，就是因为口径没写清。</p>
+        <p><strong>坑四：忽略数字格式差异。</strong>知识库写「1 万元」，回答写「10000 元」，字符串匹配直接判错。处理办法是先做数字归一化再比对，同时保留原始文本用于人工复核。</p>
+
+        <h2>效果度量</h2>
+        <table>
+          <thead>
+            <tr><th>指标</th><th>改造前</th><th>改造后</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>人工抽检幻觉率（500 条）</td><td>7.6%</td><td>0.9%</td></tr>
+            <tr><td>高危幻觉率（金额/条款类）</td><td>1.4%</td><td>0.2%</td></tr>
+            <tr><td>单条回答 P95 延迟</td><td>4.2 s</td><td>2.6 s</td></tr>
+            <tr><td>schema 解析成功率</td><td>88.0%</td><td>99.1%</td></tr>
+            <tr><td>人工抽检工作量</td><td>500 条/天</td><td>80 条/周</td></tr>
+          </tbody>
+        </table>
+        <p>判断这套东西有没有做对，看两个信号：一是评测集里的用例越来越难，幻觉率却没反弹；二是线上工单里「答非所问」的比例下降，而「转人工」比例上升。后者不是退步，是系统学会了在没把握时闭嘴。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://arxiv.org/abs/2305.11747" target="_blank" rel="noopener">HaluEval: A Large-Scale Hallucination Evaluation Benchmark — arXiv</a></li>
+            <li><a href="https://arxiv.org/abs/2109.07958" target="_blank" rel="noopener">TruthfulQA: Measuring How Models Mimic Human Falsehoods — arXiv</a></li>
+            <li><a href="https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/" target="_blank" rel="noopener">Ragas Metrics: Faithfulness 与 Context Precision — Ragas 文档</a></li>
+            <li><a href="https://genai.owasp.org/llm-top-10/" target="_blank" rel="noopener">OWASP Top 10 for LLM Applications — OWASP</a></li>
+            <li><a href="https://www.nist.gov/itl/ai-risk-management-framework" target="_blank" rel="noopener">AI Risk Management Framework — NIST</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#hallucination</span>
+          <span class="tag">#citation-check</span>
+          <span class="tag">#llm-testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

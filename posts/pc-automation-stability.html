@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC 自动化的稳定性：处理界面变化和超时 · 软件测试资料集</title>
+<meta name="description" content="界面改版的应对策略、多级降级、重试机制、超时配置，配自动操作后台管理系统完整案例。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-stability.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="PC 自动化的稳定性：处理界面变化和超时">
+<meta property="og:description" content="界面改版的应对策略、多级降级、重试机制、超时配置，配自动操作后台管理系统完整案例。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-stability.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="PC 自动化的稳定性：处理界面变化和超时">
+<meta name="twitter:description" content="界面改版的应对策略、多级降级、重试机制、超时配置，配自动操作后台管理系统完整案例。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"PC 自动化的稳定性：处理界面变化和超时","description":"界面改版的应对策略、多级降级、重试机制、超时配置，配自动操作后台管理系统完整案例。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-stability.html","articleSection":"PC 自动化","keywords":"pc-automation, stability, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>PC 自动化的稳定性：处理界面变化和超时</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="pc-automation-stability">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 PC 自动化工具
+pip install pyautogui pynput uiautomation pywinauto opencv-python
+# 验证
+python -c "import pyautogui; print(pyautogui.size())"</code></pre>
+<div class="code-head"><span>python — 验证环境</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui
+# 获取屏幕尺寸（验证）
+print(f"屏幕尺寸：{pyautogui.size()}")
+print("PC 自动化环境就绪 ✓")</code></pre>
+
+<h2>基础应用：自动操作桌面应用</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui, subprocess, time
+
+# 启动记事本
+subprocess.Popen(["notepad.exe"])
+time.sleep(1)
+
+# 输入 + 保存
+pyautogui.write("Hello, PC Automation!")
+time.sleep(0.3)
+pyautogui.hotkey("ctrl", "s")
+time.sleep(0.5)
+
+# 截图
+pyautogui.screenshot("result.png")
+print("基础操作完成 ✓")</code></pre>
+
+<h2>项目进阶：pytest + 多场景 + CI</h2>
+<div class="code-head"><span>python — pytest fixture</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># conftest.py
+import pytest, subprocess, time
+import uiautomation as auto
+
+@pytest.fixture
+def notepad():
+    subprocess.Popen(["notepad.exe"])
+    time.sleep(1)
+    win = auto.WindowControl(searchDepth=1, subTitle="无标题 - 记事本")
+    assert win.Exists(5)
+    yield win
+    auto.press_keys("alt+f4")
+
+# test_notepad.py
+def test_type(notepad):
+    import pyautogui
+    pyautogui.write("测试内容")
+    pyautogui.hotkey("ctrl", "s")
+    time.sleep(0.5)</code></pre>
+
+        <h2>多级降级：主策略失败试备用策略</h2>
+        <p>「控件树定位」失败了，试「图像识别」；图像识别也失败，试「坐标点击」。逐级降级，保证「总能定位到」：</p>
+        <div class="code-head"><span>python — 多级降级</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import uiautomation as auto
+import time
+
+def locate_button_multi_level(
+    control_name,          # 控件名（uiautomation 用）
+    image_path,           # 参考图（图像识别用）
+    fallback_coord,       # 兜底坐标（最脆弱）
+    timeout=5,
+):
+    """多级降级定位按钮。
+
+    策略顺序：
+    1. uiautomation 控件树（最精准）
+    2. 图像识别（中等）
+    3. 坐标点击（最脆弱）
+
+    Returns:
+        定位成功返回 (x, y)，全失败返回 None
+    """
+    # 策略 1：控件树（最精准）
+    try:
+        window = auto.WindowControl(searchDepth=1, subTitle="目标应用")
+        if window.Exists(1):
+            btn = window.child_window(control_type="Button", title=control_name)
+            if btn.Exists(timeout):
+                location = btn.rectangle()
+                center = ((location.left + location.right) // 2,
+                          (location.top + location.bottom) // 2)
+                print(f"  控件树定位成功：{center}")
+                return center
+    except Exception:
+        pass
+
+    # 策略 2：图像识别（中等）
+    location = pyautogui.locateOnScreen(image_path, confidence=0.85)
+    if location:
+        center = pyautogui.center(location)
+        print(f"  图像识别定位成功：{center}")
+        return center
+
+    # 策略 3：坐标点击（最脆弱，兜底）
+    if fallback_coord:
+        print(f"  坐标兜底定位：{fallback_coord}")
+        return fallback_coord
+
+    # 全失败
+    print(f"  ❌ 三种策略都失败：{control_name}")
+    return None
+
+# 使用
+location = locate_button_multi_level(
+    control_name="保存",
+    image_path="buttons/save_btn.png",
+    fallback_coord=(1420, 80)   # 从 1920x1080 屏幕截的坐标
+)
+if location:
+    pyautogui.click(location)
+    print("保存按钮已点击")</code></pre>
+
+        <h2>重试机制：操作失败重试 N 次</h2>
+        <div class="code-head"><span>python — 重试装饰器</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import functools
+import time
+import logging
+
+logger = logging.getLogger(__name__)
+
+def auto_retry(max_retries=3, delay=2.0, retry_on=None):
+    """自动重试装饰器（PC 操作偶发失败时用）。
+
+    Args:
+        max_retries: 最大重试次数
+        delay: 每次重试间隔（秒）
+        retry_on: 要重试的异常类型（默认 Exception）
+    """
+    if retry_on is None:
+        retry_on = Exception
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            last_error = None
+            for attempt in range(1, max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except retry_on as e:
+                    last_error = e
+                    logger.warning(f"  {func.__name__} 第 {attempt} 次失败：{e}")
+                    if attempt < max_retries:
+                        time.sleep(delay)
+            logger.error(f"  {func.__name__} 重试 {max_retries} 次后仍失败")
+            raise last_error
+        return wrapper
+    return decorator
+
+# 使用：鼠标点击重试（界面没加载完时点击可能"点空"）
+@auto_retry(max_retries=3, delay=1.0)
+def click_button(image_path):
+    """点击按钮（失败重试 3 次）。"""
+    location = pyautogui.locateOnScreen(image_path, confidence=0.9)
+    if location is None:
+        raise RuntimeError(f"没找到 {image_path}")
+    pyautogui.click(pyautogui.center(location))
+
+# 调用
+click_button("buttons/confirm_btn.png")
+# 没找到 → 重试 3 次（每次等 1s）→ 还失败才报错</code></pre>
+
+        <h2>超时配置：每个操作设「最长等待」</h2>
+        <div class="code-head"><span>python — 超时配置</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import time
+
+# 不同操作设不同超时（不是"统一 10s"）
+TIMEOUTS = {
+    "window_start": 15,    # 启动应用（可能慢）
+    "element_visible": 10, # 元素可见（中等）
+    "api_response": 30,    # 接口响应（网络慢）
+    "file_generation": 60, # 文件生成（可能很慢）
+    "click_response": 5,   # 点击响应（应该快）
+}
+
+def wait_with_timeout(condition_func, timeout_key):
+    """按"操作类型"设超时的等待。"""
+    timeout = TIMEOUTS[timeout_key]
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            if condition_func():
+                elapsed = time.time() - start
+                print(f"  {timeout_key} 成功（{elapsed:.1f}s / {timeout}s）")
+                return True
+        except Exception:
+            pass
+        time.sleep(0.5)
+    print(f"  ❌ {timeout_key} 超时（{timeout}s）")
+    return False
+
+# 使用
+def window_started():
+    import uiautomation as auto
+    return auto.WindowControl(searchDepth=1, subTitle="记事本").Exists(1)
+
+if not wait_with_timeout(window_started, "window_start"):
+    print("记事本启动失败")
+    exit(1)</code></pre>
+
+        <h2>界面改版的应对策略</h2>
+        <div class="code-head"><span>应对策略</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 参考图版本管理（v1/v2/v3）
+# 界面改版后，"旧参考图"匹配不上
+# 维护多版本参考图，按顺序尝试
+def locate_versioned(image_paths):
+    """按版本找图（v3 优先，v1 兜底）。"""
+    for path in image_paths:   # ["btn_v3.png", "btn_v2.png", "btn_v1.png"]
+        location = pyautogui.locateOnScreen(path, confidence=0.85)
+        if location:
+            print(f"  找到：{path}")
+            return pyautogui.center(location)
+    return None
+
+# 2. 控件树 + 图像识别双备份
+# 控件树定位失败（控件改名），图像识别兜底
+def locate_dual(control_name, image_path, fallback_coord=None):
+    """控件树 + 图像识别双备份。"""
+    # 控件树（优先）
+    import uiautomation as auto
+    try:
+        btn = auto.WindowControl(searchDepth=1, subTitle="目标").child_window(
+            control_type="Button", title=control_name
+        )
+        if btn.Exists(3):
+            return btn.rectangle().center()
+    except Exception:
+        pass
+
+    # 图像识别（兜底）
+    location = pyautogui.locateOnScreen(image_path, confidence=0.85)
+    if location:
+        return pyautogui.center(location)
+
+    # 坐标（最后兜底）
+    return fallback_coord
+
+# 3. 配置化（坐标/图片路径放配置文件）
+# config.json
+# {
+#   "save_button": {
+#     "control_name": "保存",
+#     "image_path": "buttons/save_btn_v2.png",
+#     "fallback_coord": [1420, 80]
+#   }
+# }
+# 界面改版时只改配置，不改代码</code></pre>
+        <div class="callout">
+          <p>PC 自动化「稳定性三原则」：① <strong>多级降级</strong>（控件树 → 图像识别 → 坐标，逐级兜底）；② <strong>重试机制</strong>（偶发失败重试 3 次，不是「一次失败就崩」）；③ <strong>超时配置</strong>（不同操作不同超时，不是「统一 10s」）。界面改版时改配置，不改代码。</p>
+        </div>
+
+        <h2>案例：自动操作后台管理系统</h2>
+        <p>把多级降级 + 重试 + 超时串起来，写一个「自动操作后台管理系统」的完整案例：</p>
+        <div class="code-head"><span>python — 完整案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import pyperclip
+import uiautomation as auto
+import json
+import time
+import logging
+import functools
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger(__name__)
+
+# 配置（参考图 + 控件名 + 兜底坐标）
+CONFIG = {
+    "login_page": {
+        "username_input": {"control_name": "用户名", "image_path": "inputs/username.png", "fallback_coord": [600, 400]},
+        "password_input": {"control_name": "密码", "image_path": "inputs/password.png", "fallback_coord": [600, 500]},
+        "login_button": {"control_name": "登录", "image_path": "buttons/login_v2.png", "fallback_coord": [900, 600]},
+    },
+    "dashboard": {
+        "user_list": {"control_name": "用户列表", "image_path": "panels/user_list.png", "fallback_coord": [200, 300]},
+        "add_button": {"control_name": "添加", "image_path": "buttons/add_user.png", "fallback_coord": [100, 100]},
+    },
+}
+
+# 多级降级定位
+def locate_control(config_item, timeout=5):
+    """多级降级定位控件（控件树 → 图像识别 → 坐标）。"""
+    # 策略 1：控件树
+    try:
+        ctrl = auto.WindowControl(searchDepth=1, subTitle="后台管理系统")
+        if ctrl.Exists(1):
+            target = ctrl.child_window(
+                control_type="Edit" if "input" in config_item["control_name"] else "Button",
+                title=config_item["control_name"],
+            )
+            if target.Exists(timeout):
+                rect = target.rectangle()
+                center = ((rect.left + rect.right) // 2, (rect.top + rect.bottom) // 2)
+                logger.info(f"  控件树定位：{center}")
+                return center
+    except Exception:
+        pass
+
+    # 策略 2：图像识别
+    location = pyautogui.locateOnScreen(config_item["image_path"], confidence=0.85)
+    if location:
+        center = pyautogui.center(location)
+        logger.info(f"  图像识别定位：{center}")
+        return center
+
+    # 策略 3：坐标兜底
+    if config_item["fallback_coord"]:
+        logger.info(f"  坐标兜底：{config_item['fallback_coord']}")
+        return tuple(config_item["fallback_coord"])
+
+    logger.error(f"  ❌ 定位失败：{config_item['control_name']}")
+    return None
+
+# 重试装饰器
+def auto_retry(max_retries=3, delay=1.0):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(1, max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    logger.warning(f"  {func.__name__} 第 {attempt} 次失败：{e}")
+                    if attempt < max_retries:
+                        time.sleep(delay)
+            raise
+        return wrapper
+    return decorator
+
+# 后台管理系统测试
+class TestAdminSystem:
+    """后台管理系统自动化测试"""
+
+    @auto_retry(max_retries=2, delay=2.0)
+    def test_login(self):
+        """登录（重试 2 次）"""
+        # 启动应用
+        import subprocess
+        subprocess.Popen(["admin_system.exe"])
+        time.sleep(5)   # 等启动
+
+        # 输入用户名（多级降级）
+        username_loc = locate_control(CONFIG["login_page"]["username_input"])
+        if not username_loc:
+            raise RuntimeError("用户名输入框定位失败")
+        pyautogui.click(username_loc)
+        time.sleep(0.3)
+        pyperclip.copy("admin")
+        pyautogui.hotkey("ctrl", "v")
+        time.sleep(0.3)
+
+        # 输入密码
+        password_loc = locate_control(CONFIG["login_page"]["password_input"])
+        pyautogui.click(password_loc)
+        time.sleep(0.3)
+        pyperclip.copy("admin123")
+        pyautogui.hotkey("ctrl", "v")
+        time.sleep(0.3)
+
+        # 点击登录
+        login_loc = locate_control(CONFIG["login_page"]["login_button"])
+        pyautogui.click(login_loc)
+        time.sleep(3)
+
+        # 验证登录成功（等"仪表盘"出现）
+        def dashboard_visible():
+            return pyautogui.locateOnScreen("panels/dashboard_v2.png", confidence=0.9) is not None
+
+        if not wait_with_timeout(dashboard_visible, "element_visible"):
+            raise RuntimeError("登录失败：仪表盘没出现")
+
+        logger.info("✅ 登录成功")
+
+    @auto_retry(max_retries=2, delay=2.0)
+    def test_add_user(self):
+        """添加用户（重试 2 次）"""
+        # 点击"添加"按钮
+        add_loc = locate_control(CONFIG["dashboard"]["add_button"])
+        pyautogui.click(add_loc)
+        time.sleep(2)
+
+        # 填用户信息（假设弹窗出现）
+        # ...（省略弹窗输入逻辑）
+
+        # 截图验证
+        pyautogui.screenshot("user_added.png")
+        logger.info("✅ 添加用户成功（截图已保存）")
+
+# 运行
+if __name__ == "__main__":
+    test = TestAdminSystem()
+    test.test_login()
+    test.test_add_user()</code></pre>
+        <div class="callout">
+          <p>PC 自动化「稳定四件套」：<strong>多级降级</strong>（控件树 → 图像识别 → 坐标）、<strong>重试机制</strong>（偶发失败重试 N 次）、<strong>超时配置</strong>（不同操作不同超时）、<strong>配置化</strong>（坐标/图片路径放 config.json，界面改版改配置不改代码）。四件套配齐，PC 自动化脚本「界面改一点也不崩」。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://pyautogui.readthedocs.io/" target="_blank" rel="noopener">pyautogui 官方文档</a></li>
+            <li><a href="https://pywinauto.readthedocs.io/" target="_blank" rel="noopener">pywinauto 官方文档</a></li>
+            <li><a href="https://github.com/yinkaisheng/Python-UIAutomation" target="_blank" rel="noopener">uiautomation 官方仓库（Windows 控件树）</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#pc-automation</span>
+          <span class="tag">#stability</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

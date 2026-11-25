@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>不用 SQL 也能写验证脚本：MongoDB 测试的 3 个关键技巧 · 软件测试资料集</title>
+<meta name="description" content="利用聚合管道校验嵌套文档完整性，用 $expr 做字段级一致性比对。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mongodb-schema-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="不用 SQL 也能写验证脚本：MongoDB 测试的 3 个关键技巧">
+<meta property="og:description" content="利用聚合管道校验嵌套文档完整性，用 $expr 做字段级一致性比对。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mongodb-schema-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="不用 SQL 也能写验证脚本：MongoDB 测试的 3 个关键技巧">
+<meta name="twitter:description" content="利用聚合管道校验嵌套文档完整性，用 $expr 做字段级一致性比对。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"不用 SQL 也能写验证脚本：MongoDB 测试的 3 个关键技巧","description":"利用聚合管道校验嵌套文档完整性，用 $expr 做字段级一致性比对。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/mongodb-schema-testing.html","articleSection":"数据库测试","keywords":"mongodb, nosql, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>11 min read</span>
+        </div>
+        <h1>不用 SQL 也能写验证脚本：MongoDB 测试的 3 个关键技巧</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="mongodb-schema-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 启动 MySQL（Docker）
+docker run -d --name test-mysql -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=test123 -e MYSQL_DATABASE=testdb mysql:8.0
+
+# 连接验证
+mysql -h localhost -u root -ptest123 testdb
+
+# 创建测试表
+CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(100), email VARCHAR(200) UNIQUE);</code></pre>
+
+<h2>基础应用：第一个 SQL 验证</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector
+
+conn = mysql.connector.connect(host="localhost", port=3306, user="root", password="test123", database="testdb")
+cur = conn.cursor()
+cur.execute("INSERT INTO users (name, email) VALUES (%s, %s)", ("测试", "t@e.com"))
+conn.commit()
+cur.execute("SELECT * FROM users WHERE name = %s", ("测试",))
+assert cur.fetchone() is not None
+print("基础验证通过 ✓")
+cur.close(); conn.close()</code></pre>
+
+<h2>项目进阶：并发测试 + 数据一致性</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector, threading
+
+def deduct(uid, qty):
+    c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+    cur = c.cursor()
+    cur.execute("UPDATE products SET stock=stock-%s WHERE product_id=1 AND stock>=%s", (qty, qty))
+    c.commit(); cur.close(); c.close()
+
+threads = [threading.Thread(target=deduct, args=(i, 2)) for i in range(10)]
+[t.start() for t in threads]
+[t.join() for t in threads]
+
+# 验证库存非负
+c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+cur = c.cursor()
+cur.execute("SELECT stock FROM products WHERE product_id=1")
+assert cur.fetchone()[0] >= 0
+print("并发测试通过 ✓")</code></pre>
+
+        <h2>MongoDB 和关系型数据库，测试视角的本质区别</h2>
+        <table>
+          <thead><tr><th></th><th>关系型数据库（MySQL 等）</th><th>MongoDB</th></tr></thead>
+          <tbody>
+            <tr><td>数据组织</td><td>固定列的「表」，行与行结构一致</td><td>每条文档字段可以不一样（「schema-free」），嵌套文档/数组随时有</td></tr>
+            <tr><td>完整性约束</td><td>主键、外键、CHECK 写在建表语句里，数据库强制执行</td><td>默认几乎不强制（没有外键），一致性要靠应用层+测试脚本主动验证</td></tr>
+            <tr><td>测试手段</td><td>JOIN、聚合、约束报错</td><td>聚合管道、<code>$expr</code>、以及「跨集合手动比对」</td></tr>
+          </tbody>
+        </table>
+        <p>一句话概括测试姿势的差异：<strong>MySQL 里「约束帮你拦住脏数据」，MongoDB 里「没人拦，全靠你自己查出来」</strong>。所以本文这 3 个技巧，本质都是在补上「没有数据库帮你兜底」的那部分。</p>
+
+        <h2>技巧①：嵌套文档完整性校验</h2>
+        <p>假设订单文档长这样（嵌套了用户信息、多条商品明细）：</p>
+        <div class="code-head"><span>sample_doc.js</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>{
+  _id: ObjectId("..."),
+  order_no: "O-1001",
+  user: { id: 1, name: "alice", email: "a@x.com" },
+  items: [
+    { sku: "K1", qty: 2, price: 89 },
+    { sku: "K2", qty: 1, price: 25 }
+  ],
+  total: 203,          // = 2*89 + 1*25
+  status: "paid"
+}</code></pre>
+        <p>要验的完整性规则：<strong>① 每个 item 的 qty 和 price 都不能缺失或为负；② total 必须等于所有 item 的 qty*price 之和</strong>。用聚合管道做：</p>
+        <div class="code-head"><span>check1.js — mongosh 里直接能跑</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>db.orders.aggregate([
+  // 逐条校验：找出 total 和"明细求和"对不上的订单
+  { $project: {
+      order_no: 1,
+      total: 1,
+      calc: { $sum: { $map: {
+        input: "$items",
+        as: "i",
+        in: { $multiply: [ "$$i.qty", "$$i.price" ] }
+      }}}
+  }},
+  { $match: { $expr: { $ne: [ "$total", "$calc" ] } } }
+])
+// 任何一行结果，都是一笔"总金额对不上明细"的脏订单，直接就是要报的问题</code></pre>
+
+        <h2>技巧②：$expr 做字段级一致性比对</h2>
+        <p>普通 <code>find()</code> 的过滤条件里不能用表达式运算（不能写 <code>{ $where: ... }</code> 那种「两个字段相减&gt;0」的判断），<code>$expr</code> 就是专门补这个能力的：它让你<strong>在过滤条件里直接比较文档内的两个字段</strong>，不只是「字段 vs 固定值」。</p>
+        <p>场景：订单里有 <code>total</code>（应付总额）和 <code>refund</code>（退款金额），业务规则是「退款额不能超过应付额」。这条规则涉及<strong>同一文档内两个字段的比较</strong>，普通查询写不出来，必须用 <code>$expr</code>：</p>
+        <div class="code-head"><span>check2.js</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>db.orders.find({
+  $expr: { $gt: [ "$refund", "$total" ] }   // 找出"退款比总支付还多"的异常订单
+})</code></pre>
+        <p>再配一个「嵌套文档内」的同类例子：校验「发货时间」一定晚于「下单时间」（两个嵌套字段 <code>timeline.shipped_at</code> 和 <code>timeline.created_at</code>）：</p>
+        <pre><code>db.orders.find({
+  $expr: { $lt: [ "$timeline.shipped_at", "$timeline.created_at" ] }  // 发货早于下单，明显是脏数据
+})</code></pre>
+
+        <h2>技巧③：聚合管道做统计 + 跨集合「手动 JOIN」</h2>
+        <p>没有外键，不代表不能做「一致性」检查，只是要<strong>自己把两张「表」按某个字段拼起来比</strong>。典型场景：订单里的 <code>user.id</code>，必须能在 <code>users</code> 集合里找到对应记录（等价于 MySQL 里的「孤儿记录」检查）：</p>
+        <div class="code-head"><span>check3.js</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>db.orders.aggregate([
+  { $lookup: {
+      from: "users",
+      localField: "user.id",
+      foreignField: "id",
+      as: "matched_user"
+  }},
+  { $match: { "matched_user": { $size: 0 } } }   // 没匹配上任何一个用户 = 孤儿订单
+])
+// 结果非空，就是"订单存在、但用户找不到"的脏数据</code></pre>
+        <p>统计类需求（「按状态分组算订单数」）也一样，用 <code>$group</code> 阶段就能替代 MySQL 的 GROUP BY：</p>
+        <pre><code>db.orders.aggregate([
+  { $group: { _id: "$status", count: { $sum: 1 }, total_amount: { $sum: "$total" } } }
+])</code></pre>
+
+        <h2>Python pymongo：把 3 个技巧写成可运行的验证脚本</h2>
+        <div class="code-head"><span>mongo_check.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from pymongo import MongoClient
+
+client = MongoClient("mongodb://127.0.0.1:27017/")
+db = client["shop"]
+
+def check_total_consistency():
+    """技巧①：嵌套明细的求和，必须等于文档里的 total 字段"""
+    pipeline = [
+        { "$project": {
+            "order_no": 1,
+            "total": 1,
+            "calc": { "$sum": { "$map": {
+                "input": "$items", "as": "i",
+                "in": { "$multiply": ["$$i.qty", "$$i.price"] }
+            }}}
+        }},
+        { "$match": { "$expr": { "$ne": ["$total", "$calc"] } } }
+    ]
+    bad = list(db.orders.aggregate(pipeline))
+    print(f"金额不一致的订单数 = {len(bad)}")
+    for doc in bad[:5]:
+        print("  ", doc["order_no"], "total =", doc.get("total"), "算出来应是 =", doc["calc"])
+
+def check_refund_not_exceed_total():
+    """技巧②：$expr 比较同一文档内的两个字段"""
+    bad = list(db.orders.find({ "$expr": { "$gt": ["$refund", "$total"] } }))
+    print(f"退款额超过总额的订单数 = {len(bad)}（应为 0）")
+
+def check_orphan_orders():
+    """技巧③：$lookup 手动做"跨集合 JOIN"，找孤儿订单"""
+    pipeline = [
+        { "$lookup": {"from": "users", "localField": "user.id",
+                      "foreignField": "id", "as": "m"} },
+        { "$match": { "m": { "$size": 0 } } }
+    ]
+    orphans = list(db.orders.aggregate(pipeline))
+    print(f"孤儿订单数 = {len(orphans)}（应为 0）")
+
+if __name__ == "__main__":
+    check_total_consistency()
+    check_refund_not_exceed_total()
+    check_orphan_orders()
+    client.close()</code></pre>
+
+        <h2>3 个绕不开的坑</h2>
+        <div class="callout warn">
+          <p><strong>单文档 16MB 上限</strong>：MongoDB 单个文档默认最大 16MB，「无限往一个文档里塞」（比如把一年的日志塞进一个数组）迟早会撞上这个限制。测试嵌套文档时，要专门造一个「超大数组/超深嵌套」的极端数据，验证业务写入逻辑有没有提前做拆分，而不是等生产上真撞到了才知道。</p>
+        </div>
+        <p><strong>嵌套数组越深，查询越慢</strong>：数组套数组套数组，<code>$filter</code>、<code>$map</code> 每多一层都要多算一次，测试时别只看「结果对不对」，还要看「数据量大了之后这条查询还能不能在可接受的时间内跑完」。</p>
+        <p><strong>没有索引，就是全集合扫描</strong>：和 MySQL 同理，<code>$lookup</code>、<code>$match</code> 用到的字段如果没有建索引，数据一多就直接扫全集合。测试性能时，先确认这些字段建没建索引，比「结果对不对」更早暴露问题。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://www.mongodb.com/docs/manual/tutorial/query-documents/" target="_blank" rel="noopener">MongoDB 官方文档：查询文档</a></li>
+            <li><a href="https://www.mongodb.com/docs/manual/core/aggregation-pipeline/" target="_blank" rel="noopener">MongoDB 官方文档：聚合管道</a></li>
+            <li><a href="https://pymongo.readthedocs.io/en/stable/" target="_blank" rel="noopener">PyMongo 官方文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#mongodb</span>
+          <span class="tag">#nosql</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

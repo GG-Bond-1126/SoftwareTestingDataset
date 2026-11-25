@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 字符串与正则：解析接口响应的必备技能 · 软件测试资料集</title>
+<meta name="description" content="字符串常用方法、f-string 进阶、正则基础语法、re 模块三大函数，配接口响应解析案例。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-strings-and-regex.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Python 字符串与正则：解析接口响应的必备技能">
+<meta property="og:description" content="字符串常用方法、f-string 进阶、正则基础语法、re 模块三大函数，配接口响应解析案例。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-strings-and-regex.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Python 字符串与正则：解析接口响应的必备技能">
+<meta name="twitter:description" content="字符串常用方法、f-string 进阶、正则基础语法、re 模块三大函数，配接口响应解析案例。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Python 字符串与正则：解析接口响应的必备技能","description":"字符串常用方法、f-string 进阶、正则基础语法、re 模块三大函数，配接口响应解析案例。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-strings-and-regex.html","articleSection":"Python 编程入门","keywords":"python, regex, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>11 min read</span>
+        </div>
+        <h1>Python 字符串与正则：解析接口响应的必备技能</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-strings-and-regex">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Python 3.10+
+# 创建虚拟环境
+python -m venv venv
+venv\Scripts\activate   # Windows
+
+# 安装核心库
+pip install pytest requests pandas
+# 验证
+pytest --version</code></pre>
+<div class="code-head"><span>python — 验证</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+resp = requests.get("https://httpbin.org/get", timeout=5)
+assert resp.status_code == 200
+print("Python 环境就绪 ✓")</code></pre>
+
+<h2>基础应用：第一个测试用例</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+
+def test_api():
+    resp = requests.get("https://httpbin.org/get", params={"name": "test"}, timeout=10)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["args"]["name"] == "test"
+    print("基础接口测试通过 ✓")</code></pre>
+
+<h2>项目进阶：pytest + fixture + 参数化 + 报告</h2>
+<div class="code-head"><span>python — conftest.py</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest, requests
+
+@pytest.fixture
+def api():
+    return requests.Session()
+
+@pytest.fixture
+def user():
+    return {"username": "test@example.com"}</code></pre>
+<div class="code-head"><span>python — 参数化测试</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest
+
+@pytest.mark.parametrize("code", [200, 301, 404, 500])
+def test_status(api, code):
+    resp = api.get(f"https://httpbin.org/status/{code}", timeout=5)
+    assert resp.status_code == code</code></pre>
+
+        <h2>字符串常用方法：测试里天天用</h2>
+        <p>字符串是 Python 里最核心的数据类型，测试脚本里 80% 的操作都是字符串。</p>
+        <div class="code-head"><span>python — 字符串方法速查</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. split：按分隔符拆字符串
+csv_data = "alice,25,shanghai"
+name, age, city = csv_data.split(",")
+print(f"{name}({age}岁,{city})")   # alice(25岁,shanghai)
+
+# 2. join：把列表拼成字符串
+test_names = ["登录", "注册", "下单"]
+report_title = " | ".join(test_names)
+print(report_title)   # 登录 | 注册 | 下单
+
+# 3. strip / lstrip / rstrip：去掉首尾空白
+user_input = "  admin  "
+username = user_input.strip()   # "admin"（去掉首尾空格）
+
+# 4. replace：替换
+url = "https://api.example.com"
+mock_url = url.replace("https://", "http://")   # http://api.example.com
+
+# 5. 判断方法
+s = "test_2026"
+print(s.startswith("test"))    # True（以 test 开头）
+print(s.endswith("2026"))      # True（以 2026 结尾）
+print(s.isdigit())            # False（包含字母）
+print("12345".isdigit())       # True（全是数字）
+
+# 6. 大小写转换
+header_key = "content-type"
+print(header_key.upper())      # CONTENT-TYPE
+print(header_key.title())      # Content-Type
+
+# 7. 格式化（f-string 进阶）
+price = 99.99
+quantity = 3
+total = price * quantity
+print(f"总价：{total:.2f} 元")     # 总价：299.97 元
+print(f"百分比：{0.856:.1%}")      # 百分比：85.6%
+print(f"对齐：{42:<10}左")        # 对齐：42        左
+print(f"对齐：{42:>10}右")        # 对齐：        42 右</code></pre>
+        <div class="callout">
+          <p>测试工程师最常用的 5 个方法：<strong>split</strong>（拆 CSV/URL）、<strong>join</strong>（拼报告标题）、<strong>strip</strong>（去空格）、<strong>replace</strong>（替换环境域名）、<strong>startswith</strong>（判断 URL 类型）。</p>
+        </div>
+
+        <h2>正则表达式基础：从「找一个字」到「找所有模式」</h2>
+        <p>正则（regex）是「模式匹配」工具。测试里最常用的场景：<strong>从日志里找错误、从接口响应里提取数字、验证邮箱格式</strong>。</p>
+
+        <h3>常用正则符号速查</h3>
+        <div class="code-head"><span>python — 正则符号</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 点（.）：匹配任意一个字符
+import re
+re.findall(r".t", "test")   # ['st']（匹配任意字符 + t）
+
+# 方括号（[ ]）：匹配集合中任意一个字符
+re.findall(r"[aeiou]", "hello")   # ['e', 'o']（找所有元音）
+
+# 星号（*）：前一个字符 0 次或多次
+re.findall(r"ab*", "cabbaab")   # ['a', 'abb', 'aab']
+
+# 加号（+）：前一个字符 1 次或多次（至少 1 次）
+re.findall(r"ab+", "cabbaab")   # ['abb', 'aab']
+
+# 量词
+re.findall(r"\d{3}", "123456")   # ['123', '456']（恰好 3 位数字）
+re.findall(r"\d{2,4}", "123456") # ['12', '34', '56']（2~4 位数字）
+
+# 或（|）
+re.findall(r"error|warning", "warning: low memory, error: disk full")
+# ['warning', 'error']
+
+# 捕获组（圆括号）
+date_str = "2026-11-23"
+match = re.search(r"(\d{4})-(\d{2})-(\d{2})", date_str)
+if match:
+    print(match.group(0))   # 2026-11-23（整个匹配）
+    print(match.group(1))   # 2026（第一个捕获组）
+    print(match.group(2))   # 11（第二个捕获组）</code></pre>
+
+        <h3>贪婪 vs 非贪婪</h3>
+        <div class="code-head"><span>python — 贪婪 vs 非贪婪</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 贪婪（* 和 + 默认贪婪）：尽可能多匹配
+re.findall(r"<.*>", "&lt;b>bold&lt;/b> &lt;i>italic&lt;/i>")
+# ['&lt;b>bold&lt;/b> &lt;i>italic&lt;/i>']（匹配整串！）
+
+# 非贪婪（加 ?）：尽可能少匹配
+re.findall(r"<.*?>", "&lt;b>bold&lt;/b> &lt;i>italic&lt;/i>")
+# ['&lt;b>', '&lt;/b>', '&lt;i>', '&lt;/i>']（每个标签分开匹配）
+
+# 测试场景：从 HTML 响应里提取所有 &lt;a> 标签
+html = '&lt;a href="/home">首页&lt;/a> &lt;a href="/about">关于&lt;/a>'
+links = re.findall(r'&lt;a href="([^"]*)"', html)
+print(links)   # ['/home', '/about']</code></pre>
+        <div class="callout warn">
+          <p>贪婪匹配是新手最大的坑。提取 HTML 标签、JSON 片段时，一定要用非贪婪（<code>*?</code>、<code>+?</code>），否则匹配到「最后一对」为止。</p>
+        </div>
+
+        <h2>re 模块三大函数：search / findall / sub</h2>
+        <p>re 模块是 Python 正则的核心，测试工程师最常用的三个函数：</p>
+        <div class="code-head"><span>python — re 三大函数</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import re
+
+log = """
+[2026-11-23 10:00:01] INFO  用户登录成功
+[2026-11-23 10:00:02] ERROR 数据库连接超时
+[2026-11-23 10:00:03] WARN  内存使用率 85%
+[2026-11-23 10:00:04] ERROR 接口响应超时
+[2026-11-23 10:00:05] INFO  用户登出
+"""
+
+# 1. search：找第一个匹配
+match = re.search(r"ERROR (.+)", log)
+if match:
+    print(f"第一个错误：{match.group(1)}")
+    # 第一个错误：数据库连接超时
+
+# 2. findall：找所有匹配
+errors = re.findall(r"ERROR (.+)", log)
+print(f"所有错误：{errors}")
+# 所有错误：['数据库连接超时', '接口响应超时']
+
+# 3. sub：替换
+cleaned = re.sub(r"\[.*?\] ", "", log)   # 去掉所有 [时间戳] 前缀
+print(cleaned)
+# INFO  用户登录成功
+# ERROR 数据库连接超时
+# ...
+
+# finditer：找所有匹配（返回迭代器，内存友好）
+for match in re.finditer(r"ERROR (.+)", log):
+    print(f"行 {match.start()}：{match.group(1)}")</code></pre>
+
+        <h3>常用正则模式（测试场景）</h3>
+        <div class="code-head"><span>python — 常用正则模式</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 邮箱
+re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", "test@example.com")   # 匹配
+re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", "test@com")            # 不匹配（缺 .com 的 TLD）
+
+# IP 地址（简化版）
+ip = "192.168.1.100"
+re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", ip)   # 匹配
+
+# 手机号（中国大陆）
+phone = "13812345678"
+re.match(r"^1[3-9]\d{9}$", phone)   # 匹配（1 开头 + 第二位 3~9 + 9 位数字）
+
+# 订单号格式：ORD-20260101-001
+order = "ORD-20260101-001"
+re.match(r"^ORD-\d{8}-\d{3}$", order)   # 匹配
+
+# 时间戳：2026-11-23 10:30:45
+ts = "2026-11-23 10:30:45"
+re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$", ts)   # 匹配
+
+# 从接口响应提取 token（Bearer token）
+response = '{"token": "Bearer eyJhbGciOiJIUzI1NiJ9.xxx.yyy"}'
+token = re.search(r"Bearer ([a-zA-Z0-9._-]+)", response)
+if token:
+    print(f"Token：{token.group(1)[:20]}...")</code></pre>
+
+        <h2>案例：解析接口响应 + 日志分析</h2>
+        <p>把字符串方法 + 正则串起来，写一个「解析接口响应 + 分析测试日志」的完整案例：</p>
+        <div class="code-head"><span>python — 完整案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import re
+import json
+
+# 1. 解析接口响应（JSON）
+response_body = '''
+{
+    "code": 200,
+    "message": "success",
+    "data": {
+        "order_id": "ORD-20260101-001",
+        "user": {"name": "张三", "email": "zhangsan@example.com"},
+        "amount": 999.99,
+        "items": [
+            {"name": "手机壳", "qty": 2, "price": 49.99},
+            {"name": "耳机", "qty": 1, "price": 900.00}
+        ]
+    }
+}
+'''
+# 解析 JSON
+data = json.loads(response_body)
+order = data["data"]
+
+# 提取订单号（正则）
+order_id_match = re.search(r"ORD-\d{8}-\d{3}", order["order_id"])
+print(f"订单号：{order_id_match.group()}")   # ORD-20260101-001
+
+# 验证邮箱（正则）
+email = order["user"]["email"]
+is_valid = re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email)
+print(f"邮箱 {email} 合法：{bool(is_valid)}")
+
+# 计算总金额（断言）
+total = sum(item["price"] * item["qty"] for item in order["items"])
+print(f"计算总额：{total:.2f}，接口返回：{order['amount']:.2f}")
+assert abs(total - order["amount"]) < 0.01, "金额不一致！"
+
+# 2. 分析测试日志
+log_lines = [
+    "[2026-11-23 10:00:01] INFO  测试开始",
+    "[2026-11-23 10:00:02] ERROR 接口 /api/login 超时",
+    "[2026-11-23 10:00:03] WARN  重试 1/3",
+    "[2026-11-23 10:00:04] INFO  重试成功",
+    "[2026-11-23 10:00:05] INFO  测试结束",
+]
+
+# 提取所有 ERROR 行
+error_lines = [line for line in log_lines if "ERROR" in line]
+print(f"错误行数：{len(error_lines)}")
+
+# 提取接口名（正则）
+for line in error_lines:
+    api_match = re.search(r"接口 (\S+)", line)
+    if api_match:
+        print(f"  出错接口：{api_match.group(1)}")
+
+# 统计各等级日志
+levels = re.findall(r"\] (\w+)\s", "\n".join(log_lines))
+from collections import Counter
+level_counts = Counter(levels)
+print(f"日志统计：{dict(level_counts)}")
+# {'INFO': 3, 'ERROR': 1, 'WARN': 1}</code></pre>
+        <div class="callout">
+          <p>测试工程师记住三条：① 字符串操作用 <strong>split/join/strip</strong> 三个方法能解决 80% 的问题；② 正则找「所有」用 <strong>findall</strong>，找「第一个」用 <strong>search</strong>，替换用 <strong>sub</strong>；③ 提取 HTML 标签、JSON 片段时用<strong>非贪婪</strong>（<code>*?</code>），不然匹配到最后一对。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/library/re.html" target="_blank" rel="noopener">Python re 模块官方文档</a></li>
+            <li><a href="https://docs.python.org/3/library/stdtypes.html#str" target="_blank" rel="noopener">Python 字符串方法官方文档</a></li>
+            <li><a href="https://regexone.com/" target="_blank" rel="noopener">RegexOne（正则交互式教程）</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#python</span>
+          <span class="tag">#regex</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

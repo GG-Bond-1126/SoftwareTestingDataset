@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web 自动化常见坑：幽灵元素 / 多窗口 / Cookie 共享 · 软件测试资料集</title>
+<meta name="description" content="13 个 Web 自动化高频坑的现象、根因与解法，覆盖定位、窗口、Cookie、时序、并发与 CI 差异。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-automation-pitfalls.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Web 自动化常见坑：幽灵元素 / 多窗口 / Cookie 共享">
+<meta property="og:description" content="13 个 Web 自动化高频坑的现象、根因与解法，覆盖定位、窗口、Cookie、时序、并发与 CI 差异。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-automation-pitfalls.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Web 自动化常见坑：幽灵元素 / 多窗口 / Cookie 共享">
+<meta name="twitter:description" content="13 个 Web 自动化高频坑的现象、根因与解法，覆盖定位、窗口、Cookie、时序、并发与 CI 差异。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Web 自动化常见坑：幽灵元素 / 多窗口 / Cookie 共享","description":"13 个 Web 自动化高频坑的现象、根因与解法，覆盖定位、窗口、Cookie、时序、并发与 CI 差异。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-automation-pitfalls.html","articleSection":"Web 自动化","keywords":"debugging, web-automation, troubleshooting","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>22 min read</span>
+        </div>
+        <h1>Web 自动化常见坑：幽灵元素 / 多窗口 / Cookie 共享</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-automation-pitfalls">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>为什么这些坑总在同一个位置复发</h2>
+        <p>这篇写给正在写和维护 Web 自动化用例的一线测试工程师，尤其是那种「单跑全绿、整套全红、并行更红」的套件。下面十三个坑，几乎覆盖了日常九成以上的诡异失败。它们看起来零散，其实只分四层：定位层、上下文层、时序层、环境层。先认清层，再谈解法，才能避免今天修好一个、明天换个形态再来一次。</p>
+        <p>每个坑都按四段写：现象、<a class="ilink" href="ai-defect-rootcause.html">根因</a>、解法、如何预防。只看解法是治不了的——同一个报错可能来自完全不同的原因，比如 <code>ElementClickInterceptedException</code> 既可能是浮层遮挡，也可能是元素还在动画里移动。真正省时间的是记住「这个现象通常属于哪一层」，然后用一次验证动作区分它。</p>
+        <p>还有一条底层共识：所有坑的预防手段，最终都要落到框架里，而不是记在某个人的脑子里。靠 code review 记忆去避免 <code>time.sleep</code>，永远比不过一条 CI 静态检查。</p>
+
+        <h2>定位层：元素找到了，却动不了</h2>
+
+        <h3>坑 1：StaleElementReferenceException</h3>
+        <p><strong>现象</strong>：上一行刚 <code>find_element</code> 成功，下一次操作就抛 stale，提示元素不再附属于当前页面文档。<strong>根因</strong>：驱动拿到的只是元素引用，页面局部刷新、路由切换、列表重排都会替换真实节点，旧引用随即失效。单页应用里点一次筛选、翻一页就能触发。</p>
+        <p><strong>解法</strong>：缓存定位器而不是元素，每次操作前重新查找；已经写成元素变量的地方，用一次重查重试兜底。<strong>预防</strong>：页面对象里禁止在构造或类属性上保存元素实例，只允许保存选择器字符串，这条规则比任何重试都有效。</p>
+
+        <div class="code-head"><span>python — 重查一次再置灰</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import time
+
+from selenium.common.exceptions import StaleElementReferenceException
+from selenium.webdriver.common.by import By
+
+
+def click_retry(driver, by, value, attempts=3):
+    for index in range(attempts):
+        try:
+            driver.find_element(by, value).click()
+            return
+        except StaleElementReferenceException:
+            if index == attempts - 1:
+                raise
+            time.sleep(0.2)   # 等重渲染结束，再重新查找</code></pre>
+
+        <h3>坑 2：幽灵点击，点击成功但业务无反应</h3>
+        <p><strong>现象</strong>：<code>click()</code> 没有抛异常，断言却等不到结果，日志里干干净净。<strong>根因</strong>：点击是落在坐标上的，而坐标中心被固定头部、悬浮客服、加载遮罩盖住；或者元素宽高为零（收起、透明、超出容器），事件实际打到了别的节点。Playwright 默认会做可操作性检查，但开了 <code>force=True</code> 就会跳过。</p>
+        <p><strong>解法</strong>：先用 <code>document.elementFromPoint</code> 确认命中的是不是目标元素，再决定是等遮罩消失还是滚动到可视区。用脚本直接触发点击只能当最后手段，因为它等于放弃了所有真实性校验。<strong>预防</strong>：全组约定禁用强制点击，确需使用时必须在同行注释里写清为什么。</p>
+
+        <div class="code-head"><span>python — 判断目标是否被遮挡</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>BLOCKED = """
+const el = arguments[0];
+const r = el.getBoundingClientRect();
+const top = document.elementFromPoint(r.left + r.width / 2,
+                                      r.top + r.height / 2);
+return top !== el && !el.contains(top);
+"""
+
+btn = driver.find_element(By.ID, "submit-order")
+if driver.execute_script(BLOCKED, btn):
+    # 命中的是遮罩层，先等它消失，而不是硬点
+    WebDriverWait(driver, 10).until(
+        EC.invisibility_of_element_located((By.CSS_SELECTOR, ".mask"))
+    )
+btn.click()</code></pre>
+
+        <h3>坑 3：iframe 嵌套，切进去就出不来</h3>
+        <p><strong>现象</strong>：元素肉眼可见，<code>find_element</code> 就是找不到；或者切进 iframe 之后，页面其他区域的操作全部失效。<strong>根因</strong>：驱动的查找上下文停留在当前 frame 里，所有定位都相对它执行；frame 一旦重新加载，上下文还会自动退回顶层，此时脚本以为自己仍在里面。</p>
+        <p><strong>解法</strong>：用上下文管理器封装多层切换，退出时无论成败都回到顶层，避免异常路径把上下文留在 frame 里污染后续用例。<strong>预防</strong>：页面对象里不要暴露裸的 <code>switch_to</code>，只提供 <code>with frame(...)</code> 这一种入口。</p>
+
+        <div class="code-head"><span>python — 多层 iframe 上下文管理器</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from contextlib import contextmanager
+
+from selenium.webdriver.common.by import By
+
+
+@contextmanager
+def frame(driver, *selectors):
+    """按顺序进入多层 iframe，退出时一定回到顶层"""
+    try:
+        for selector in selectors:
+            driver.switch_to.frame(
+                driver.find_element(By.CSS_SELECTOR, selector))
+        yield
+    finally:
+        driver.switch_to.default_content()
+
+
+with frame(driver, "#pay-frame", "#card-frame"):
+    driver.find_element(By.ID, "card-no").send_keys("6222020000000000")</code></pre>
+
+        <h2>上下文层：窗口、Cookie 与登录态</h2>
+
+        <h3>坑 4：多窗口与多标签句柄丢失</h3>
+        <p><strong>现象</strong>：点一个链接打开了新标签，脚本继续在旧页面上找元素，报找不到，或者断言到的是旧页面标题。<strong>根因</strong>：新标签是异步创建的，句柄列表更新有延迟；按数组下标取句柄在三个以上标签时必然取错。</p>
+        <p><strong>解法</strong>：先记下旧句柄，等句柄数量增加，再用差集取新句柄；Playwright 更直接，用 <code>expect_page</code> 包住点击动作，事件触发即返回新页面对象。<strong>预防</strong>：把「会开新页面的操作」封装成返回新页面的方法，调用方永远不接触句柄。</p>
+
+        <div class="code-head"><span>python — 捕获新页面而不是猜句柄</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>def test_open_help(context, page):
+    page.goto("https://shop.example.com/orders")
+
+    # 事件驱动：点击与监听绑定，不存在「切晚了」的窗口
+    with context.expect_page() as new_page_info:
+        page.get_by_role("link", name="帮助中心").click()
+
+    help_page = new_page_info.value
+    help_page.wait_for_load_state()
+    assert "帮助中心" in help_page.title()
+    help_page.close()
+    assert page.title() == "我的订单"</code></pre>
+
+        <h3>坑 5：Cookie 与 localStorage 没有隔离</h3>
+        <p><strong>现象</strong>：A 用例把语言切成英文、把商品加了购物车，B 用例一进去断言就挂；或者两个用例用同一账号并行，互相把对方挤下线。<strong>根因</strong>：共用了同一个浏览器上下文，Cookie、localStorage、IndexedDB、缓存全部共享；复用登录态文件时，写入方还会把运行时状态回写进去。</p>
+        <p><strong>解法</strong>：每个用例一个独立上下文或独立驱动实例，用完关闭；需要预置登录态时只读取状态文件，不回写。<strong>预防</strong>：在基类统一上下文生命周期，禁止模块级全局上下文，也禁止把登录态文件放到会被写回的位置。</p>
+
+        <div class="code-head"><span>python — 只读登录态 + 独立上下文</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+
+
+@pytest.fixture
+def anon_context(browser):
+    # 匿名上下文：不加载任何登录态
+    ctx = browser.new_context(storage_state=None)
+    yield ctx
+    ctx.close()
+
+
+@pytest.fixture
+def user_a_page(browser):
+    # 只读取状态文件，退出时不回写，避免污染基准数据
+    ctx = browser.new_context(storage_state="auth/user_a.json")
+    page = ctx.new_page()
+    yield page
+    ctx.close()</code></pre>
+
+        <h3>坑 6：登录态污染，单独跑通过、整套跑失败</h3>
+        <p><strong>现象</strong>：失败点集中在那些「期望跳到登录页」的用例上，且只在整套执行时出现。<strong>根因</strong>：前一条用例执行了登出或切换账号，服务端会话失效，本地还有残留令牌；一条用例的副作用被下一条继承。</p>
+        <p><strong>解法</strong>：需要登录的用例显式走登录夹具，需要未登录的用例显式清空存储；服务端提供一个仅测试环境可用的会话重置接口，比在界面上点登出稳定得多。<strong>预防</strong>：把「用例之间不共享可变状态」写进评审清单，这比事后排查便宜十倍。</p>
+
+        <h2>时序层：动画、断言与时钟</h2>
+
+        <h3>坑 7：动画进行中点击</h3>
+        <p><strong>现象</strong>：偶发点到相邻元素、下拉没展开、弹窗点了没关，重跑就过。<strong>根因</strong>：过渡动画期间元素位置在变，驱动使用的是点击那一刻的坐标，而 Selenium 不校验元素是否稳定；Playwright 有稳定性和可操作性检查，但只覆盖原生交互。</p>
+        <p><strong>解法</strong>：等动画真正结束再操作，最省事的是在测试环境注入一段禁用过渡的样式；也可以监听 <code>animationend</code> 或判断计算样式里过渡已归零。<strong>预防</strong>：测试环境统一开启减弱动效，由前端配合，比在每个用例里加等待可靠。</p>
+
+        <div class="code-head"><span>python — 注入样式关掉动画</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>DISABLE_MOTION = """
+*, *::before, *::after {
+  transition: none !important;
+  animation: none !important;
+  scroll-behavior: auto !important;
+}
+"""
+
+
+def test_dropdown(page):
+    page.goto("https://shop.example.com/category")
+    page.add_style_tag(content=DISABLE_MOTION)   # 只影响本页面
+    page.get_by_role("button", name="筛选").click()
+    page.get_by_role("option", name="包邮").click()
+    expect(page.get_by_text("已选：包邮")).to_be_visible()</code></pre>
+
+        <h3>坑 8：断言写在动作之前，或只等固定时长</h3>
+        <p><strong>现象</strong>：断言偶发失败，报告里显示断言时页面还是旧值；把等待从两秒改成五秒后勉强通过。<strong>根因</strong>：动作触发的请求是异步的，断言的执行早于 DOM 更新；用固定休眠等于赌一个时长，网络一抖就输。</p>
+        <p><strong>解法</strong>：断言必须自带条件等待，判定「完成」要有一个明确信号——结果元素出现、加载态消失、或者关键请求结束。<strong>预防</strong>：在 CI 里拦截 <code>time.sleep</code> 与 <code>wait_for_timeout</code> 出现在业务用例中，只允许出现在调试分支。</p>
+
+        <h3>坑 9：时间与时区依赖</h3>
+        <p><strong>现象</strong>：本地白天通过，晚上或 CI 上失败；月底、跨年、夏令时切换前后成片失败。<strong>根因</strong>：用例用当前时间生成数据，却又断言固定日期；服务端按 UTC 存储，前端按本地时区渲染，两边对不上。</p>
+        <p><strong>解法</strong>：固定上下文的时区，必要时冻结页面时钟；断言用相对表述，比如「今天」「本月底」，而不是硬编码某个日期字符串。<strong>预防</strong>：CI 与本地统一时区，测试数据一律由相对日期生成，禁止手写日期常量。</p>
+
+        <div class="code-head"><span>python — 固定时区与页面时钟</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+
+
+@pytest.fixture
+def frozen_page(browser):
+    ctx = browser.new_context(timezone_id="Asia/Shanghai", locale="zh-CN")
+    page = ctx.new_page()
+    page.clock.install()
+    page.clock.set_fixed_time("2026-11-23T10:00:00+08:00")
+    yield page
+    ctx.close()
+
+
+def test_coupon_expiry(frozen_page):
+    frozen_page.goto("https://shop.example.com/coupons")
+    # 固定时钟后，「今天」的语义不再随机器时间漂移
+    expect(frozen_page.get_by_text("今日可领")).to_be_visible()</code></pre>
+
+        <h2>环境层：文件、数据与并发</h2>
+
+        <h3>坑 10：下载与文件上传</h3>
+        <p><strong>现象</strong>：点击上传弹出系统对话框后脚本卡死；下载「成功」但本地找不到文件，或者文件名变成随机串。<strong>根因</strong>：原生文件选择框无法用点击驱动，必须直接向 <code>input</code> 写路径；下载目录没指定，无头模式下默认不落盘到预期位置。</p>
+        <p><strong>解法</strong>：上传用 <code>set_input_files</code>，不要点按钮；下载用 <code>expect_download</code> 包住动作，再另存到指定目录，并校验扩展名与非零体积。<strong>预防</strong>：下载统一走封装方法，禁止在用例里直接读默认下载目录。</p>
+
+        <div class="code-head"><span>python — 上传与下载的正确写法</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+
+
+def test_export_and_import(page):
+    page.goto("https://admin.example.com/report")
+
+    with page.expect_download() as info:
+        page.get_by_role("button", name="导出报表").click()
+    download = info.value
+    target = pathlib.Path("artifacts") / download.suggested_filename
+    download.save_as(target)
+    assert target.suffix == ".xlsx" and target.stat().st_size &gt; 0
+
+    page.goto("https://admin.example.com/import")
+    page.set_input_files("input[type=file]", "fixtures/orders_20.xlsx")
+    page.get_by_role("button", name="开始导入").click()
+    expect(page.get_by_text("导入成功")).to_be_visible(timeout=30_000)</code></pre>
+
+        <h3>坑 11：并发用例互相干扰</h3>
+        <p><strong>现象</strong>：单进程全绿，<code>-n 4</code> 并行后失败率明显上升，失败点随机，且换一次顺序结果就变。<strong>根因</strong>：共享账号、共享测试数据、共享同一条数据库记录；并行的几条用例同时改同一份状态，互相覆盖。</p>
+        <p><strong>解法</strong>：按 worker 分配独立账号和数据命名空间，所有新建数据带唯一前缀，清理时只删自己前缀下的数据。<strong>预防</strong>：用例里禁止出现固定手机号、固定单号、固定用户名，这类硬编码是并行失败的头号来源。</p>
+
+        <div class="code-head"><span>python — 按 worker 分配数据命名空间</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import uuid
+
+import pytest
+
+
+@pytest.fixture
+def data_prefix(worker_id):
+    # worker_id 由 pytest-xdist 注入，单进程运行时为 master
+    return f"qa_{worker_id}_{uuid.uuid4().hex[:8]}"
+
+
+def test_create_member(page, data_prefix):
+    page.goto("https://admin.example.com/members/new")
+    page.fill("#name", f"测试成员_{data_prefix}")
+    page.fill("#phone", "138" + str(uuid.uuid4().int)[:8])
+    page.get_by_role("button", name="保存").click()
+    expect(page.get_by_text("创建成功")).to_be_visible()</code></pre>
+
+        <h3>坑 12：测试数据残留</h3>
+        <p><strong>现象</strong>：第二次跑同一用例失败，提示「该用户已存在」「库存不足」「优惠券已领取」。<strong>根因</strong>：用例造了数据但没有清理，或者清理写在正常路径里，断言一失败就被跳过；数据库也不是每次重建。</p>
+        <p><strong>解法</strong>：收尾阶段清理，用接口而不是界面删除，并把清理失败当成错误抛出而不是吞掉；创建前做幂等判断，存在就复用或先删。<strong>预防</strong>：数据统一由工厂方法生成，带唯一后缀，收尾用夹具自动兜底。</p>
+
+        <h3>坑 13：CI 与本地分辨率差异</h3>
+        <p><strong>现象</strong>：本地截图一切正常，CI 上元素重叠、按钮被挤到视口外、滚动容器高度不对。<strong>根因</strong>：视口不同导致响应式布局切换，设备像素比不同又影响截图尺寸与坐标换算；CI 默认视口往往比本地小一圈。</p>
+        <p><strong>解法</strong>：固定视口与设备像素比，并让本地和 CI 共用同一份浏览器配置常量；截图比对使用统一尺寸，不依赖运行时窗口。<strong>预防</strong>：把视口、时区、语言、动效偏好收进一个共享配置模块，任何用例都不许自行覆盖。</p>
+
+        <h2>一套四步定位法</h2>
+        <p>面对一个说不清的偶发失败，按顺序走四步：先还原现象，写清哪一步、什么报错、是否可重复；再判断层级，看是上下文错位、时序不足，还是环境差异；然后做一次最小验证，用一条命令确认怀疑点；最后把这次结论固化成守卫，写进框架或检查项。跳过第四步，同一个坑三个月后一定还会回来。</p>
+        <p>判断层级时可以借助一个粗略的顺序：如果报错里出现 frame、window、stale，先怀疑上下文；如果是点击无效、结果不对但没有报错，先怀疑时序；如果只在一台机器或某种尺寸下出现，先怀疑环境；最后才怀疑定位器写错。按这个顺序排查，比随机改等待时间有效得多。</p>
+
+        <table>
+          <thead>
+            <tr><th>症状</th><th>优先怀疑</th><th>一步验证</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>元素可见却找不到</td><td>iframe 或影子 DOM 上下文</td><td>打印当前 frame 路径，确认切到了哪一层</td></tr>
+            <tr><td>点击无异常但业务无反应</td><td>遮挡或元素尺寸为零</td><td>用 <code>elementFromPoint</code> 看命中了谁</td></tr>
+            <tr><td>同一用例时红时绿</td><td>时序不足或数据被污染</td><td>连跑 20 次并记录失败率与失败步骤</td></tr>
+            <tr><td>只有 CI 失败</td><td>视口、时区、字体、并发</td><td>本地用同一份上下文配置复跑</td></tr>
+          </tbody>
+        </table>
+
+        <h2>等与不等：三种等待怎么选</h2>
+        <p><a class="ilink" href="web-wait-strategies.html">显式等待</a>、隐式等待、框架自动等待，三者不是替代关系。隐式等待是全局兜底，作用是「查找元素时最多等多久」；显式等待针对具体条件，能等可见、可点击、文本变化；自动等待是 Playwright 的内建行为，只覆盖动作前的可操作性，不覆盖业务完成。</p>
+        <p>混用隐式与显式等待是最常见的误区：两者叠加会让实际等待时间变成两者之和，超时难以推算，Selenium 官方文档也明确提示过这种组合会带来不可预测的等待。稳妥的做法是隐式等待设为 0，全部条件交给显式等待或框架自动等待。</p>
+        <p>另一个取舍是「等元素」还是「等请求」。等元素更贴近用户感知，但有些页面元素先出现、数据后填充；等请求更精确，却把用例绑死在接口上。偏好是：业务断言等元素，涉及金额、库存这类关键数据时再加一条等请求完成的条件。</p>
+
+        <h2>把坑变成守卫</h2>
+        <p>解一个坑只值一次，防住一个坑才值一年。下面这些守卫都落在框架层，团队成员不需要记住任何约定，只要用统一入口写用例，坑就不会重复出现。</p>
+        <table>
+          <thead>
+            <tr><th>坑</th><th>守卫</th><th>落地位置</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>StaleElement</td><td>只允许保存选择器，封装重查重试</td><td>页面对象基类</td></tr>
+            <tr><td>幽灵点击</td><td>禁用强制点击，遮挡检查进工具方法</td><td>交互封装层</td></tr>
+            <tr><td>多窗口</td><td>只暴露返回新页面的方法</td><td>交互封装层</td></tr>
+            <tr><td>Cookie 共享</td><td>每个用例独立上下文，登录态只读</td><td>夹具基类</td></tr>
+            <tr><td>固定休眠</td><td>静态检查拦截，只允许调试分支</td><td>CI 检查</td></tr>
+            <tr><td>数据残留</td><td>工厂生成唯一后缀，收尾自动清理</td><td>数据工厂与夹具</td></tr>
+          </tbody>
+        </table>
+
+        <h2>上线前检查清单</h2>
+        <ul>
+          <li>每条用例是否独立上下文，且没有模块级全局驱动。</li>
+          <li>是否存在固定休眠、固定手机号、固定单号这类硬编码。</li>
+          <li>所有断言是否自带条件等待，失败时能指出停在哪个业务步骤。</li>
+          <li>iframe、弹窗、新窗口是否都通过封装入口操作，异常时能否自动归位。</li>
+          <li>视口、时区、语言、动效配置是否本地与 CI 一致。</li>
+          <li>并行执行时账号与数据是否按 worker 隔离，清理失败是否会让用例变红。</li>
+          <li>失败时是否自动留下截图、DOM 快照与控制台日志，且位置固定可查。</li>
+        </ul>
+
+        <div class="callout">
+          <p>判断一个套件是否成熟，不看它有多少条用例，而看同一个坑第二次出现时，是有人再去改一次脚本，还是框架已经拦住了它。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://www.selenium.dev/documentation/webdriver/waits/" target="_blank" rel="noopener">Waiting Strategies — Selenium 文档</a></li>
+            <li><a href="https://www.selenium.dev/documentation/webdriver/browsers/cookies/" target="_blank" rel="noopener">Working with cookies — Selenium 文档</a></li>
+            <li><a href="https://playwright.dev/python/docs/actionability" target="_blank" rel="noopener">Actionability 检查 — Playwright Python</a></li>
+            <li><a href="https://playwright.dev/python/docs/frames" target="_blank" rel="noopener">Frames 与多页面 — Playwright Python</a></li>
+            <li><a href="https://w3c.github.io/webdriver/" target="_blank" rel="noopener">WebDriver 规范：frame 与窗口切换 — W3C</a></li>
+            <li><a href="https://developer.mozilla.org/zh-CN/docs/Web/HTTP/Cookies" target="_blank" rel="noopener">HTTP Cookie — MDN</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#debugging</span>
+          <span class="tag">#web-automation</span>
+          <span class="tag">#troubleshooting</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

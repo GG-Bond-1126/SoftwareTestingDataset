@@ -1,0 +1,12 @@
+# 本地临时产物
+.trae-html-share-packages/
+.screenshots/
+__pycache__/
+*.pyc
+*.bak
+*.tmp
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini

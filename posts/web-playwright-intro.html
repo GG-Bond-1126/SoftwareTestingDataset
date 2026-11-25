@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Playwright 入门：新一代 Web 自动化 · 软件测试资料集</title>
+<meta name="description" content="Playwright 三层对象、自动等待检查、locator 惰性定位与 storageState 登录态复用。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-playwright-intro.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Playwright 入门：新一代 Web 自动化">
+<meta property="og:description" content="Playwright 三层对象、自动等待检查、locator 惰性定位与 storageState 登录态复用。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-playwright-intro.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Playwright 入门：新一代 Web 自动化">
+<meta name="twitter:description" content="Playwright 三层对象、自动等待检查、locator 惰性定位与 storageState 登录态复用。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Playwright 入门：新一代 Web 自动化","description":"Playwright 三层对象、自动等待检查、locator 惰性定位与 storageState 登录态复用。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-playwright-intro.html","articleSection":"Web 自动化","keywords":"playwright, web-automation, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>24 min read</span>
+        </div>
+        <h1>Playwright 入门：新一代 Web 自动化</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-playwright-intro">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>这篇解决什么问题</h2>
+        <p>如果你已经用 Selenium 写过几十条用例，每天被 sleep 和偶发失败消耗；或者你刚被安排给一个新项目搭 Web 自动化，团队里只有你一个人负责。这篇不打算罗列 API，而是把机制讲到你能自己判断：一次点击到底在等什么、失败之后去哪里找证据、哪些工作 Playwright 替不了你。</p>
+        <p>把 Playwright 理解成「更快的 Selenium」只说对了一半。它真正省掉的是两类劳动：不再为每个操作手写等待条件，失败后不再靠反复重现来定位。用例设计、断言粒度、环境治理这三件事一样也省不掉，反而决定了这套用例能不能活过半年。</p>
+        <p>全文按机制、最小可用、稳定可用三段推进。示例里的域名、账号和耗时都是占位，涉及性能的数字统一标注为示例值，请不要当成基准。</p>
+
+        <h2>前置条件与一个容易忽略的认知差</h2>
+        <p>环境只需要三样：Python 3.9 以上、一个虚拟环境、以及 Playwright 自带的浏览器构建。第三点是新手最容易误解的地方：<code>playwright install</code> 下载的不是你系统里的 Chrome，而是微软自己编译并锁定版本的 Chromium、Firefox 与 WebKit。浏览器版本从此由 <code>pip</code> 决定，不再等用户升级，这是可复现性的来源。</p>
+        <p>安装分两步，先装库再装浏览器二进制。国内网络下第二步经常超时，可以设置镜像地址，或者只装 chromium 一个，把下载量压到最小。</p>
+        <div class="code-head"><span>terminal — 安装与下载浏览器</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>python -m venv .venv
+.venv\Scripts\activate
+
+pip install playwright pytest-playwright
+playwright install chromium
+playwright --version</code></pre>
+        <p>pytest-playwright 插件不是必选项。它提供 page、context、browser 三个 fixture，还能在失败时自动截图附进报告，能省掉一两百行样板。团队已有自研 runner 时就不要硬塞插件，直接用原生 API 更干净；从零起步则推荐装上，先跑通再谈扩展。</p>
+
+        <h2>架构：进程外驱动与三层对象</h2>
+        <p>Selenium 的链路是脚本通过 HTTP 把命令交给驱动，驱动再去操作浏览器。Playwright 多了一层：脚本通过管道（Pipe，默认）或 WebSocket 与一个独立的 Node 进程通信，这个进程才是真正的驱动，再由它分别对接 Chromium 的 CDP、Firefox 的 juggler 协议和 WebKit 的私有协议。Python、Java、C# 这些绑定都只是这个进程的薄客户端。</p>
+        <p>进程外设计带来两个后果。其一是跨语言一致：等待逻辑和定位算法是同一份代码，网上搜到的结论可以直接套用。其二是隔离：驱动崩掉不会带走测试进程，报错以连接中断的形式出现，而不是让 pytest 卡死。代价是首次启动稍慢，并且库版本与驱动版本必须匹配。</p>
+        <p>对象模型是 Browser、BrowserContext、Page 三层。Browser 对应浏览器进程，启动一次几百毫秒起，属于昂贵资源；Context 是进程内的隔离环境，cookie、localStorage、缓存与权限各自独立；Page 是标签页。一个用户、一条并行分支、一次登录，都应该是一份独立 Context。</p>
+        <div class="code-head"><span>python — 三层对象</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)   # 浏览器进程，复用
+    ctx = browser.new_context(
+        viewport={"width": 1440, "height": 900},
+        locale="zh-CN",
+        timezone_id="Asia/Shanghai",
+    )                                            # 一个 context 一个「用户」
+    page = ctx.new_page()
+    page.goto("https://app.example.com/login")
+    print(len(ctx.pages))                        # 该 context 下的标签页数
+    ctx.close()                                  # 关闭 context 会关闭其下所有 page
+    browser.close()</code></pre>
+        <p>最常见的浪费是每个用例都 <code>browser.launch</code>。正确姿势是整个测试会话共享一个 Browser，每个用例新建 Context，跑完即弃。Selenium 里没有 Context 这一层，老项目迁移时这里最需要重新设计，否则并行用例会互相污染登录态。</p>
+
+        <h2>自动等待到底在等什么</h2>
+        <p>「自动等待」实际等的是一个非常具体的判断：元素此刻能不能执行这个动作。官方把这组判断叫 actionability，每次 click、fill、check 之前逐项检查，任何一项不过就重试，直到超时。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>含义</th><th>不满足时的典型症状</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>attached</td><td>元素在 DOM 中且未被移出文档</td><td>报元素不存在，页面还没渲染完</td></tr>
+            <tr><td>visible</td><td>有非空包围盒，visibility 不为 hidden</td><td>报不可见，元素在折叠面板里</td></tr>
+            <tr><td>stable</td><td>连续两帧位置一致，动画已结束</td><td>报 element is not stable</td></tr>
+            <tr><td>receives events</td><td>中心点命中测试打到自己或后代</td><td>报 intercepts pointer events</td></tr>
+            <tr><td>enabled</td><td>没有 disabled，输入框还要求可编辑</td><td>报元素被禁用，按钮在提交中</td></tr>
+          </tbody>
+        </table>
+        <p>这五项几乎解释了所有「看得见却点不到」的报错。<code>element is not stable</code> 说明有 transition 或列表重排没结束；<code>element intercepts pointer events</code> 说明命中测试打到了别人身上，通常是遮罩、吸顶导航或 toast。前者要等动画结束，后者要去掉遮挡或改点真正的目标，两者都不该用 sleep 糊过去——sleep 只是把必然失败换成偶发失败。</p>
+        <p>自动等待管不到业务层面。点完按钮后列表由接口驱动刷新，Playwright 不知道数据什么时候回来，它能保证的只是按钮被点中了。这时要用断言式等待，让条件自己轮询。它比 <code>wait_for_selector</code> 更好，因为断言同时承担校验职责，条件不成立时会明确失败，而不是悄悄放行。</p>
+        <div class="code-head"><span>python — 超时与断言式等待</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from playwright.sync_api import expect
+
+page.set_default_timeout(8_000)        # 全部动作与断言的默认上限
+expect(page.get_by_test_id("row")).to_have_count(10)
+
+# 确实慢的接口单独放宽，而不是调大全局值
+expect(page.get_by_text("对账完成")).to_be_visible(timeout=60_000)</code></pre>
+        <p>默认超时 30 秒，对本地调试太长，建议压到 8 秒左右。全局值一放大，整个套件的失败反馈周期就被拖垮，真正慢的接口往往只有两三个，单独覆盖更划算。</p>
+
+        <h2>locator 与 selector 的区别</h2>
+        <p>旧写法 <code>page.click('#submit')</code> 在调用那一刻就解析出元素句柄，点不到立即抛异常。locator 只是一个查询配方，<code>page.get_by_role('button', name='提交')</code> 描述的是怎么找，真正的解析发生在每次动作之前。页面重渲染、列表刷新、组件重新挂载之后，locator 依然指向对的元素，而句柄早已失效。</p>
+        <p>第二个区别是严格模式。locator 匹配到多个元素默认直接报错，并列出前几个匹配项；Selenium 的 find_element 是静默取第一个。这个差异在排查「点错了按钮」时非常关键：静默取第一个会把错误推迟到断言阶段，看起来像业务 bug，实际是定位器写得太宽。</p>
+        <p>推荐顺序是 role、label、test id，最后才是 CSS。前两者绑定可访问性语义，前端改 class 不会波及；test id 需要开发配合，但最稳定。XPath 除了脆，在大页面上还有逐节点扫描的开销，应限制使用场景。</p>
+        <p>locator 可以链式组合，这是处理「某一行的删除按钮」的正解：先定位行，再在行内定位按钮，而不是拼一条长 CSS。配合 filter 按文本筛选，可读性和稳定性都强于字符串拼接。</p>
+        <div class="code-head"><span>python — locator 链式定位</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>row = page.get_by_role("row").filter(has_text="订单 A20261124001")
+row.get_by_role("button", name="取消").click()
+
+# 多匹配时不要靠猜：明确取第几个，或继续缩小范围
+page.get_by_role("listitem").nth(0).click()
+page.get_by_role("button", name="提交").first.click()
+
+# test id 建议统一前缀，避免与业务属性冲突
+page.get_by_test_id("checkout-submit").click()</code></pre>
+
+        <h2>从 0 到第一个稳定用例</h2>
+        <p>最小工程三个文件就够：pytest.ini 放运行参数，conftest.py 管 browser 与 context 的生命周期，tests/test_login.py 放用例。不要一上来就搭 <a class="ilink" href="web-playwright-pagemodel.html">Page Object</a>，先用两条用例跑通链路；等第三条用例开始重复同样的登录动作时再抽页面对象，否则你会得到一堆只有一个方法的类。</p>
+        <p>用例里要避开三件事：<code>time.sleep</code>、用 print 代替断言、拿整段文案做相等比较。sleep 掩盖真实时机，print 不会让构建失败，整段文案会被一次文案微调打挂。断言应该落在 URL、关键元素可见性、列表条数这类稳定信号上。</p>
+        <div class="code-head"><span>python — conftest 与首条用例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># conftest.py
+import pytest
+from playwright.sync_api import sync_playwright
+
+
+@pytest.fixture(scope="session")
+def browser():
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        yield browser
+        browser.close()
+
+
+@pytest.fixture
+def page(browser):
+    ctx = browser.new_context(base_url="https://app.example.com")
+    page = ctx.new_page()
+    yield page
+    ctx.close()
+
+# tests/test_login.py
+from playwright.sync_api import expect
+
+
+def test_login_success(page):
+    page.goto("/login")
+    page.get_by_label("用户名").fill("qa_demo")
+    page.get_by_label("密码").fill("Passw0rd!")
+    page.get_by_role("button", name="登录").click()
+
+    expect(page).to_have_url("/dashboard")
+    expect(page.get_by_role("heading", name="工作台")).to_be_visible()</code></pre>
+        <p>这段代码没有一处 sleep：goto 等页面加载，fill 等输入框可编辑，click 等按钮可点，expect 自带重试。跑通之后先别急着加新用例，补一条负向路径：密码错误时应该出现提示且 URL 不变。只有正向路径的用例集，等于没有断言。</p>
+
+        <h2>context 隔离与登录态复用</h2>
+        <p>如果每条用例都走一遍登录界面，一千条用例就有近千次重复登录，既慢，又把登录页的稳定性风险放大了一千倍。官方解法是 setup 项目加 storageState：用一次真实登录把 cookie 与 localStorage 序列化成 JSON，后续用例创建 Context 时直接加载。</p>
+        <p>storageState 只覆盖 cookie 和 localStorage，sessionStorage 与 IndexedDB 里的凭证抓不到。站点把 token 放在内存或 IndexedDB 时，可以改成接口登录再注入。验证方法很直接：把快照加载进全新 Context，访问需要登录的页面，能进就成功，被弹回登录页说明关键凭证没存下来。</p>
+        <p>并行时各自新建 Context 是安全的，但共用一个会回写 token 的账号就会互相踩。实践里把快照当只读资源，需要切换身份的用例自己重新登录。</p>
+        <div class="code-head"><span>python — 生成并复用登录态</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+from playwright.sync_api import sync_playwright
+
+STATE = pathlib.Path("state/auth.json")
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    ctx = browser.new_context(base_url="https://app.example.com")
+    page = ctx.new_page()
+    page.goto("/login")
+    page.get_by_label("用户名").fill("qa_demo")
+    page.get_by_label("密码").fill("Passw0rd!")
+    page.get_by_role("button", name="登录").click()
+    page.wait_for_url("/dashboard")
+
+    STATE.parent.mkdir(exist_ok=True)
+    ctx.storage_state(path=str(STATE))      # cookie + localStorage
+    browser.close()
+
+# 其余用例直接复用，不再走登录界面
+ctx = browser.new_context(storage_state=str(STATE),
+                          base_url="https://app.example.com")</code></pre>
+        <p>快照会过期。建议在 CI 里每次运行前动态生成，有效期控制在数小时；写死进仓库通常一周后集体失效，表现是「莫名跳回登录页」，排查时很难第一时间想到凭证问题。</p>
+
+        <h2>trace viewer：失败之后不用重现</h2>
+        <p>截图只给失败那一帧，录屏给过程，但都给不了 DOM 结构、网络请求和控制台报错。trace 把三者合在一起：每个动作前后抓 DOM 快照，同时记录网络、console 与源码位置。用 <code>playwright show-trace</code> 打开后能拖时间轴，点开任意一帧还能在快照上查元素和定位器。</p>
+        <p>开销不小，开截图和快照后单条用例的体积会到几 MB（示例值，随页面复杂度浮动），所以只在失败时保留：Context 建立时开始录制，结束时按结果决定落不落盘。</p>
+        <div class="code-head"><span>python — 按失败保留 trace</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+
+
+@pytest.fixture
+def traced_page(browser, tmp_path):
+    ctx = browser.new_context()
+    ctx.tracing.start(screenshots=True, snapshots=True, sources=True)
+    page = ctx.new_page()
+    yield page
+    trace = tmp_path / "trace.zip"
+    ctx.tracing.stop(path=str(trace))   # 不给 path 则不落盘
+    ctx.close()</code></pre>
+        <p>CI 里把 trace.zip 当 artifact 上传，保留 7 到 14 天。更常见的问题是没人看：失败信息只有一行，附件躺在构建产物里。把打开命令写进失败提示，或者做个小索引页按用例名链到 trace，定位时间能从半小时级降到分钟级。</p>
+
+        <h2>codegen 与 inspector 的使用边界</h2>
+        <p>codegen 打开浏览器，你在页面上点，它实时生成代码。第一次用会觉得是银弹，但生成的脚本有三个硬伤：定位器偏向 nth 和长 CSS，没有任何断言，所有步骤平铺在一个函数里。直接提交进仓库，前端改一次布局就全红。</p>
+        <p>把它当定位器探测器和 API 速查表更合适。点一下目标按钮，看它生成的 get_by_role 那行，抄进自己的 locator；遇到拖拽、上传、iframe 这类不熟的交互，看它怎么调 API，比翻文档快。断言和结构必须手写。</p>
+        <p>inspector 是另一件事：用 PWDEBUG 运行已有用例，每个动作前暂停，可单步、查看当前 DOM、临时录一条定位器。它回答的是这条用例为什么卡在这一步，而不是从零写用例。两个工具定位不清，团队就会积累一批无法维护的录制脚本。</p>
+        <div class="code-head"><span>terminal — 三个命令分清用途</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 探测定位器，生成的脚本不要直接提交
+playwright codegen https://app.example.com/login --target python
+
+# 调试已有用例：动作前暂停，可单步查看 DOM
+PWDEBUG=1 pytest tests/test_login.py -k test_login_success
+
+# 复盘失败
+playwright show-trace test-results/trace.zip</code></pre>
+
+        <h2>常见坑与排查</h2>
+        <p><strong>等 networkidle 把用例挂死。</strong>症状是 goto 或 wait_for_load_state 一直等到超时。原因是单页应用有心跳轮询，网络永远不会空闲。解法是改等具体响应或目标元素出现；networkidle 只适合静态页面。</p>
+        <p><strong>strict mode violation。</strong>症状是点击直接报错，提示匹配到多个元素。原因是定位器写得太宽，比如只用 role=button。解法是用 name 缩小范围，或链式到具体行内；确实只要第一个时显式写 <code>.first</code>。</p>
+        <p><strong>headless 与有头结果不一致。</strong>症状是本地过、CI 挂，或截图对比出现大片差异。原因是无头环境缺字体、滚动条宽度不同、动画帧率不同。解法是固定 viewport 与 deviceScaleFactor，在镜像里装齐字体，做视觉对比前禁用动画。</p>
+        <p><strong>下载文件找不到。</strong>症状是点了导出按钮，临时目录里没有文件。原因是 click 不会同步等待下载完成，文件可能还在写。解法是用 <code>expect_download</code> 包住点击，拿到 download 对象后再另存到指定路径。</p>
+
+        <h2>和 Selenium 的取舍</h2>
+        <p>生态和人才是 Selenium 的护城河。十五年的问答、教程、外包团队默认技能，遇到冷门问题时更容易找到答案；Java 技术栈里与 TestNG、Allure 的集成也更成熟。Playwright 增长快，但偏门场景的资料更少。</p>
+        <p>网格能力是第二道分水岭。Selenium Grid 支持异构浏览器和已有设备农场，很多公司已有现成基础设施；Playwright 用自带 sharding 加多 worker，部署简单，但机器要自己管。已有 Grid 且运行稳定的团队，为迁移重写框架的收益往往抵不过成本。</p>
+        <p>移动端要分清。Playwright 的 device emulation 只是改视口和 UA，不是真机；Android 真机支持仍是实验性质，iOS 没有。浏览器覆盖同理，它的 WebKit 是定制构建，不等于用户手里的 Safari，必须验证真 Safari 时，Selenium 加 SafariDriver 仍是唯一选择。</p>
+        <p>结论不复杂：新项目、纯 Web、团队愿意投入学习，选 Playwright；已有 Grid 资产、需要真 Safari、团队以 Java 为主，继续用 Selenium。为了简历而迁移，是最差的一种理由。</p>
+
+        <h2>上线前检查清单</h2>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>合格标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>等待方式</td><td>无 sleep、无 networkidle，全部靠断言或具体响应等待</td></tr>
+            <tr><td>断言</td><td>每条用例都有 expect，不用 print 充当结果</td></tr>
+            <tr><td>定位器</td><td>优先 role、label、test id，CSS 只作兜底</td></tr>
+            <tr><td>登录态</td><td>storageState 每次运行动态生成，不写死进仓库</td></tr>
+            <tr><td>失败证据</td><td>trace 与截图进构建产物，保留期不少于 7 天</td></tr>
+            <tr><td>超时</td><td>全局 8 秒级，慢接口单独放宽</td></tr>
+            <tr><td>并行</td><td>每个 worker 独立 Context，账号不互相回写</td></tr>
+            <tr><td>环境</td><td>CI 镜像装齐字体与系统依赖，浏览器版本由库锁定</td></tr>
+            <tr><td>数据</td><td>用例自造数据、自清理，不依赖测试库的存量数据</td></tr>
+          </tbody>
+        </table>
+        <p>最后给一条判断标准：如果一条用例失败后，你需要手工重跑才能解释原因，那它还不算稳定用例。稳定用例的标志是——打开 trace，三十秒内能说清失败发生在哪个动作、当时页面是什么状态、是产品问题还是脚本问题。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://playwright.dev/python/docs/intro" target="_blank" rel="noopener">Playwright for Python 安装与入门 — playwright.dev</a></li>
+            <li><a href="https://playwright.dev/python/docs/actionability" target="_blank" rel="noopener">Actionability：自动等待的五项检查 — playwright.dev</a></li>
+            <li><a href="https://playwright.dev/python/docs/auth" target="_blank" rel="noopener">Authentication：storageState 复用登录态 — playwright.dev</a></li>
+            <li><a href="https://playwright.dev/python/docs/trace-viewer" target="_blank" rel="noopener">Trace Viewer 使用说明 — playwright.dev</a></li>
+            <li><a href="https://playwright.dev/python/docs/codegen" target="_blank" rel="noopener">Codegen 与 Inspector — playwright.dev</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#playwright</span>
+          <span class="tag">#web-automation</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

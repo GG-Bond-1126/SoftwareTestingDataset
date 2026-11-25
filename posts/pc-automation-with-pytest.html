@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>pytest + LLM Agent 的桌面测试框架 · 软件测试资料集</title>
+<meta name="description" content="将 LLM 视觉 Agent 封装为 pytest fixtures…">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-with-pytest.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="pytest + LLM Agent 的桌面测试框架">
+<meta property="og:description" content="将 LLM 视觉 Agent 封装为 pytest fixtures…">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-with-pytest.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="pytest + LLM Agent 的桌面测试框架">
+<meta name="twitter:description" content="将 LLM 视觉 Agent 封装为 pytest fixtures…">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"pytest + LLM Agent 的桌面测试框架","description":"将 LLM 视觉 Agent 封装为 pytest fixtures…","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-with-pytest.html","articleSection":"桌面自动化","keywords":"pytest, 桌面自动化, LLM Agent, pyautogui","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">桌面自动化</span> <span class="post-fw">传统+AI 接口</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>15 min read</span>
+        </div>
+        <h1>pytest + LLM Agent 的桌面测试框架</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="pc-automation-with-pytest">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<p>本框架将 LLM 视觉 Agent 封装为 pytest fixture，测试用例中直接写自然语言操作意图，无需硬编码坐标或选择器。核心组件：pytest（测试编排）、pyautogui（桌面控制）、uiautomation（Windows 元素树）、OpenAI/Claude API（LLM 决策）。</p>
+
+<div class="code-head"><span>安装依赖（Windows 桌面测试）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>pip install pytest pyautogui uiautomation openai anthropic opencv-python pillow
+
+# 验证
+python -c "import pyautogui, uiautomation; print('桌面依赖 OK')"
+pytest --version  # 6.x 或 7.x</code></pre>
+
+<div class="code-head"><span>项目结构</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>desktop-tests/
+├── conftest.py              # pytest fixtures（LLM Agent + 桌面控制）
+├── llm_desktop_agent.py     # LLM Agent 核心
+├── self_heal.py            # 元素自愈逻辑
+├── tests/
+│   ├── test_notepad.py
+│   └── test_calc.py
+├── requirements.txt
+└── .env</code></pre>
+
+<div class="code-head"><span>.env 配置</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>OPENAI_API_KEY=sk-xxxxxxxx
+# 或 ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o
+
+# 桌面参数
+SCREEN_WIDTH=1920
+SCREEN_HEIGHT=1080
+APP_WAIT_SECONDS=3        # 应用启动后等待时间
+SCREENSHOT_DIR=./screenshots</code></pre>
+
+<div class="code-head"><span>验证环境（run-verify.py）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import os, sys, pathlib
+
+# 检查必需依赖
+deps = ["pytest", "pyautogui", "uiautomation", "openai"]
+missing = []
+for d in deps:
+    try:
+        __import__(d)
+    except ImportError:
+        missing.append(d)
+if missing:
+    print(f"  [FAIL] 缺少依赖: {missing}")
+    sys.exit(1)
+print("  [OK] 所有 Python 依赖已安装")
+
+# 检查密钥
+assert os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY"), "LLM 密钥未设置"
+print("  [OK] LLM 密钥已配置")
+
+# 检查 pyautogui 截图能力
+import pyautogui
+try:
+    img = pyautogui.screenshot()
+    print(f"  [OK] pyautogui 截图: {img.size}")
+except Exception as e:
+    print(f"  [WARN] 截图失败（CI 无头环境正常）: {e}")</code></pre>
+
+<div class="callout">uiautomation 仅在 Windows 下可用。Linux/macOS 可跳过该依赖，仅用 pyautogui + LLM 坐标操作。</div>
+
+<h2>基础应用：LLM 驱动 pytest 桌面用例（自动定位 + 自动断言）</h2>
+<p>在 pytest 中写测试用例时，操作描述用自然语言，LLM 负责截图分析 → 定位控件 → 生成 pyautogui 代码 → 执行 → 截图验证。测试人员无需了解控件 ID 或坐标。</p>
+
+<div class="code-head"><span>llm_desktop_agent.py — pytest fixture 核心</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+LLM 桌面 Agent：封装为 pytest fixture
+"""
+import base64, json, os, time, pathlib
+import pyautogui
+from openai import OpenAI
+
+# ── 配置 ──
+class _Config:
+    @classmethod
+    def load(cls):
+        # 从 .env 或环境变量读取
+        return {
+            "provider": os.environ.get("LLM_PROVIDER", "openai"),
+            "model": os.environ.get("LLM_MODEL", "gpt-4o"),
+            "sw": int(os.environ.get("SCREEN_WIDTH", "1920")),
+            "sh": int(os.environ.get("SCREEN_HEIGHT", "1080")),
+            "wait": int(os.environ.get("APP_WAIT_SECONDS", "3")),
+            "shot_dir": os.environ.get("SCREENSHOT_DIR", "./screenshots"),
+        }
+
+CFG = _Config.load()
+pyautogui.FAILSAFE = True
+pyautogui.PAUSE = 0.3
+
+class LLMDesktopAgent:
+    """
+    核心方法:
+      act(intent)        — 执行自然语言操作
+      assert_ui(text)    — 断言界面出现指定文本
+      screenshot(tag)    — 保存截图（调试用）
+    """
+
+    def __init__(self):
+        pathlib.Path(CFG["shot_dir"]).mkdir(exist_ok=True)
+        if CFG["provider"] == "anthropic":
+            from anthropic import Anthropic
+            self._client = Anthropic()
+        else:
+            self._client = OpenAI()
+        self._step = 0
+
+    def _screenshot(self, tag: str = "") -> str:
+        """返回 base64 截图，同时保存文件"""
+        png = pyautogui.screenshot()
+        b64 = base64.b64encode(png.tobytes("png")).decode()
+        self._step += 1
+        filename = f"{CFG['shot_dir']}/{tag or 'step'}_{self._step}.png"
+        png.save(filename)
+        return b64
+
+    def _llm(self, system: str, user_text: str, img_b64: str = None) -> str:
+        if CFG["provider"] == "anthropic":
+            content = []
+            if img_b64:
+                content.append({"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": img_b64}})
+            content.append({"type": "text", "text": user_text})
+            resp = self._client.messages.create(
+                model=CFG["model"], max_tokens=1024,
+                system=system,
+                messages=[{"role": "user", "content": content}],
+            )
+            return resp.content[0].text
+        else:
+            user_content = user_text
+            if img_b64:
+                user_content = [
+                    {"type": "text", "text": user_text},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}},
+                ]
+            resp = self._client.chat.completions.create(
+                model=CFG["model"],
+                messages=[{"role": "system", "content": system}, {"role": "user", "content": user_content}],
+                temperature=0.05,
+            )
+            return resp.choices[0].message.content
+
+    def act(self, intent: str):
+        """执行自然语言桌面操作（含重试）"""
+        system = (
+            f"你是桌面 UI 自动化专家（屏幕 {CFG['sw']}x{CFG['sh']}）。\n"
+            "根据截图生成 pyautogui Python 代码，支持：click(x,y)、doubleClick(x,y)、"
+            "rightClick(x,y)、hotkey(*keys)、typewrite(text)、press(key)、moveTo(x,y)。\n"
+            "坐标必须基于 1920x1080 换算。操作完成输出 'DONE'。输出纯代码，不要 markdown。"
+        )
+        for attempt in range(2):
+            shot = self._screenshot(f"act_{intent[:15]}")
+            code = self._llm(system, f"操作意图: {intent}", shot).strip()
+            code = code.removeprefix("```python").removeprefix("```").removesuffix("```").strip()
+
+            if code.upper() == "DONE":
+                print(f"  [OK] {intent}")
+                return
+            print(f"  [exec] {code[:80]}")
+            local = {"pyautogui": pyautogui, "time": time}
+            exec(code, local)
+            time.sleep(0.5)
+            return
+        raise RuntimeError(f"操作失败: {intent}")
+
+    def assert_ui(self, expected_text: str):
+        """LLM 视觉断言：判断界面是否出现指定文本/状态"""
+        shot = self._screenshot("assert")
+        result = self._llm(
+            "你是测试断言专家。输出 JSON: {\"pass\": bool, \"reason\": str}",
+            f"判断界面是否出现: 「{expected_text}」",
+            shot,
+        )
+        parsed = json.loads(
+            result.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        )
+        if not parsed.get("pass"):
+            raise AssertionError(f"界面断言失败: {parsed.get('reason')} (期望: {expected_text})")
+        print(f"  [assert OK] {expected_text}")</code></pre>
+
+<div class="code-head"><span>conftest.py — pytest fixtures</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest, os, subprocess, time
+from llm_desktop_agent import LLMDesktopAgent
+
+@pytest.fixture(scope="session")
+def desktop_agent():
+    """整个测试会话共享一个 LLM Agent 实例"""
+    agent = LLMDesktopAgent()
+    yield agent
+    # 不清理，避免误操作
+
+@pytest.fixture
+def launch_and_quit(request):
+    """
+    动态启动应用，测试结束后关闭
+    用法: launch_and_quit("notepad.exe")
+    """
+    app = request.param
+    proc = subprocess.Popen(app)
+    time.sleep(int(os.environ.get("APP_WAIT_SECONDS", "3")))
+    yield proc
+    try:
+        proc.terminate()
+    except:
+        pass
+
+def pytest_configure(config):
+    """注册 marker"""
+    config.addinivalue_line("markers", "desktop: 桌面 UI 测试（需要真实 GUI 环境）")</code></pre>
+
+<div class="code-head"><span>tests/test_notepad.py — 记事本测试示例</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest
+from llm_desktop_agent import LLMDesktopAgent
+
+@pytest.mark.desktop
+class TestNotepad:
+    def test_new_file(self, desktop_agent: LLMDesktopAgent, launch_and_quit):
+        """新建文件并保存"""
+        import subprocess
+        subprocess.Popen("notepad.exe")
+        pytest.wait(3)  # 等待启动
+
+        desktop_agent.act("点击菜单栏的'文件'")
+        desktop_agent.act("点击'新建'选项")
+        desktop_agent.assert_ui("出现空白文档编辑区域")
+
+        desktop_agent.act("在文档中输入 'Hello Test'")
+        desktop_agent.assert_ui("文档中出现 Hello Test 文本")
+
+        desktop_agent.act("按 Ctrl+S")
+        desktop_agent.assert_ui("出现保存文件对话框")
+        desktop_agent.act("输入文件名 'test'，点击'保存'按钮")
+
+        subprocess.run("taskkill /IM notepad.exe /F", capture_output=True)
+
+    def test_find_replace(self, desktop_agent: LLMDesktopAgent):
+        """搜索替换功能"""
+        desktop_agent.act("按 Ctrl+H 打开替换对话框")
+        desktop_agent.assert_ui("出现查找替换对话框")
+        desktop_agent.act("在查找框输入 'old'，替换框输入 'new'")
+        desktop_agent.act("点击'全部替换'按钮")
+        desktop_agent.assert_ui("替换完成提示")</code></pre>
+
+<div class="callout">pytest marker <code>@pytest.mark.desktop</code> 用于 CI 中区分桌面测试（需要 GUI Runner）和普通单元测试（任意 Runner），避免在无 GUI 环境误触发。</div>
+
+<h2>项目进阶：CI 集成 + 元素自愈 + AI 根因报告</h2>
+<p>在 CI 中运行桌面测试，UI 变更导致控件定位失败时自动调用 LLM 重新定位；测试失败后 LLM 分析截图 + 日志生成<a class="ilink" href="ai-defect-rootcause.html">根因</a>报告，归档到 Allure。</p>
+
+<div class="code-head"><span>self_heal.py — 元素定位自愈</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+当 pyautogui 坐标点击失效时（UI 重排、分辨率变化），
+LLM 重新截图分析并生成新坐标
+"""
+import base64, json, os, time
+import pyautogui
+from openai import OpenAI
+
+client = OpenAI()
+MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
+
+def heal_coordinate(original_xy: tuple, element_desc: str, screenshot_b64: str = None) -> tuple:
+    """
+    重新定位元素坐标
+    返回新的 (x, y)，失败返回 None
+    """
+    if screenshot_b64 is None:
+        png = pyautogui.screenshot()
+        screenshot_b64 = base64.b64encode(png.tobytes("png")).decode()
+
+    prompt = f"""
+    桌面 UI 元素定位失败。
+      原始坐标: ({original_xy[0]}, {original_xy[1]})
+      目标元素: {element_desc}
+
+    请根据截图重新判断该元素的坐标位置（基于 1920x1080 屏幕）。
+    输出 JSON: {{"x": int, "y": int, "confidence": 0.0-1.0}}
+    如果无法确定，输出 {{"x": -1, "y": -1, "confidence": 0.0}}
+    """
+    resp = client.chat.completions.create(
+        model=MODEL,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"}},
+            ],
+        }],
+        temperature=0.0,
+        max_tokens=128,
+    )
+    result = json.loads(
+        resp.choices[0].message.content.strip()
+        .removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    )
+    if result.get("confidence", 0) < 0.5:
+        print(f"  [heal] 置信度过低 ({result['confidence']})，放弃自愈")
+        return None
+    new_xy = (result["x"], result["y"])
+    print(f"  [heal] {original_xy} → {new_xy}")
+    return new_xy
+
+def heal_and_click(element_desc: str, fallback_xy: tuple):
+    """先试旧坐标，失败则 LLM 重新定位"""
+    try:
+        pyautogui.click(*fallback_xy)
+        return True
+    except Exception:
+        healed = heal_coordinate(fallback_xy, element_desc)
+        if healed:
+            pyautogui.click(*healed)
+            time.sleep(0.5)
+            return True
+        return False</code></pre>
+
+<div class="code-head"><span>ci_report.py — 测试报告 + AI 根因分析</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+pytest 钩子：测试失败时自动截图 + LLM 根因分析 + Allure 报告
+"""
+import base64, json, os, pathlib, datetime
+import pyautogui
+from openai import OpenAI
+
+client = OpenAI()
+MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
+REPORT_DIR = pathlib.Path("ai_failure_reports")
+REPORT_DIR.mkdir(exist_ok=True)
+
+def llm_root_cause(test_name: str, error_msg: str, screenshot_b64: str) -> str:
+    """LLM 根因分析，返回 Markdown 报告"""
+    prompt = f"""
+    桌面 UI 测试「{test_name}」失败。
+    错误: {error_msg[:300]}
+    截图已附。
+
+    请输出：
+    1. 根因分类（UI变更/超时/权限/分辨率/应用崩溃/其他）
+    2. 分析（2-3句，基于截图证据）
+    3. 修复建议（具体步骤）
+    Markdown 格式。
+    """
+    resp = client.chat.completions.create(
+        model=MODEL,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"}},
+            ],
+        }],
+        temperature=0.1,
+        max_tokens=512,
+    )
+    return resp.choices[0].message.content
+
+def generate_report(test_name: str, error: Exception) -> str:
+    """生成单条失败报告的完整流程"""
+    # 截图
+    ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    shot_path = REPORT_DIR / f"{test_name}_{ts}.png"
+    try:
+        pyautogui.screenshot().save(shot_path)
+        shot_b64 = base64.b64encode(shot_path.read_bytes()).decode()
+    except:
+        shot_b64 = None
+        print(f"  [WARN] 截图失败（CI 无头环境）")
+
+    # LLM 分析
+    if shot_b64:
+        report_md = llm_root_cause(test_name, str(error), shot_b64)
+    else:
+        report_md = f"# 失败报告: {test_name}\n错误: {error}\n（无截图，CI 无头环境）"
+
+    # 保存
+    report_path = REPORT_DIR / f"{test_name}_{ts}.md"
+    report_path.write_text(report_md, encoding="utf-8")
+    print(f"  [report] {report_path}")
+    return str(report_path)</code></pre>
+
+<div class="code-head"><span>conftest.py — pytest 钩子集成</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+pytest 钩子：失败时自动触发 LLM 根因分析
+"""
+import pytest, os
+from ci_report import generate_report
+
+# 只在标记为 desktop 的测试中启用
+def pytest_runtest_makereport(item, call):
+    """
+    pytest 内置钩子，在测试结束后调用
+    通过 item._report 附加根因报告路径
+    """
+    if call.when == "call" and call.excinfo is not None:
+        if "desktop" in [m.name for m in item.iter_markers(name="desktop")]:
+            test_name = item.name
+            error = call.excinfo.value
+            report_path = generate_report(test_name, error)
+            # 将报告路径附加到测试节点，供 Allure 读取
+            item._ai_report_path = report_path
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):
+    """pytest 结束后输出 AI 报告汇总"""
+    reports = []
+    for tr in terminalreporter.getreports("call"):
+        node = getattr(tr.node, "_ai_report_path", None)
+        if node:
+            reports.append(node)
+    if reports:
+        terminalreporter.write_line("\n=== AI 根因分析报告 ===")
+        for r in reports:
+            terminalreporter.write_line(f"  {r}")</code></pre>
+
+<div class="code-head"><span>.github/workflows/desktop-pytest-ci.yml</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>name: Desktop pytest CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  desktop-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install pytest pyautogui uiautomation openai opencv-python pillow
+
+      - name: Run desktop tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_MODEL: gpt-4o
+          SCREEN_WIDTH: 1920
+          SCREEN_HEIGHT: 1080
+        run: |
+          pytest tests/ -v \
+            -m desktop \
+            --allure-results=allure-results \
+            -s
+
+      - name: Generate Allure report
+        if: always()
+        run: |
+          npm install -g @allure/report-generator
+          npx allure generate allure-results --clean -o allure-report
+
+      - name: Upload AI failure reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-failure-reports
+          path: ai_failure_reports
+          retention-days: 30
+
+      - name: Upload Allure report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-desktop-report
+          path: allure-report
+          retention-days: 14</code></pre>
+
+<div class="callout warn">Windows CI Runner 默认分辨率可能不是 1920x1080，请在 workflow 中加 <code>xrally</code> 或 <code>Set-DisplayResolution</code> 步骤固定分辨率，否则 LLM 坐标换算会偏移。</div>
+
+<div class="callout">自愈机制建议保留 3 次重试上限：首次用旧坐标，第二次 LLM 重新定位，第三次直接失败并报告。避免 LLM 在无限循环中消耗 token。</div>
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+<li>pytest 官方文档 — <a href="https://docs.pytest.org/" target="_blank" rel="noopener">https://docs.pytest.org</a></li>
+<li>pyautogui — <a href="https://pyautogui.readthedocs.io/" target="_blank" rel="noopener">https://pyautogui.readthedocs.io</a></li>
+<li>uiautomation (Windows) — <a href="https://github.com/yinkaikew/uiautomation" target="_blank" rel="noopener">https://github.com/yinkaikew/uiautomation</a></li>
+<li>Allure 报告 — <a href="https://allurereport.org/" target="_blank" rel="noopener">https://allurereport.org</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">pytest</span>
+          <span class="tag">桌面自动化</span>
+          <span class="tag">LLM Agent</span>
+          <span class="tag">pyautogui</span>
+          <span class="tag">Allure</span>
+          <span class="tag">CI/CD</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

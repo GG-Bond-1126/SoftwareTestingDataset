@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>测试 Redis 别只试 SET GET：5 种数据结构各对应什么业务 · 软件测试资料集</title>
+<meta name="description" content="用真实业务场景解释 String/Hash/List/Set/ZSet，附 redis-cli 实操命令。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/redis-basic-operations.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="测试 Redis 别只试 SET GET：5 种数据结构各对应什么业务">
+<meta property="og:description" content="用真实业务场景解释 String/Hash/List/Set/ZSet，附 redis-cli 实操命令。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/redis-basic-operations.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="测试 Redis 别只试 SET GET：5 种数据结构各对应什么业务">
+<meta name="twitter:description" content="用真实业务场景解释 String/Hash/List/Set/ZSet，附 redis-cli 实操命令。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"测试 Redis 别只试 SET GET：5 种数据结构各对应什么业务","description":"用真实业务场景解释 String/Hash/List/Set/ZSet，附 redis-cli 实操命令。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/redis-basic-operations.html","articleSection":"数据库测试","keywords":"redis, data-structure, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>测试 Redis 别只试 SET GET：5 种数据结构各对应什么业务</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="redis-basic-operations">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 启动 MySQL（Docker）
+docker run -d --name test-mysql -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=test123 -e MYSQL_DATABASE=testdb mysql:8.0
+
+# 连接验证
+mysql -h localhost -u root -ptest123 testdb
+
+# 创建测试表
+CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(100), email VARCHAR(200) UNIQUE);</code></pre>
+
+<h2>基础应用：第一个 SQL 验证</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector
+
+conn = mysql.connector.connect(host="localhost", port=3306, user="root", password="test123", database="testdb")
+cur = conn.cursor()
+cur.execute("INSERT INTO users (name, email) VALUES (%s, %s)", ("测试", "t@e.com"))
+conn.commit()
+cur.execute("SELECT * FROM users WHERE name = %s", ("测试",))
+assert cur.fetchone() is not None
+print("基础验证通过 ✓")
+cur.close(); conn.close()</code></pre>
+
+<h2>项目进阶：并发测试 + 数据一致性</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector, threading
+
+def deduct(uid, qty):
+    c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+    cur = c.cursor()
+    cur.execute("UPDATE products SET stock=stock-%s WHERE product_id=1 AND stock>=%s", (qty, qty))
+    c.commit(); cur.close(); c.close()
+
+threads = [threading.Thread(target=deduct, args=(i, 2)) for i in range(10)]
+[t.start() for t in threads]
+[t.join() for t in threads]
+
+# 验证库存非负
+c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+cur = c.cursor()
+cur.execute("SELECT stock FROM products WHERE product_id=1")
+assert cur.fetchone()[0] >= 0
+print("并发测试通过 ✓")</code></pre>
+
+        <h2>5 种数据结构，各自「天生适合」什么业务</h2>
+        <table>
+          <thead><tr><th>数据结构</th><th>长什么样</th><th>最典型的业务场景</th></tr></thead>
+          <tbody>
+            <tr><td>String</td><td>一个 key 对应一段值（文本/数字/二进制）</td><td>计数器、简单缓存、会话 token</td></tr>
+            <tr><td>Hash</td><td>一个 key 下面挂很多「字段-值」对</td><td>存一个「对象」（比如用户资料），改单个字段不用动整个值</td></tr>
+            <tr><td>List</td><td>有序、可重复的一串值</td><td>消息队列、最近 N 条动态流</td></tr>
+            <tr><td>Set</td><td>无序、不重复的一组值</td><td>去重、共同好友、抽奖池</td></tr>
+            <tr><td>Sorted Set（ZSet）</td><td>每个成员带一个分数，按分数排序</td><td>排行榜、带优先级的任务队列</td></tr>
+          </tbody>
+        </table>
+        <p>记住一张对照表：<strong>要「不重复」就想到 Set，要「按分数排」就想到 ZSet，要「对象里改一个字段」就想到 Hash</strong>。测试 Redis 功能前，先问一句「这个功能底层用的是哪种结构」，能少测一半用不上的命令。</p>
+
+        <h2>每种结构的核心命令 + Python 写法</h2>
+        <h3>String：计数器 / 简单缓存</h3>
+        <div class="code-head"><span>redis-cli 实操</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>SET user:1:views 100        # 存一个字符串
+GET user:1:views           # 读回来
+INCR user:1:views          # 原子 +1（计数、限流最常用）
+INCRBY user:1:views 10     # 原子 +10
+EXPIRE user:1:views 3600   # 设置 1 小时后过期（做"临时数据"几乎都会用到）
+TTL user:1:views           # 查剩余存活时间</code></pre>
+        <h3>Hash：存「对象」，改字段不用重写整个值</h3>
+        <pre><code>HSET profile:1 name "alice" age "25" city "Hangzhou"
+HGET profile:1 age
+HGETALL profile:1
+HINCRBY profile:1 views 1    # Hash 里的字段也能原子加</code></pre>
+        <h3>List：消息队列、动态流</h3>
+        <pre><code>RPUSH feed:1 "msg1" "msg2"   # 从右端塞
+LPOP feed:1                   # 从左端取，先进先出，典型队列用法
+LRANGE feed:1 0 10           # 取前 11 条（动态流分页常用）</code></pre>
+        <h3>Set：去重、共同成员</h3>
+        <pre><code>SADD tags:1 "a" "b" "c"
+SISMEMBER tags:1 "b"        # 判断在不在
+SINTER tags:1 tags:2        # 交集（共同好友、共同标签）</code></pre>
+        <h3>Sorted Set：排行榜</h3>
+        <pre><code>ZADD rank:daily 90 alice 95 bob 80 carol
+ZREVRANGE rank:daily 0 2 WITHSCORES   # 前三名（分数从高到低）
+ZRANK rank:daily bob               # 查某人的排名</code></pre>
+        <p>用 Python 的 <code>redis</code> 库，同一套操作长这样（连接配置按实际环境改）：</p>
+        <div class="code-head"><span>redis_basics.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import redis
+
+r = redis.Redis(host="127.0.0.1", port=6379, db=0)
+
+# String：计数器 + 过期
+r.set("views", 100)
+assert r.incr("views") == 101
+r.expire("views", 3600)
+assert r.ttl("views") &gt; 0
+
+# Hash：对象字段级更新
+r.hset("profile:1", mapping={"name": "alice", "age": "25"})
+assert r.hget("profile:1", "age") == b"25"
+
+# List：队列
+r.rpush("feed:1", "m1", "m2")
+assert r.lpop("feed:1") == b"m1"
+
+# Set：去重
+r.sadd("tags:1", "a", "b", "a")   # 重复的 a 不会多存一份
+assert r.scard("tags:1") == 2
+
+# ZSet：排行榜
+r.zadd("rank:daily", {"alice": 90, "bob": 95})
+assert r.zrevrange("rank:daily", 0, 0, withscores=True) == [(b"bob", 95.0)]</code></pre>
+
+        <h2>5 个高频测试场景，各配一段验证</h2>
+        <h3>① 缓存穿透：查一个不存在的 key</h3>
+        <p>缓存里没这个 key，直接去打数据库，反复打同一个「查无此人」的 key，会把数据库压垮。验证方法：故意用一个<strong>一定不存在</strong>的 id 反复请求，观察后端数据库是否每次都真去查了（加日志计数），以及有没有「查不到就缓存个空值」的兜底逻辑生效。</p>
+        <h3>② 库存扣减：INCRBY 的边界</h3>
+        <pre><code>-- 用 String + EXPIRE 模拟"限时库存"，核心是 INCRBY 的原子性
+SET stock:1001 50
+GET stock:1001                    # 50
+INCRBY stock:1001 50             # 两个"各扣 50"的请求同时来
+GET stock:1001                    # 期望 100（两个请求都成功）；
+                                  # 如果业务要求"扣完就拒绝"，需要用 Lua 脚本保证"检查+扣减"是原子的</code></pre>
+        <h3>③ 排行榜：分数相同、边界名次</h3>
+        <p>ZSet 天然按分数排序，但测试要盯住两个点：<strong>分数并列时名次怎么算</strong>（ZSet 里两个成员分数相同，名次会并列，不是「第 2、第 3」而是「都是第 2」，下一个直接跳到第 4）；以及「分数为 0 的成员」是否会被某些实现静默丢掉。</p>
+        <h3>④ 去重：抽奖/签到不能重复领</h3>
+        <pre><code>SADD lottery:2026:11:23 "user_1001"
+SADD lottery:2026:11:23 "user_1001"    # 第二次加，SCARD 不会变成 2
+SCARD lottery:2026:11:23               # 还是 1，证明"没被重复记"</code></pre>
+        <h3>⑤ 会话管理：登录态过期</h3>
+        <pre><code>SET session:abc123 "user_1001" EX 1800   # 30 分钟登录态
+TTL session:abc123                       # 看剩余时间
+# 测试点：续期逻辑（活跃时会不会刷新 EXPIRE）、过期后 key 是否真的被清掉、
+# 以及"同一个用户多端登录"场景下 key 设计是否会让一端挤掉另一端</code></pre>
+
+        <div class="callout">
+          <p>把上面 5 个场景整理成一张 checklist，每次涉及缓存的功能上线前过一遍：每个功能「用的是哪种结构、边界条件（不存在、扣成 0、并列、重复、过期）各测过没有」。比盲目跑一遍 SET/GET 有用得多。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://redis.io/docs/latest/commands/" target="_blank" rel="noopener">Redis 官方文档：命令参考</a></li>
+            <li><a href="https://redis.io/docs/latest/develop/data-types/" target="_blank" rel="noopener">Redis 官方文档：5 种数据结构详解</a></li>
+            <li><a href="https://redis-py.readthedocs.io/en/latest/" target="_blank" rel="noopener">redis-py 官方文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#redis</span>
+          <span class="tag">#data-structure</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

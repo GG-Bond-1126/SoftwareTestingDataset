@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git 冲突解决：从标记到合并 · 软件测试资料集</title>
+<meta name="description" content="逐段读懂冲突标记与三方合并角色，讲清手工解决顺序、回退方式与减少冲突的日常习惯。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-conflict-resolution.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Git 冲突解决：从标记到合并">
+<meta property="og:description" content="逐段读懂冲突标记与三方合并角色，讲清手工解决顺序、回退方式与减少冲突的日常习惯。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-conflict-resolution.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Git 冲突解决：从标记到合并">
+<meta name="twitter:description" content="逐段读懂冲突标记与三方合并角色，讲清手工解决顺序、回退方式与减少冲突的日常习惯。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Git 冲突解决：从标记到合并","description":"逐段读懂冲突标记与三方合并角色，讲清手工解决顺序、回退方式与减少冲突的日常习惯。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-conflict-resolution.html","articleSection":"Git 版本控制","keywords":"git, conflict, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>21 min read</span>
+        </div>
+        <h1>Git 冲突解决：从标记到合并</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="git-conflict-resolution">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>冲突不是错误，是 Git 拒绝替你猜</h2>
+        <p>团队里最常见的误会，是把冲突当成一种失败。合并弹出一堆尖括号，有人第一反应是「坏了」，于是慌慌张张挑一边、全选接受，赶紧让命令跑完。真正的问题恰恰出在这一步：冲突本身是中性的，它只是 Git 在说——同一处代码，两条历史给出了不同的结果，我不替你决定。决定权在懂业务的人手里，而测试工程师往往是最懂「这段代码原本该是什么行为」的人之一。</p>
+        <p>冲突出现的条件很具体：两条分支从同一个祖先出发，各自修改了同一文件的相邻区域，或者一方修改、另一方删除。相隔很远的两个改动 Git 能自动合并，同一个函数里隔了三行的两处修改也可能被判定为重叠。所以冲突数量和代码质量没有必然关系，它更多反映的是「两条分支动了同一片地方」。</p>
+        <p>这篇按实际处理顺序组织：先认清标记和三个角色，再学会读状态、按正确顺序手工解决，然后讲 <code>--ours</code> 与 <code>--theirs</code> 的陷阱、图形工具的取舍、<a class="ilink" href="git-merge-vs-rebase.html">rebase</a> 下的重复冲突，最后是解决之后的验证与回退，以及怎么从日常习惯上减少冲突。默认你已经会 merge 和 rebase 的基本命令。</p>
+
+        <h2>冲突标记逐段读</h2>
+        <p>打开冲突文件，会看到一组尖括号把两段代码夹在中间。很多人只知道「上面是我的、下面是他的」，却忽略了每一段其实都对应三方合并里的一个版本。标准的两路标记只有三个分隔符：起始行带分支名、中间一条等号、结束行带对方分支名。如果开启了 diff3 风格，中间还会多出一段以竖线开头的原始版本，那才是最值得看的部分。</p>
+        <div class="code-head"><span>text — 冲突文件（diff3 风格）</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>def test_login_success(driver):
+    driver.get(BASE_URL + "/login")
+&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD
+    driver.find_element(By.ID, "username").send_keys("qa@example.com")
+    driver.find_element(By.ID, "password").send_keys("qa-pass")
+||||||| merged common ancestors
+    driver.find_element(By.NAME, "user").send_keys("test@example.com")
+    driver.find_element(By.NAME, "pass").send_keys("test123")
+=======
+    driver.find_element(By.ID, "user-name").send_keys("qa@example.com")
+    driver.find_element(By.ID, "user-pass").send_keys("qa-pass")
+&gt;&gt;&gt;&gt;&gt;&gt;&gt; feature/login-locator
+    driver.find_element(By.ID, "login-btn").click()</code></pre>
+        <p>逐段对应：<code>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</code> 到竖线之间是当前分支（ours）的内容，<code>|||||||</code> 到等号之间是共同祖先（base），等号到 <code>&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code> 是被合入分支（theirs）的内容。标记之外的行表示两边一致，Git 已经替你合好了。开启 diff3 的开关是 <code>git config --global merge.conflictStyle diff3</code>，多出来的 base 段落能直接告诉你两边各自改了什么，比只看两个结果版本省一半脑力。</p>
+        <p>看这段示例就能读出完整故事：祖先用的是 NAME 定位、账号是 test@example.com；我方把定位方式改成了 ID、账号换成 qa@example.com；对方把属性名改成了 user-name、账号也换成 qa 账号。两边都想改定位，这就是冲突的<a class="ilink" href="ai-defect-rootcause.html">根因</a>。只看两边结果，你会以为「账号一样、属性名不同」，很容易随手选一边；看了 base 才明白，真正要保留的是「ID 定位 + qa 账号」这个组合，而它恰好是两边各贡献一半。</p>
+
+        <h2>base、ours、theirs 到底是谁</h2>
+        <p>这三个词在 merge 和 rebase 下的含义不同，这是最容易搞混、也最容易造成误删的地方。做 merge 时，你站在哪个分支上，那个分支就是 ours；被合进来的分支是 theirs；base 是两条分支的最近共同祖先。比如你在 develop 上执行 <code>git merge feature/login</code>，ours 就是 develop，theirs 就是 feature/login。</p>
+        <p>做 rebase 时语义反过来了。rebase 的机制是「把当前分支的提交逐个摘下来，重放到目标分支之上」，所以 git 认为 ours 是「要被重放到的那个基底」（也就是你 rebase 到的分支），theirs 才是「你正在搬的那条提交」。同样是解决冲突，merge 下「保留我方」保的是你所在分支，rebase 下「保留我方」保的却是目标分支。这个反转没有任何提示，只能靠记。</p>
+        <table>
+          <thead>
+            <tr><th>操作</th><th>ours 指谁</th><th>theirs 指谁</th><th>base 指谁</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>在 A 上 merge B</td><td>A</td><td>B</td><td>A 与 B 的共同祖先</td></tr>
+            <tr><td>在 A 上 rebase 到 B</td><td>B（基底）</td><td>A 的某条提交</td><td>该提交原来的父提交</td></tr>
+            <tr><td>cherry-pick 提交 C</td><td>当前 HEAD</td><td>C</td><td>C 的父提交</td></tr>
+          </tbody>
+        </table>
+        <p>实操层面还有两个细节值得记住。第一，冲突时 Git 会在索引里保留三个阶段（stage 1 是 base、2 是 ours、3 是 theirs），所以 <code>git show :1:文件名</code> 这种写法能把任意一个版本单独打印出来，不依赖编辑器。第二，一旦你对文件执行了 <code>git add</code>，这三个阶段就合并成一个，<code>--ours</code> 与 <code>--theirs</code> 也会失效——这是后面那个陷阱的根源。</p>
+
+        <h2>git status 里的状态怎么读</h2>
+        <p>冲突时不要只盯着「有冲突」三个字，<code>git status</code> 的第二列字母说明了冲突的具体类型，不同类型的处理方式完全不同。最常见的是 <code>both modified</code>，两边都改了同一文件，需要手工合并。除此之外还有 <code>deleted by them</code>（你改了、对方删了）、<code>deleted by us</code>（对方改了、你删了）、<code>added by both</code>（两边都新建了同名文件）、<code>both deleted</code> 等，这些才是真正需要判断「保留文件还是保留删除」的地方。</p>
+        <div class="code-head"><span>terminal — 读状态</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git status
+# Unmerged paths:
+#   both modified:   tests/conftest.py
+#   deleted by them: tests/legacy/test_old_login.py
+#   added by both:   tests/test_checkout.py
+
+# 冲突文件的三个版本可以单独取出
+git show :1:tests/conftest.py   # base
+git show :2:tests/conftest.py   # ours
+git show :3:tests/conftest.py   # theirs
+
+# 短格式里 UU 表示 both modified
+git status --short</code></pre>
+        <p><code>deleted by them</code> 意味着对方把文件删了、你这边还在改。如果那份用例确实已被新用例取代，就 <code>git rm</code> 掉；如果还要保留，就 <code>git add</code> 把它加回来。<code>deleted by us</code> 逻辑相反：你删了、对方改了，要判断对方的改动是否重要。这两类冲突最怕「凭直觉选一边」，因为删文件是不可逆的语义决定，选错了往往要等下个迭代才发现某条回归用例消失了。</p>
+
+        <h2>手工解决的正确顺序</h2>
+        <p>正确顺序不是「先看上面再看下面」，而是「先看 base，再看两边的意图」。base 告诉你这段代码原来在做什么，两边各自改了什么是意图，两个结果版本只是意图的外在表现。跳过 base 直接比结果，你只能猜哪边更新；看了 base，你才能判断「这两处改动是不是同一个目的的不同实现」，从而决定合并还是取舍。</p>
+        <p>具体动作是：先打开 diff3 标记，读 base 段，用一句话写下原来这段的作用；再分别读 ours 和 theirs，写下各自的改动目的；然后合成一个最终版本，删掉所有标记行。合成时优先保留「行为完整」，而不是「代码最少」。比如示例里两边都换了账号，最终只需一个账号，但定位方式必须统一成 ID，否则断言会找不到元素。</p>
+        <p>写完之后不要马上 add。先在同一文件里搜一遍残留标记，确认没有漏删的等号或竖线；再通读一遍合并结果，确认缩进没被破坏。Python 的缩进错误在合并时极其常见，因为冲突块两侧的缩进基准可能不同，直接拼接会得到 IndentationError。</p>
+        <div class="code-head"><span>terminal — 解决与收尾</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 解决完顺手查残留标记，避免漏删
+git grep -n -E '^(&lt;{7}|={7}|&gt;{7}|\|{7})' -- 'tests/*.py'
+
+# 2. 标记清零后入库
+git add tests/conftest.py
+
+# 3. 查看暂存内容是否符合预期
+git diff --cached
+
+# 4. merge 场景
+git commit --no-edit
+# 5. rebase 场景
+git rebase --continue</code></pre>
+        <p>第 3 步的 <code>git diff --cached</code> 值得多看一眼。它展示的是「这次合并最终要写进历史的东西」，很多误删是在这一步被发现的——某个函数被两边各自改过，手工合并时只留了一边，diff 里会显示一大段删除。看到不认识的删除，就回去核对 base。</p>
+
+        <h2>checkout --ours 与 --theirs 的陷阱</h2>
+        <p>这两个命令看起来像「选择版本」，实际粒度是「整个文件」。执行 <code>git checkout --ours tests/conftest.py</code> 会把该文件所有冲突块都替换成 ours，连你没有仔细看过的那几段一起。如果这个文件里有三处冲突、其中两处应该融合、只有一处该取 ours，用这个命令就等于放弃了另外两处的判断。</p>
+        <p>第二个陷阱是 rebase 下方向反转。前面说过，rebase 时 ours 是基底分支，theirs 才是你在搬的提交。凭 merge 的经验敲 <code>--ours</code>，结果会和你以为的完全相反，而且命令不报错，代码看起来也「合并成功」了。我见过最典型的翻车是 rebase 时想保留自己分支的实现，用了 <code>--ours</code>，实际把目标分支的旧实现盖了上去，测试全绿，因为测的就是旧逻辑。</p>
+        <div class="code-head"><span>terminal — 使用前先确认方向</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 确认当前处于 merge 还是 rebase
+git status
+# rebase in progress; onto 9f2c1ab  ← 此时 ours 是 9f2c1ab
+
+# 只取整份文件的某一侧（慎用，粒度是文件）
+git checkout --ours -- tests/conftest.py
+git checkout --theirs -- tests/conftest.py
+git add tests/conftest.py
+
+# 已经 add 过再想取一侧：先从索引里恢复冲突态
+git checkout -m tests/conftest.py
+# 或直接按阶段号取
+git show :2:tests/conftest.py &gt; tests/conftest.py</code></pre>
+        <p>第三个陷阱是时机：文件一旦 <code>git add</code>，冲突的三个阶段被合并，<code>--ours</code> 和 <code>--theirs</code> 都会报路径不存在或直接取到已合并的版本。补救办法是 <code>git checkout -m 文件名</code> 重新生成冲突标记，或者用 <code>git show :2:</code> 手动取。所以正确习惯是：先判断、再决定用不用整文件覆盖，最后才 add。</p>
+        <div class="callout warn"><p>判断标准很简单：这个文件的冲突块只有一个、且确定整份都该取某一侧，才用 <code>--ours</code> 或 <code>--theirs</code>；只要有两处以上冲突，一律手工合并。省下的几十秒，远不值一次误删的排查成本。</p></div>
+
+        <h2>mergetool 与 IDE 三栏视图怎么选</h2>
+        <p>手工编辑适合冲突块少、逻辑简单的情况。冲突跨十几个文件、每个文件好几处时，图形工具的三栏视图效率高得多：左栏 ours、右栏 theirs、中间是合并结果，base 通常作为对照显示在下方或单独一栏。看得见三份内容并排，判断「这处该留哪边」比在纯文本里来回翻快很多。</p>
+        <p>VS Code 内置的合并编辑器已经够用，不需要额外装 mergetool。开启方式是在设置里把合并编辑器设为默认，或者直接点开冲突文件用「在合并编辑器中解决」。命令行侧可以配置 <code>git mergetool</code> 调用它，好处是能一次把所有冲突文件排进队列，解决一个自动跳下一个，不容易漏。</p>
+        <div class="code-head"><span>terminal — 配置并使用 mergetool</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 让 diff3 标记成为默认，纯命令行也能看到 base
+git config --global merge.conflictStyle diff3
+
+# 配置 VS Code 作为 mergetool
+git config --global merge.tool vscode
+git config --global mergetool.vscode.cmd 'code --wait --merge $REMOTE $LOCAL $BASE $MERGED'
+
+# 逐个处理所有冲突文件；解决后 Git 会自动 add
+git mergetool
+
+# 中途退出、下次继续
+git mergetool --no-prompt</code></pre>
+        <p>取舍在于：图形工具降低「看错」的概率，但会掩盖「为什么冲突」这个信息，容易养成「点几下接受完事」的习惯；纯文本慢，却强迫你读 base、想意图。我的建议是新人先用图形工具保证不出错，同时把 diff3 打开，逼自己看 base 段；熟练之后大部分单块冲突直接手改，只在跨文件的大合并时开三栏。工具是加速器，不能替代判断。</p>
+
+        <h2>rebase 冲突与 merge 冲突的不同</h2>
+        <p>merge 只在最后产生一个合并提交，所以冲突通常一次解决完。rebase 是把提交一条一条重放，每条都可能冲突，于是同一个文件可能让你解决三遍。这不是 Git 啰嗦，而是每条提交都要在「新基底」上成立，前一条解决的结果会成为后一条的 base，改动是累积的。</p>
+        <p>这种累积带来一个反直觉的现象：第一遍你解决得很仔细，第二遍又出现同样的冲突块。原因通常是前一次解决时只处理了当前这条提交的意图，没有考虑后续提交还会改同一段。应对办法是每次解决后立即 <code>git add</code> 并 <code>--continue</code>，不要攒着；同时对「这条提交到底要不要保留」保持敏感，调试日志、临时开关这类提交直接 <code>--skip</code> 掉，比硬解省事。</p>
+        <div class="code-head"><span>terminal — rebase 多次冲突</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git checkout feature/login-locator
+git rebase develop
+# CONFLICT in tests/conftest.py
+
+git add tests/conftest.py
+git rebase --continue
+# 下一条提交又冲突：tests/test_login.py
+
+# 这条只是临时调试提交，直接丢弃
+git rebase --skip
+
+# 全部完成
+# Successfully rebased and updated refs/heads/feature/login-locator</code></pre>
+        <p>还有一点必须提醒：rebase 会改写提交 ID，如果这条分支已经推送到远端并且有人在上面工作，rebase 后必须强推，而强推会让别人的本地历史对不上。团队分支上做 rebase 之前，先确认没有其他人基于它开发；有的话改用 merge，冲突只解一次，代价是多一个合并提交。这个取舍没有标准答案，取决于分支是不是「私有」。</p>
+
+        <h2>解决完必须做的验证</h2>
+        <p>合并冲突最大的风险不是「合不上」，而是「合上了但改错了」。语法错误会立刻暴露，语义错误不会：某条断言被静默删掉，测试少跑一条却依然显示全绿；某个 fixture 被两边各改一半，跑起来才报参数不匹配。所以解决完至少要做三层验证：能加载、能跑、改动范围对得上。</p>
+        <p>第一层是语法与导入。Python 项目直接 <code>python -m compileall</code> 或跑一次收集用例的 <code>pytest --collect-only</code>，能在几秒内抓出缩进和导入错误。第二层是定向执行，跑与被改文件相关的用例目录。第三层是改动审计，用 <code>git diff --cached</code> 或与合并前对比，确认没有意外删除。</p>
+        <div class="code-head"><span>terminal — 合并后的三层验证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 第一层：语法与用例收集
+python -m compileall -q tests
+python -m pytest --collect-only -q
+
+# 第二层：定向执行被改模块
+python -m pytest tests/login tests/checkout -q
+
+# 第三层：确认没有残留标记与意外删除
+git grep -n -E '^(&lt;{7}|={7}|&gt;{7})' -- . || echo "no markers"
+git diff --cached --stat</code></pre>
+        <p>如果冲突涉及 <code>conftest.py</code>、<code>pytest.ini</code> 这类全局配置，验证范围要放大到全量收集加一次冒烟，因为一个 fixture 的签名变化会影响所有用例。相反，只改了单个测试文件里的定位器，跑那个文件足够。按「改动的影响半径」决定验证范围，比一律全量跑要现实。</p>
+
+        <h2>回退：abort、reset 与重新开始</h2>
+        <p>解决到一半发现方向错了，不要硬着头皮往下走。merge 和 rebase 都提供了 <code>--abort</code>，把工作区、索引和 HEAD 恢复到操作开始前的状态。这是最干净的回退方式，因为它知道自己在做什么；相比之下，手工 <code>git reset --hard</code> 需要你自己记住原来的 HEAD 是哪个，记错就丢提交。</p>
+        <p>几个容易混淆的回退命令要分清：<code>git merge --abort</code> 只在合并冲突中存在；<code>git rebase --abort</code> 只在 rebase 途中有效；<code>git reset --merge</code> 用于「合并已结束但想撤销这次合并」；已经提交的合并提交要用 <code>git revert -m 1</code> 反向抵消。判断依据是 <code>git status</code> 顶部那行提示——它写 merge in progress 还是 rebase in progress，直接决定你能用哪个 abort。</p>
+        <div class="code-head"><span>terminal — 回退</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git status
+# You have unmerged paths.  (fix conflicts and run "git commit")
+#   (use "git merge --abort" to abort the merge)
+
+# 放弃本次合并，回到合并前
+git merge --abort
+
+# rebase 途中放弃，回到 rebase 前
+git rebase --abort
+
+# 合并已提交，想撤销这次合并提交（保留历史）
+git revert -m 1 &lt;merge-commit-id&gt;</code></pre>
+        <p>还有一种半途状态：冲突解决完了、也 add 了，但还没 commit。此时 <code>--abort</code> 依然有效，因为它依据的是 Git 目录里记录的原始 HEAD。真正危险的是在中间状态手动执行 <code>git reset --hard origin/main</code> 之类的命令，那会同时丢掉未提交的解决成果和本地提交，且无法用 abort 找回。养成「先看 status 第一行，再决定用哪个命令」的习惯，能避免大部分事故。</p>
+
+        <h2>从习惯上减少冲突</h2>
+        <p>冲突不可能完全消除，但可以显著减少。最有效的一条是小步提交、频繁同步：一条分支活了两周再合，冲突必然多；每完成一个小功能就合并一次主干，冲突往往只有一两处。这条说起来简单，执行的关键是让「同步主干」变成日常动作，而不是发版前的一次大工程。</p>
+        <p>第二条是统一格式化。团队里有人用四个空格、有人用两个，有人保存时自动格式化，合并时会出现整文件的伪冲突——看起来几千行都改了，实际只是空白差异。解决办法是提交前统一跑格式化工具，并在 <code>.gitattributes</code> 里固定换行符，让 Windows 和 macOS 的差异不再进入 diff。</p>
+        <p>第三条是锁文件与生成物不要手改。<code>package-lock.json</code>、<code>poetry.lock</code>、自动生成的 API 客户端这类文件，冲突时手工合并几乎必错。正确做法是选一侧、删掉另一侧，然后重新执行安装或生成命令让工具重建。测试代码里也有类似的生成物，比如录制的用例快照，冲突时应以重新录制为准。</p>
+        <div class="code-head"><span>terminal — 固定格式与换行</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># .gitattributes：统一换行符，锁文件标记为生成物
+# * text=auto eol=lf
+# package-lock.json linguist-generated=true
+
+# 提交前统一格式化，避免空白冲突
+npx prettier --write "tests/**/*.{js,ts}"
+black tests/
+ruff check --fix tests/
+
+# 锁文件冲突：取一侧后重建，而不是手工合并
+git checkout --theirs package-lock.json
+npm install</code></pre>
+        <p>第四条是批次控制。一次合并几百个文件，出问题时根本定位不到是哪处解决错了；把大合并拆成几个小合并，每次都能单独验证、单独回退。这一点对测试分支尤其重要，因为测试代码的改动往往跨多个模块，一次全合的风险远高于分批。</p>
+
+        <h2>上线前检查清单</h2>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>怎么确认</th><th>不做的后果</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>无残留冲突标记</td><td>全仓搜索七个尖括号与等号</td><td>语法错误或意外执行到标记行</td></tr>
+            <tr><td>冲突方向正确</td><td>确认 merge 还是 rebase，ours 指向谁</td><td>静默覆盖正确实现</td></tr>
+            <tr><td>删文件类冲突已判断</td><td>逐个确认 deleted by them 的语义</td><td>回归用例悄悄消失</td></tr>
+            <tr><td>能收集、能运行</td><td>compileall 与 collect-only 通过</td><td>合并成功但根本跑不起来</td></tr>
+            <tr><td>定向用例通过</td><td>跑被改模块的测试目录</td><td>语义错误被绿色通过率掩盖</td></tr>
+            <tr><td>锁文件已重建</td><td>删除后重新安装生成</td><td>依赖树与预期不一致</td></tr>
+          </tbody>
+        </table>
+        <p>最后给一个判断标准：如果一次冲突解决之后，你说不清「这段代码为什么是这个样子」，那它就还没解决完。合格的解决结果，是你能对着 diff 讲出 base 原来做什么、两边各改了什么、为什么最终这样合。讲不出来，就回到 base 再看一遍——这比事后在线上排查一个语义错误便宜得多。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://git-scm.com/docs/git-merge" target="_blank" rel="noopener">git-merge 官方手册（含冲突与 --abort）— git-scm.com</a></li>
+            <li><a href="https://git-scm.com/docs/git-rebase" target="_blank" rel="noopener">git-rebase 官方手册（--continue / --skip / --abort）— git-scm.com</a></li>
+            <li><a href="https://git-scm.com/book/zh/v2/Git-%E5%B7%A5%E5%85%B7-%E9%AB%98%E7%BA%A7%E5%90%88%E5%B9%B6" target="_blank" rel="noopener">Pro Git：高级合并（冲突标记与三方合并）— git-scm.com</a></li>
+            <li><a href="https://git-scm.com/docs/gitattributes" target="_blank" rel="noopener">gitattributes 官方手册（换行符与生成物标记）— git-scm.com</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#git</span>
+          <span class="tag">#conflict</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>测试环境跑出来的慢 SQL，上线前怎么提前发现 · 软件测试资料集</title>
+<meta name="description" content="建一张慢查询监控表，配一段自动化脚本定期抓取并对比基线。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-slow-query-audit.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="测试环境跑出来的慢 SQL，上线前怎么提前发现">
+<meta property="og:description" content="建一张慢查询监控表，配一段自动化脚本定期抓取并对比基线。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-slow-query-audit.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="测试环境跑出来的慢 SQL，上线前怎么提前发现">
+<meta name="twitter:description" content="建一张慢查询监控表，配一段自动化脚本定期抓取并对比基线。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"测试环境跑出来的慢 SQL，上线前怎么提前发现","description":"建一张慢查询监控表，配一段自动化脚本定期抓取并对比基线。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-slow-query-audit.html","articleSection":"数据库测试","keywords":"mysql, slow-query, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>11 min read</span>
+        </div>
+        <h1>测试环境跑出来的慢 SQL，上线前怎么提前发现</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="mysql-slow-query-audit">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 启动 MySQL（Docker）
+docker run -d --name test-mysql -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=test123 -e MYSQL_DATABASE=testdb mysql:8.0
+
+# 连接验证
+mysql -h localhost -u root -ptest123 testdb
+
+# 创建测试表
+CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(100), email VARCHAR(200) UNIQUE);</code></pre>
+
+<h2>基础应用：第一个 SQL 验证</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector
+
+conn = mysql.connector.connect(host="localhost", port=3306, user="root", password="test123", database="testdb")
+cur = conn.cursor()
+cur.execute("INSERT INTO users (name, email) VALUES (%s, %s)", ("测试", "t@e.com"))
+conn.commit()
+cur.execute("SELECT * FROM users WHERE name = %s", ("测试",))
+assert cur.fetchone() is not None
+print("基础验证通过 ✓")
+cur.close(); conn.close()</code></pre>
+
+<h2>项目进阶：并发测试 + 数据一致性</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector, threading
+
+def deduct(uid, qty):
+    c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+    cur = c.cursor()
+    cur.execute("UPDATE products SET stock=stock-%s WHERE product_id=1 AND stock>=%s", (qty, qty))
+    c.commit(); cur.close(); c.close()
+
+threads = [threading.Thread(target=deduct, args=(i, 2)) for i in range(10)]
+[t.start() for t in threads]
+[t.join() for t in threads]
+
+# 验证库存非负
+c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+cur = c.cursor()
+cur.execute("SELECT stock FROM products WHERE product_id=1")
+assert cur.fetchone()[0] >= 0
+print("并发测试通过 ✓")</code></pre>
+
+        <h2>什么是慢查询，怎么开</h2>
+        <p>MySQL 自带慢查询日志（slow query log），把执行时间超过 <code>long_query_time</code>（默认 10s，测试环境一般会调到 1s 甚至更短）的 SQL 都记下来，包括执行时间、锁等待时间、扫描行数等关键字段。</p>
+        <div class="code-head"><span>enable_slow_log.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 先看当前配置
+SHOW VARIABLES LIKE 'slow_query%';
+SHOW VARIABLES LIKE 'long_query_time';
+SHOW VARIABLES LIKE 'log_queries_not_using_indexes';
+
+-- 打开慢查询日志（测试环境建议阈值调到 1s 以内，能提前暴露问题）
+SET GLOBAL slow_query_log = 'ON';
+SET GLOBAL long_query_time = 1;
+SET GLOBAL slow_query_log_file = '/var/log/mysql/slow.log';
+-- 可选：把"没用到索引的查询"也记进来，比单纯看耗时长更能暴露隐患
+SET GLOBAL log_queries_not_using_indexes = 'ON';</code></pre>
+        <div class="callout">
+          <p><code>log_queries_not_using_indexes</code> 这个开关值得单独提一句：它记录的不是「跑了多久」，而是「这条 SQL 有没有真正用上索引」，配合前面讲过的 EXPLAIN 思路，能把「没慢但也没走对路」的 SQL 一起捞出来，是测试环境里性价比很高的一个开关。</p>
+        </div>
+
+        <h2>测试策略：上线前跑一遍「全量核心 SQL」</h2>
+        <p>光开日志没用，得有人去「制造」慢查询。实用做法：</p>
+        <ol>
+          <li>把系统里真正高频、真正会扫大表的 SQL（列表页查询、报表统计、按条件筛选）整理成一份清单；</li>
+          <li>每次回归测试前，把测试库的数据量放大到接近生产的量级（哪怕只是核心几张表），再执行这份清单；</li>
+          <li>执行完立即抓 <code>slow.log</code>，看清单里的 SQL 有没有落进去。</li>
+        </ol>
+        <p>关键一点：<strong>测试环境数据量小，同一条 SQL 在测试环境 0.2s 跑完，不代表生产 10 万行数据下也是 0.2s</strong>——数据量上来后，没走索引的 SQL 耗时会随行数线性甚至更差地增长。这就是为什么「放大到接近生产的量级」这一步不能省。</p>
+
+        <h2>Python 脚本：解析 slow.log，统计 TOP 10 慢 SQL</h2>
+        <div class="code-head"><span>parse_slow_log.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import re
+from collections import Counter
+
+def parse_slow_log(path):
+    """按 -- User@Host: 分隔，逐段解析"""
+    with open(path, encoding="utf-8", errors="replace") as f:
+        text = f.read()
+    blocks = re.split(r"-- User@Host:.*?\n", text)[1:]  # 跳过文件头
+
+    records = []
+    for block in blocks:
+        time_m = re.search(r"Query_time: ([0-9.]+)", block)
+        lock_m = re.search(r"Lock_time: ([0-9.]+)", block)
+        rows_m = re.search(r"Rows_examined: ([0-9]+)", block)
+        # SQL 本体：从第一个 SELECT/INSERT/UPDATE/DELETE 到该段末尾
+        sql_m = re.search(r"^\s*((?:SELECT|INSERT|UPDATE|DELETE)[\s\S]+?)(?:\n\n|\Z)",
+                          block, re.IGNORECASE)
+        if not (time_m and sql_m):
+            continue
+        sql_text = " ".join(sql_m.group(1).split())  # 折叠空白，方便后续按"同一句 SQL"归并
+        records.append({
+            "query_time": float(time_m.group(1)),
+            "lock_time": float(lock_m.group(1)) if lock_m else 0.0,
+            "rows_examined": int(rows_m.group(1)) if rows_m else None,
+            "sql": sql_text,
+        })
+    return records
+
+def main():
+    records = parse_slow_log("/var/log/mysql/slow.log")
+    # 按 SQL 文本归并，统计出现次数和平均耗时
+    grouped = {}
+    for r in records:
+        key = r["sql"]
+        g = grouped.setdefault(key, {"count": 0, "total_time": 0.0})
+        g["count"] += 1
+        g["total_time"] += r["query_time"]
+
+    top = sorted(grouped.items(),
+                 key=lambda kv: kv[1]["total_time"], reverse=True)[:10]
+    print(f"slow.log 共解析到 {len(records)} 条慢查询，TOP 10（按累计耗时）：\n")
+    for i, (sql, g) in enumerate(top, 1):
+        avg = g["total_time"] / g["count"]
+        print(f"#{i}  出现 {g['count']} 次，平均 {avg:.2f}s，累计 {g['total_time']:.2f}s")
+        print(f"    SQL: {sql[:120]}...")
+        print()
+
+if __name__ == "__main__":
+    main()</code></pre>
+
+        <h2>基线对比：同一条 SQL，数据量变了耗时怎么变</h2>
+        <p>光看「绝对值超过 1s」还不够，更有价值的是<strong>纵向对比</strong>：同一条 SQL 上次跑 0.3s，这次 2s，哪怕没告警，也可能意味着数据量、索引或统计信息发生了变化。</p>
+        <div class="code-head"><span>slow_query_baseline.sql — 建一张基线表</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>CREATE TABLE slow_query_baseline (
+  sql_fingerprint VARCHAR(512) PRIMARY KEY,  -- SQL 去掉具体参数后的"指纹"
+  last_avg_time DECIMAL(10,3),
+  data_volume BIGINT,        -- 当时参与查询的表大致行数
+  checked_at DATETIME,
+  note VARCHAR(255)
+);
+-- 每次自动化抓取后，把本次结果按 sql_fingerprint 跟这张表对比，
+-- 耗时环比涨幅超过 50% 或绝对值超过阈值，就标红提醒</code></pre>
+
+        <h2>告警阈值怎么定</h2>
+        <p>没有标准答案，但可以给一个务实的起点：</p>
+        <ul>
+          <li><strong>测试环境</strong>：<code>long_query_time = 1s</code>，并且打开 <code>log_queries_not_using_indexes</code>，目标是「早发现问题」，阈值可以刻意调激进；</li>
+          <li><strong>生产环境</strong>：<code>long_query_time</code> 通常 5-10s，配合监控系统对「锁等待时间」单独设阈值（锁等待 1s 就该警惕，哪怕总耗时没到慢查询线）；</li>
+          <li>给「核心接口对应的 SQL」单独设一条更严的阈值（比如 500ms），而不是全库一刀切。</li>
+        </ul>
+
+        <div class="callout warn">
+          <p>慢查询日志本身有性能开销（每条都要写盘），<strong>生产环境长期开着阈值过低的慢日志会拖慢数据库本身</strong>。建议：测试环境常开，生产环境按需临时打开排查，或用 pt-query-digest 这类工具定期采样，而不是 7×24 全量记录。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/slow-query-log.html" target="_blank" rel="noopener">MySQL 官方文档：慢查询日志</a></li>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/server-system-variables.html" target="_blank" rel="noopener">MySQL 官方文档：服务器系统变量（long_query_time 等）</a></li>
+            <li><a href="https://www.percona.com/doc/performance-toolkit/2.2/pt-query-digest.html" target="_blank" rel="noopener">Percona pt-query-digest 工具文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#mysql</span>
+          <span class="tag">#slow-query</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

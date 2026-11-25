@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 拆需求：把 PRD 读成可测的需求点 · 软件测试资料集</title>
+<meta name="description" content="评审前把 PRD 拆成功能点、规则、约束与数据字典，附歧义清单、待确认清单与抽查流程。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-requirement-analysis.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="AI 拆需求：把 PRD 读成可测的需求点">
+<meta property="og:description" content="评审前把 PRD 拆成功能点、规则、约束与数据字典，附歧义清单、待确认清单与抽查流程。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-requirement-analysis.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AI 拆需求：把 PRD 读成可测的需求点">
+<meta name="twitter:description" content="评审前把 PRD 拆成功能点、规则、约束与数据字典，附歧义清单、待确认清单与抽查流程。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"AI 拆需求：把 PRD 读成可测的需求点","description":"评审前把 PRD 拆成功能点、规则、约束与数据字典，附歧义清单、待确认清单与抽查流程。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-requirement-analysis.html","articleSection":"落地实践","keywords":"需求分析, PRD, llm","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>12 min read</span>
+        </div>
+        <h1>AI 拆需求：把 PRD 读成可测的需求点</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="ai-requirement-analysis">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <figure class="article-figure">
+          <svg viewBox="0 0 720 380" width="100%" role="img" aria-labelledby="fig-req-1-title" xmlns="http://www.w3.org/2000/svg" font-family="inherit">
+            <title id="fig-req-1-title">需求到测试点的转化示意图：PRD 原文经功能点、业务规则、约束、数据字典四类抽取形成需求点，再做可测性检查，不合格与写不出来源的条目进入待确认清单</title>
+            <defs>
+              <marker id="fig-req-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 Z" fill="var(--text-faint)"/>
+              </marker>
+            </defs>
+            <text x="28" y="26" font-size="12.5" fill="var(--text-dim)">把 PRD 读成可验证的句子，不能确定的进待确认清单</text>
+
+            <rect x="24" y="150" width="112" height="64" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="80" y="175" font-size="15" fill="var(--text)" text-anchor="middle">PRD 原文</text>
+            <text x="80" y="195" font-size="12.5" fill="var(--text-dim)" text-anchor="middle">全文，不截章</text>
+
+            <rect x="168" y="88" width="208" height="190" rx="10" fill="var(--panel)" stroke="var(--border-strong)" stroke-width="1.4"/>
+            <text x="184" y="116" font-size="15" fill="var(--text)">四类抽取</text>
+            <text x="184" y="148" font-size="12.5" fill="var(--text)">功能点</text>
+            <text x="252" y="148" font-size="12.5" fill="var(--text-dim)">条件+动作+结果</text>
+            <text x="184" y="176" font-size="12.5" fill="var(--text)">业务规则</text>
+            <text x="252" y="176" font-size="12.5" fill="var(--text-dim)">触发+阈值+结果</text>
+            <text x="184" y="204" font-size="12.5" fill="var(--text)">约束</text>
+            <text x="252" y="204" font-size="12.5" fill="var(--text-dim)">不允许发生的情况</text>
+            <text x="184" y="232" font-size="12.5" fill="var(--text)">数据字典</text>
+            <text x="252" y="232" font-size="12.5" fill="var(--text-dim)">字段+枚举+必填</text>
+            <text x="184" y="260" font-size="11.5" fill="var(--text-faint)">每条都要标来源</text>
+
+            <rect x="408" y="126" width="120" height="112" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="468" y="154" font-size="15" fill="var(--text)" text-anchor="middle">需求点</text>
+            <text x="468" y="178" font-size="12.5" fill="var(--text-dim)" text-anchor="middle">编号 + 来源</text>
+            <text x="468" y="200" font-size="12.5" fill="var(--text-dim)" text-anchor="middle">可判真假</text>
+            <text x="468" y="222" font-size="11.5" fill="var(--text-faint)" text-anchor="middle">一条只写一动作</text>
+
+            <rect x="556" y="126" width="140" height="112" rx="10" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.4"/>
+            <text x="626" y="154" font-size="15" fill="var(--cyan)" text-anchor="middle">可测性检查</text>
+            <text x="626" y="180" font-size="12.5" fill="var(--text-dim)" text-anchor="middle">有编号、有来源</text>
+            <text x="626" y="202" font-size="12.5" fill="var(--text-dim)" text-anchor="middle">能被输入判真假</text>
+            <text x="626" y="224" font-size="11.5" fill="var(--text-faint)" text-anchor="middle">缺一即不合格</text>
+
+            <rect x="556" y="276" width="140" height="80" rx="10" fill="rgba(230,180,80,0.14)" stroke="var(--amber)" stroke-width="1.4"/>
+            <text x="626" y="302" font-size="15" fill="var(--amber)" text-anchor="middle">待确认清单</text>
+            <text x="626" y="326" font-size="12.5" fill="var(--text-dim)" text-anchor="middle">缺什么 / 影响谁</text>
+            <text x="626" y="346" font-size="11.5" fill="var(--text-faint)" text-anchor="middle">谁来提供</text>
+
+            <line x1="136" y1="182" x2="164" y2="182" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-req-arrow)"/>
+            <line x1="376" y1="182" x2="404" y2="182" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-req-arrow)"/>
+            <line x1="528" y1="182" x2="552" y2="182" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-req-arrow)"/>
+
+            <path d="M626 238 V272" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-req-arrow)"/>
+            <text x="638" y="260" font-size="11.5" fill="var(--amber)">不通过</text>
+
+            <path d="M468 238 V316 H552" fill="none" stroke="var(--text-faint)" stroke-width="1.2" stroke-dasharray="4 4" marker-end="url(#fig-req-arrow)"/>
+            <text x="476" y="308" font-size="11.5" fill="var(--text-faint)">写不出来源</text>
+          </svg>
+          <figcaption>图 1 · 需求拆解只做转化不做判断：能验证的成为需求点，不能确定的进待确认清单。</figcaption>
+        </figure>
+
+        <h2>评审会卡住的地方，多半不是需求本身</h2>
+        <p>需求评审最常见的场面，是产品讲完一页原型，测试问一句「退款以后券退不退」，产品说还没定，会议就停在那里。散会之后大家各按各的理解写用例，提测时才发现同一个规则有三种实现。我们统计了上半年 14 次评审，平均每次会上产生 6 到 8 个当场答不上来的问题，其中 4 个左右会拖到开发阶段才补，一个测试平均要为此多花 1.5 天。</p>
+        <p>后来我们把评审前的准备工作单独拆出来：先把 PRD 读成结构化的需求点，把能确定的写成可验证的句子，把不能确定的抽成问题清单，会上只讨论清单，不再从头读文档。这一步手工做大约 3 小时，用顺手的工具压到 40 分钟，评审时需要现场解释的条目从 7 条降到 2 条。</p>
+        <p>这篇文章只讲这个环节本身：给它什么上下文、历史文档怎么挂、输出要长什么样。文中不出现任何实现脚本，因为决定效果的不是调用哪个模型，而是这两件事有没有定清楚。</p>
+
+        <h2>这个 skill 管什么，不管什么</h2>
+        <p>skill 名叫 requirement-analysis，职责只有一条：把 PRD、接口文档、代码和日志里已经写明的信息，整理成四类结构，再补三份清单。四类结构是功能点、业务规则、约束、数据字典；三份清单是歧义、待确认、缺失分支。</p>
+        <p>它明确不做的三件事，比它能做什么更重要。第一，不补业务规则。PRD 没写退款是否退券，它只能把这条放进歧义列表，不能自己决定原路退回。第二，不判断需求价值。优先级、做不做、什么时间做，属于产品判断，不在这个环节。第三，不直接产出用例。需求点交付之后才轮到<a class="ilink" href="ai-testpoint-generation.html">测试点</a>，两个环节的产物不能混。</p>
+        <p>边界清楚以后，输出就可以被检查。每条需求点必须有编号、有来源、能被一个具体输入判断真假，三条缺一条就是不合格。评审时不需要争论文风好不好，只看这三条。</p>
+
+        <h2>上下文怎么给：六类材料与截取方式</h2>
+        <p>只丢一份 PRD 进去，模型会还你一份漂亮的复述，复述里一半是它自己脑补的行业常识。要让输出能用，材料要按类给，每一类给哪一段、给全文还是摘要，都要提前定好，不能临场决定。</p>
+        <table>
+          <thead><tr><th>材料</th><th>截取哪一部分</th><th>贴入格式</th><th>全文还是摘要</th></tr></thead>
+          <tbody>
+            <tr><td>PRD 原文</td><td>目标、主流程、规则、字段说明的全部章节</td><td>按原章节顺序粘贴，保留标题层级</td><td>全文</td></tr>
+            <tr><td>上下游系统清单</td><td>与本需求有交互的系统及接口名</td><td>一行一个系统，注明调用方向</td><td>全文</td></tr>
+            <tr><td>历史需求</td><td>同模块最近 3 个版本的变更记录</td><td>只贴变更段落与影响范围</td><td>摘要</td></tr>
+            <tr><td>历史缺陷</td><td>近半年同模块缺陷</td><td>标题、根因分类、严重级别、发生次数</td><td>摘要</td></tr>
+            <tr><td>接口文档</td><td>本次改动涉及的字段与错误码</td><td>按接口逐个粘贴字段表</td><td>只贴相关段落</td></tr>
+            <tr><td>线上数据</td><td>涉及规则的量级与分布</td><td>总量、占比、峰值三个数</td><td>摘要</td></tr>
+          </tbody>
+        </table>
+        <p>PRD 必须给全文，不能只给改动章节。规则之间存在引用关系，少给一章，模型就会把那一章的约束当成不存在，输出看起来完整，实际漏掉一半前提。历史需求只给同模块最近三个版本，给太多会让模型把已经废弃的口径又捡回来。</p>
+        <p>历史缺陷只给<a class="ilink" href="ai-defect-rootcause.html">根因</a>分类和发生次数，不要给复现步骤。给了复现步骤，它一定会照着重写一条针对旧 bug 的需求点，那是噪音。只给根因和次数，它才会往同类风险上想，例如并发未加锁出现 4 次，它就会主动去检查本次规则里的次数限制是否可并发。</p>
+        <p>代码和日志只在需要判断现状时提供，并且必须同时说明「这是现状，不是需求」。不写这句话，模型会把现在的实现当成应该的行为，把历史遗留缺陷写成业务规则。接口文档只贴本次改动的字段段，整份接口文档塞进去，字段说明会被大量无关内容稀释。</p>
+        <p>单轮材料超过八千字就分轮。第一轮给 PRD 全文，让它回述章节结构；第二轮追加接口文档和缺陷摘要；第三轮再提拆解要求。一次塞完的结果是中间章节被忽略，尤其是字段说明，经常整段丢失，而字段恰恰是后面造数据的依据。</p>
+
+        <h2>历史文档怎么挂：目录、引用与冲突</h2>
+        <p>历史文档的价值不是让模型多读，而是让每条结论都有出处。我们的目录约定按模块和版本展开，需求文档放 <code>docs/requirements/{模块}/v{版本}/prd.md</code>，变更记录放同目录的 <code>change-log.md</code>，历史缺陷按半年度归档到 <code>docs/defects/{年度}{H1 或 H2}/{模块}.md</code>。目录长这样：</p>
+        <div class="code-head"><span>目录结构</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>docs/
+  requirements/
+    coupon/
+      v2.3/
+        prd.md
+        change-log.md
+      v2.2/
+        prd.md
+  defects/
+    2026H1/
+      coupon.md
+  _archive/
+    [已废止]-coupon-prd-v1.8.md</code></pre>
+        <p>引用格式固定为文档名加版本加章节，例如《会员日发券 PRD》v2.3 §3.2。不用行号，是因为文档每天都在改，章节标题比行号稳定。模型输出的每一条都要带这个引用，评审时点开就能核对；写不出出处的条目直接移到待确认清单，不许留在正式产出里。</p>
+        <p>过时文档不删，只标记。文件移进 <code>_archive/</code>，名字前加 <code>[已废止]</code>，首行写清它被哪一版替代、从哪天起失效，正文保持原样。原因很实际：三个月后有人问当初为什么这么定，只有旧文档能回答。标记之后它不能作为规则来源，只能用于追溯。</p>
+        <p>冲突裁决有三条，提前定好，评审时就不吵。第一，同一规则有多个版本时，以版本号最大且状态为已评审的为准，其余版本只用来对比差异。第二，文档与代码不一致时，两者并列写进歧义列表，不改写任何一方，代码只是现状证据。第三，线上实际行为与文档冲突时，先记为待确认，由产品确认是文档漏更新还是线上有缺陷，测试和模型都不裁定。</p>
+
+        <h2>提示词里必须写死的输出规范</h2>
+        <p>提示词不需要长，但每一条都必须是可检查的。我们的顺序是：先定材料和边界，再列四类结构，最后压格式约束。下面这版用了半年，改动只有措辞，结构没动过。</p>
+        <div class="code-head"><span>提示词 — 需求拆解</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>你是需求拆解助手。只使用我提供的材料，不补充材料以外的业务规则、字段名、阈值和状态码。
+
+输入材料：
+1. PRD 全文
+2. 上下游系统清单
+3. 同模块历史需求变更记录（摘要）
+4. 同模块近半年缺陷（根因分类与次数）
+5. 本次涉及的接口字段
+
+任务：拆成四类结构，每条都要能被一个具体输入判断真假。
+
+功能点：条件 + 动作 + 结果，一条只写一个动作。
+业务规则：触发条件 + 判定阈值 + 结果。
+约束：写不允许发生的情况，并说明违反后的表现。
+数据字典：字段名、类型、长度、是否必填、全部枚举值。
+
+再输出三份清单：
+歧义：每条给出两种可能解释，并注明争议章节。
+待确认：每条写清缺什么、影响哪条结论、需要谁提供。
+缺失分支：至少覆盖空值、重复提交、越权、并发、超时。
+
+格式约束：
+- 每条产出必须标注来源，格式为《文档名》v版本 §章节，写不出来源的移到待确认。
+- 凡是推断，必须以「推断：」开头，并标注置信度 高 / 中 / 低。
+- 开头结论不超过 100 字，随后才是四类结构与三份清单。
+- 最后必须有「待确认清单」一节，没有内容就写「无」。</code></pre>
+        <p>三个格式约束都是踩坑换来的。一条需求点只写一个动作，是因为「领取、扣库存、发消息」写在一起，失败时根本定位不到环节。枚举必须列全取值，是因为早期只写了正常和异常两种，测试点阶段直接漏掉了冻结态。待确认清单哪怕为空也要保留这一节，否则下游环节会默认没有风险。</p>
+        <p>拿到初稿后还有一轮追问，专门用来挑毛病。追问不要让它重写全文，只回答三个问题，回答里必须带编号和章节，方便逐条核对。</p>
+        <div class="code-head"><span>提示词 — 初稿追问</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>只回答下面三个问题，不要重写全文，每条回答必须带需求点编号与文档章节。
+
+1. 哪些规则缺少阈值或判定标准，导致无法用一个输入判断真假？
+2. 哪些字段的枚举值没有列全，或者必填标记缺失？
+3. 哪些结论引用了同一章节，是否存在重复拆解或漏拆？
+
+回答格式：编号 | 问题描述 | 建议补充的材料。</code></pre>
+
+        <h2>人工抽查比例与评审流程</h2>
+        <p>AI 的输出不能直接当结论，需求环节尤其如此。我们的抽查是分层的：功能点和数据字典全量过一遍，这两类错得最隐蔽；业务规则抽 60%，重点看带数字和带「不允许」的句子；歧义与待确认清单逐条确认，这部分本来就是给人做决定的，不是给模型做决定的。</p>
+        <p>比例不是拍脑袋。我们试过全量核对，40 分钟变成 2 小时，多出来的时间并没有换来更少的问题；也试过只抽 20%，结果漏掉一条金额精度规则，提测后返工两天。60% 是目前的平衡点，但带金额、权限、库存的规则不参与抽查，必须全部看。</p>
+        <table>
+          <thead><tr><th>环节</th><th>负责人</th><th>耗时</th><th>产出</th></tr></thead>
+          <tbody>
+            <tr><td>初稿生成</td><td>测试</td><td>40 分钟</td><td>需求点 + 三份清单</td></tr>
+            <tr><td>内部抽查</td><td>测试</td><td>30 分钟</td><td>修订稿，删掉无来源条目</td></tr>
+            <tr><td>产品确认</td><td>产品</td><td>会上 20 分钟</td><td>待确认清单的逐条答复</td></tr>
+            <tr><td>回写归档</td><td>测试</td><td>10 分钟</td><td>版本号加一位，旧版进历史目录</td></tr>
+          </tbody>
+        </table>
+        <p>流程上有两个时间点要守住。会前 24 小时出初稿，留出测试内部消化的时间；会前 4 小时把待确认清单发给产品，让对方带着答案来，而不是在会上现场想。会后必须回写，把会上确认的口径补进需求点文件，版本号加一位，旧版移入历史目录。不回写，下一次变更又要重新问一遍。</p>
+
+        <h2>踩坑与边界</h2>
+        <ul>
+          <li><strong>模型自行补规则</strong>：PRD 没写退款退券，输出里直接写成原路退回。原因是没有把不补全写成硬约束。处理是把「只能依据材料」放在第一条，并要求每条有来源。</li>
+          <li><strong>需求点塞进多个动作</strong>：一条写清领取、扣库存、发消息，失败时无法定位。处理是一条只写一个动词，动作拆开编号。</li>
+          <li><strong>把现状当需求</strong>：贴了代码，模型把现有实现当成应然行为。处理是明确标注现状与需求的区别，代码只作证据。</li>
+          <li><strong>字段只写字符串</strong>：没有长度、枚举、必填，造数据阶段全部重来。处理是数据字典四要素缺一不可。</li>
+          <li><strong>历史缺陷被复述</strong>：给了完整复现步骤，输出里多出一条针对旧 bug 的需求点。处理是只给根因分类与次数。</li>
+          <li><strong>歧义少于 3 条</strong>：通常是拆得不够细，或者模型在迎合你。处理是歧义少于 3 条就重跑，并在提示词里说明少于 3 条视为不合格。</li>
+        </ul>
+        <p>还有一条边界要说清：支付清结算、医疗合规这类场景，AI 只做索引和整理，不做结论。它可以把条款拆成条目，但最终口径必须由领域专家签字，这一步不能省，也不该省。</p>
+
+        <div class="callout warn">
+          <p>这个 skill 的第一条硬性约束是：只依据引用文档与当前上下文输出，不许按想法自由发挥；信息不足的部分必须进入「待确认清单」，不许编造。</p>
+        </div>
+        <h2>Skill 完整展示</h2>
+        <p>这套流程对应的 skill 放在 Claude Code 的用户目录 <code>~/.claude/skills/skill-requirement-analysis/SKILL.md</code>；Trae 放在 <code>C:\Users\你的用户名\.trae\skills\skill-requirement-analysis\SKILL.md</code>，项目内则放 <code>.trae/skills/</code>。目录名与 front matter 的 name 保持一致，重启后加载。</p>
+        <div class="code-head"><span>markdown — SKILL.md</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>---
+name: requirement-analysis
+description: 把 PRD 拆成可测需求点。输出功能点、业务规则、约束、数据字典四类结构，以及歧义列表、待确认问题和缺失的异常分支。用于需求评审前的准备阶段，结果可直接交给测试点生成环节。
+---
+
+# 需求拆解：从 PRD 到可测需求点
+
+## 硬性约束（优先级最高，与其他章节冲突时以本节为准）
+
+1. 只能依据三类信息输出：用户提供的需求文档 / 接口文档 / 代码 / 日志原文、当前会话上下文、本 skill「输入」一节所列的文件。禁止凭想象补充业务规则、字段名、接口地址、阈值、状态码、版本号或历史数据。
+2. 每条产出都要可回溯，必须标注来源：文档章节或条款、文件路径与行号、日志片段、接口字段。标不出来源的条目不得进入正式产出。
+3. 信息不足时不许编造填补。缺失项一律进入「待确认清单」，逐条写清：缺什么、影响哪条结论、需要谁提供。
+4. 凡是基于经验补出的内容，必须以「推断：」开头，并写明依据与置信度（高 / 中 / 低）。置信度为低的推断不能当结论用。
+5. 禁止虚构引用：不编造文档条款号、版本号、链接、指标数值、报错原文。引用原文时逐字摘录并注明位置。
+6. 资料互相矛盾时（文档与代码不一致、两处规则冲突）不要自行取舍，把两种说法并列，标明冲突点和需要确认的问题。
+7. 输出前逐条自检：这条有来源吗？没有就移到「待确认清单」。自检不通过不许输出。
+
+## 待确认清单（输出必带）
+
+无论信息是否充足，输出末尾都保留这一节；没有待确认项时写「无」，不许省略该节。每行格式：
+
+| 序号 | 缺失或不确定的内容 | 影响 | 需要谁提供 |
+
+## 适用场景
+
+- 需求评审会前一天，需要把 PRD 拆成可讨论、可分配的结构。
+- PRD 只有原型图和零散描述，业务规则、状态流转、字段口径都没写清。
+- 需要把结果直接交给测试点生成环节，避免二次理解造成偏差。
+- 老系统改造，需要先摸清现有规则与本次改动的差异。
+
+以下情况不要用：
+
+- 纯文案、图片、样式调整，没有可验证的业务规则变化。
+- 需求已冻结、用例已完整覆盖，只剩补执行数据。
+- 支付清结算等强合规场景且没有领域专家复核，此时 AI 只做初稿索引，不做结论。
+
+## 输入
+
+必需：
+
+1. PRD 原文，Markdown、飞书文档导出文本或直接粘贴均可，需包含目标、主流程、字段说明。
+2. 一句话业务背景，例如「会员日发券，目标是提升复购」。
+3. 上下游系统清单，例如订单、库存、支付、消息。
+
+建议补充：
+
+4. 近半年历史缺陷列表，包含模块与问题描述。
+5. 现有接口文档或数据库字段说明。
+6. 术语表，统一口径，避免「优惠券」与「券码」混用。
+
+输入缺失时：先按已有信息产出，把缺失项写进待确认问题，不要自行编造业务规则。
+
+## 上下文与历史文档规范
+
+### 本次任务需要的材料
+
+| 材料 | 截取哪一部分 | 贴入方式 | 全文还是摘要 |
+| --- | --- | --- | --- |
+| PRD 原文 | 目标、主流程、规则、字段说明的全部章节 | 按原文章节顺序粘贴，保留标题层级 | 全文 |
+| 上下游系统清单 | 与本需求有交互的系统及接口名 | 一行一个系统，注明调用方向 | 全文 |
+| 历史需求 | 同模块最近 3 个版本的变更记录 | 只贴变更段落与影响范围 | 摘要 |
+| 历史缺陷 | 近半年同模块缺陷 | 标题、根因分类、严重级别、发生次数，去掉复现步骤 | 摘要 |
+| 接口文档 | 本次改动涉及的字段与错误码 | 按接口逐个粘贴字段表 | 只贴相关段落 |
+| 线上数据 | 涉及规则的量级与分布 | 总量、占比、峰值 | 摘要 |
+
+执行要求：
+
+1. PRD 必须给全文，不能只给改动章节。规则之间存在引用关系，缺章节会导致模型把其他章节的约束当成不存在。
+2. 历史缺陷只给根因分类与次数，不给复现步骤，避免模型照抄单个历史 bug。
+3. 代码与日志只在判断现状时提供，且必须注明「这是现状，不是需求」，否则模型会把现有实现当成应然行为。
+4. 单轮材料超过 8000 字时按章节拆成多轮，先通读全文，再追加接口文档与缺陷摘要，最后提出拆解要求。
+
+### 历史文档目录约定
+
+```text
+docs/
+  requirements/
+    coupon/
+      v2.3/
+        prd.md
+        change-log.md
+      v2.2/
+        prd.md
+  defects/
+    2026H1/
+      coupon.md
+  _archive/
+    [已废止]-coupon-prd-v1.8.md
+```
+
+1. 需求文档路径为 `docs/requirements/{模块}/v{版本}/prd.md`，变更记录放同目录 `change-log.md`。
+2. 历史缺陷按半年度归档，路径为 `docs/defects/{年度}{H1 或 H2}/{模块}.md`。
+3. 确认不再使用的文档移入 `docs/_archive/`，文件名前加 `[已废止]`，首行写明被哪一版替代、从哪天起失效。
+
+### 引用与冲突
+
+1. 引用格式统一为《文档名》v版本 §章节，例如《会员日发券 PRD》v2.3 §3.2；没有行号的文档只写章节标题。
+2. 同一规则有多个版本时，以版本号最大且状态为已评审的为准，其余版本只用于对比差异。
+3. 文档与代码不一致时，两者并列写入歧义列表，不改写任何一方；代码只作为现状证据，不作为需求依据。
+4. 线上行为与文档冲突时，先记入待确认清单，由产品确认是文档漏更新还是线上有缺陷，不由模型裁定。
+5. 标注 `[已废止]` 的文档只能用于追溯历史决策，不能作为规则来源；引用时必须写明它已被哪一版替代。
+
+## 执行步骤
+
+1. 通读 PRD，标注三类句子：出现数字的、出现「可以」「不允许」的、出现状态变化的。
+2. 按功能点、业务规则、约束、数据字典四类归档，一条只归一类，避免重复。
+3. 每条需求点写成「条件 + 动作 + 结果」，保证可以被验证。
+4. 对每条规则追问四件事：边界在哪、异常怎么走、权限差异是什么、并发下会怎样。
+5. 把 PRD 中互相矛盾或未定义的地方抽到歧义列表，每条给出两种可能的解释。
+6. 把必须由产品确认的问题抽到待确认问题，附上影响范围，方便会上直接问。
+7. 输出 JSON，字段严格按输出格式，不增加自定义字段。
+8. 对照质量检查清单自检，任一项不通过则回到第 2 步重做。
+
+## 输出格式
+
+先给一段不超过 100 字的结论，说明 PRD 完整度、主要风险、建议评审重点。
+
+再给 JSON，结构如下：
+
+```json
+{
+  "feature_points": [
+    {"id": "F-01", "name": "领取优惠券", "actor": "会员", "trigger": "点击领取按钮", "result": "账户新增一张未使用券"}
+  ],
+  "rules": [
+    {"id": "R-01", "desc": "同一用户同一活动每天最多领取 1 张", "type": "limit"}
+  ],
+  "constraints": [
+    {"id": "C-01", "desc": "券面额不得大于订单金额的 50%"}
+  ],
+  "data_dictionary": [
+    {"field": "coupon_status", "type": "enum", "values": ["unused", "used", "expired"], "required": true}
+  ],
+  "ambiguities": [
+    {"id": "A-01", "point": "退款后券是否退回", "options": ["原路退回", "不退回"]}
+  ],
+  "questions": [
+    {"id": "Q-01", "question": "券过期前是否需要提前一天提醒", "impact": "影响定时任务与消息模板"}
+  ],
+  "missing_branches": [
+    {"id": "M-01", "branch": "库存不足时领券", "suggestion": "明确失败文案与是否允许重试"}
+  ]
+}
+```
+
+结论之后不要输出 JSON 以外的解释文字，避免下游解析失败。
+
+## 质量检查清单
+
+- 每个功能点都有唯一 ID，格式为 F-两位数字。
+- 每条规则都能用一个具体输入判断真假，不接受「合理」「友好」这类描述。
+- 每个枚举字段列出全部取值，而不是只有正常与异常两种。
+- 歧义不少于 3 条，少于 3 条通常说明拆得不够细。
+- 每条待确认问题都写明影响范围，写不出影响说明问题不重要。
+- 缺失分支至少覆盖：空值、越权、重复提交、并发、超时。
+- 输出 JSON 能通过 jsonschema 校验，且没有多余字段。
+
+## 反例
+
+- 把「用户体验更好」写成需求点，没有可验证结果，等于没写。
+- 自行补全业务规则，例如 PRD 没写退款是否退券，就直接写成「退款后原路退回」。
+- 一条需求点塞三个动作，例如「领取、扣库存、发消息」，失败时无法定位是哪个环节。
+- 字段只写「字符串」，不写长度、枚举值、是否必填。
+- 输出中文键名，例如用「功能点」替代 feature_points，下游脚本无法直接消费。
+- 把历史缺陷里已经修好的问题当成新规则写进 rules。
+</code></pre>
+        <div class="callout">
+          <p>下载完整 skill 文件：<a href="../assets/downloads/skill-requirement-analysis.md" download>skill-requirement-analysis.md</a>。放到 <code>~/.claude/skills/skill-requirement-analysis/SKILL.md</code> 即可被自动加载。</p>
+        </div>
+
+        <p>最后说一个判断标准：如果一份需求点清单，你能在 20 分钟内指出哪三条没有来源、哪两条该进待确认，说明它的粒度是对的。如果看完只觉得结构很整齐，却说不出哪条有问题，那它大概率在复述 PRD，而不是在拆需求。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://www.istqb.org/certifications/certified-tester-foundation-level" target="_blank" rel="noopener">ISTQB Certified Tester Foundation Level — ISTQB</a></li>
+            <li><a href="https://www.atlassian.com/agile/product-management/requirements" target="_blank" rel="noopener">Product requirements: how to write them — Atlassian</a></li>
+            <li><a href="https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview" target="_blank" rel="noopener">Prompt engineering overview — Anthropic</a></li>
+            <li><a href="https://help.aliyun.com/zh/model-studio/getting-started/models" target="_blank" rel="noopener">模型列表与计费 — 阿里云百炼</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#需求分析</span>
+          <span class="tag">#PRD</span>
+          <span class="tag">#llm</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

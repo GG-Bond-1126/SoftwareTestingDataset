@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git 子模块在测试自动化中的使用 · 软件测试资料集</title>
+<meta name="description" content="子模块解决用例库拆分与工具库复用，讲透指针原理、版本锁定、CI 鉴权、常见事故与替代方案选型。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-submodule-automation.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Git 子模块在测试自动化中的使用">
+<meta property="og:description" content="子模块解决用例库拆分与工具库复用，讲透指针原理、版本锁定、CI 鉴权、常见事故与替代方案选型。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-submodule-automation.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Git 子模块在测试自动化中的使用">
+<meta name="twitter:description" content="子模块解决用例库拆分与工具库复用，讲透指针原理、版本锁定、CI 鉴权、常见事故与替代方案选型。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Git 子模块在测试自动化中的使用","description":"子模块解决用例库拆分与工具库复用，讲透指针原理、版本锁定、CI 鉴权、常见事故与替代方案选型。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-submodule-automation.html","articleSection":"Git 版本控制","keywords":"git, submodule, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>22 min read</span>
+        </div>
+        <h1>Git 子模块在测试自动化中的使用</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="git-submodule-automation">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>这篇写给谁，要解决什么问题</h2>
+        <p>如果你正在维护一条自动化用例仓库，并且已经踩过下面任意一种情况，这篇就是写给你的：公共测试工具库被复制到四个项目里，某次断言逻辑改了，只有两个项目同步了，同一批用例在两个项目跑出了不同结论；或者用例库和业务代码挤在同一个仓库，业务同学一天合二十多个 PR，你的回归流水线被大量无关改动反复触发，真正需要关注的结果被淹掉。</p>
+        <p>这两个问题的本质都不是命令不会用，而是边界没划清。用例库的生命周期和业务仓库本来就不一样：业务代码按天迭代，用例按迭代节奏更新，公共工具库则可能被五六个项目同时引用。git submodule 是划这条边界的一种手段，它允许你在一个仓库里记录「我依赖另一个仓库的哪一个提交」，而且这条记录跟着父仓库的每一次提交走，可评审、可回溯、可精确复现。</p>
+        <p>但它不免费：克隆要加参数、子模块默认不在任何分支上、更新完必须回父仓库提交指针、CI 还要额外配一次鉴权。本文按「为什么拆—机制—怎么跑通—会怎么崩—要不要用」的顺序写，最后给一张对照表帮助选型。文中路径与地址均为示例。</p>
+
+        <h2>为什么测试仓库需要和业务仓库分开</h2>
+        <p>举个典型规模：业务仓库几十万行代码，每天二十多个提交；用例仓库九百多条接口用例加三百条 UI 用例，每周改三十来个文件。放在一起时最直接的代价是 CI 噪音——每次业务提交都触发全量回归，执行机器排满，需要人看的结果被埋在一堆绿色构建里。拆开后各跑各的，两条流水线互不干扰。</p>
+        <p>第二个理由是权限。业务仓库的写权限通常只开给开发，测试若要有提交能力，就得给一个更大的权限包，评审规则也不好设。反过来，用例仓库里常常包含测试账号、环境密钥的引用、甚至部分测试数据的构造逻辑，这些不该让所有业务开发都能看到。仓库边界天然就是权限边界，靠目录约定是拦不住的。</p>
+        <p>第三个理由是复用。造数工厂、登录态管理、接口客户端、断言封装这些东西天然跨项目。靠复制的话第一周很舒服，第三个月就开始分裂——A 项目修了时区问题，B 项目还在用旧版本，同一个接口在两个项目里断言结果不同。子模块把复用变成「引用一个提交」而不是「拷贝一份代码」，这是它唯一的本质优势，也是后面所有麻烦的源头。</p>
+
+        <h2>子模块的机制：.gitmodules 只是说明书，真正的记录是那条 commit</h2>
+        <p>绝大多数人第一次接触子模块时的误解，是以为父仓库里存了子模块的文件内容。并不是。父仓库里存的只有一条特殊记录，指向子仓库的某一个提交。你可以直接把它打出来看：</p>
+        <div class="code-head"><span>terminal — 查看父仓库里到底存了什么</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 示例输出
+$ git ls-tree HEAD libs
+160000 commit 8f3c1a9 libs/test-utils
+
+# 父仓库不保存子模块的任何文件内容
+$ git ls-tree HEAD libs/test-utils/
+# （无输出）
+
+# 想知道这条记录指向的提交是什么，需要进子模块看
+$ cd libs/test-utils &amp;&amp; git log -1 --oneline
+8f3c1a9 feat: 新增按手机号批量造数</code></pre>
+        <p>输出里的 mode 是 160000。它既不是普通文件也不是目录，Git 称之为 gitlink，语义是「这里挂着另一个仓库的某个提交」。这一行就是「版本锁定」的全部实现：父仓库的某次提交，对应子仓库的某个 SHA。clone 父仓库时，Git 知道该去哪个地址取哪个提交，但它不会自动去取，这就是后面所有「目录是空的」问题的根源。</p>
+        <p>而 .gitmodules 是另一回事，它是一份纯文本说明书，记录路径、地址和可选的默认分支，本身是父仓库里的普通文件，能被 diff 和评审。说明书与记录分离带来一个高频坑：改了 .gitmodules 的地址，本地 .git/config 缓存的那份不会跟着变，老克隆仍然去连旧地址。</p>
+        <div class="code-head"><span>.gitmodules — 父仓库根目录</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>[submodule "libs/test-utils"]
+	path = libs/test-utils
+	url = https://git.example.com/qa/test-utils.git
+	branch = main</code></pre>
+        <table>
+          <thead>
+            <tr><th>对比项</th><th>.gitmodules</th><th>父仓库里的 gitlink</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>存的是什么</td><td>路径、地址、默认分支</td><td>子仓库某个提交的 SHA</td></tr>
+            <tr><td>谁来产生</td><td>手写，或 submodule add 自动写入</td><td>只能由 git add 子模块路径产生</td></tr>
+            <tr><td>能否直接改</td><td>可以，改完需要提交</td><td>不能，改它意味着换一个版本</td></tr>
+            <tr><td>出问题的表现</td><td>地址写错，拉不到代码</td><td>SHA 过期，拿到旧代码</td></tr>
+            <tr><td>会被 --remote 改吗</td><td>不会</td><td>会，改的是暂存区里的指针</td></tr>
+          </tbody>
+        </table>
+        <p>branch 字段的作用被高估了：它只影响 update --remote 去哪个分支取最新，对 clone 和 update 没有任何作用。写了 branch = main 不意味着子模块跟着 main 走，默认行为永远是检出记录的 SHA。理解这点，后面关于锁定版本的讨论才成立。</p>
+
+        <h2>完整流程：clone、add、update、foreach</h2>
+        <p>新人入职是子模块最容易翻车的时刻。他照常 git clone，拿到一个「什么看起来都对、就是 libs 目录空的」仓库，然后跑用例，报 ImportError，开始怀疑 Python 环境和自己的电脑。正确做法有两条路，选哪条取决于你是不是第一次拉这个仓库：</p>
+        <div class="code-head"><span>terminal — 克隆与初始化</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 方式一：clone 时一次到位（推荐写进入职文档）
+git clone --recurse-submodules https://git.example.com/qa/test-suite.git
+cd test-suite
+
+# 方式二：已经 clone 过了，补一步初始化
+git submodule update --init --recursive
+
+# 只初始化某一个子模块，路径写相对仓库根的路径
+git submodule update --init libs/test-utils
+
+# 子模块里还嵌套了子模块时，--recursive 不能省
+# 少了它，只会有第一层，第二层仍然是空目录</code></pre>
+        <p>添加子模块建议显式带上 -b，把默认分支写进 .gitmodules；不带 -b 时 --remote 会退回用远端 HEAD，语义模糊。添加完成后父仓库多出两样东西：.gitmodules 和 libs/test-utils 这个 gitlink，两样都要提交。</p>
+        <div class="code-head"><span>terminal — 添加与批量操作</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 在父仓库根目录执行，添加一个公共工具库
+git submodule add -b main \
+  https://git.example.com/qa/test-utils.git libs/test-utils
+
+# 两样都要提交
+git add .gitmodules libs/test-utils
+git commit -m "chore: 引入 test-utils 子模块，锁定到 8f3c1a9"
+
+# 子模块默认不在任何分支上，foreach 里直接 pull 会失败
+git submodule foreach --recursive 'git pull'
+# fatal: You are not currently on a branch.
+
+# 需要切分支时显式切换，$displaypath 是相对父仓库的路径
+git submodule foreach --recursive 'git switch main &amp;&amp; git pull --ff-only'</code></pre>
+        <p>两种更新语义不要混用：update 是「回到父仓库记录的版本」，用于同步同事改过的指针；update --remote 是「去远端取最新」，用于主动升级依赖。很多事故就是把这两个当成了同义词。foreach 的另两个用途是统一改地址、统一巡检分支，它在子模块根目录执行，$displaypath 是相对父仓库的路径，比硬编码可靠。</p>
+
+        <h2>--remote 与锁定版本：测试环境为什么必须锁</h2>
+        <p>这是子模块在测试场景里最重要的一次取舍。开发本地希望工具库最新，改完立刻能验证；回归环境恰恰相反，它要可复现。CI 每次跑前都执行 --remote，同一份父仓库代码周一周三跑出的结果就可能不同，因为中间悄悄进来了两次工具库提交，失败也就不可复现了。</p>
+        <p>所以规则可以定得很简单：主干开发分支允许 --remote，提测分支和发布分支一律使用默认 update，只认父仓库记录的 SHA。代价是工具库修了 bug 之后，需要有人主动去各个项目 bump 指针，否则项目会长期停在旧版本，等到某天有人问「为什么这个修复在 B 项目没生效」，才发现落后了三个月。实践中我们固定每周一次批量 bump，bump 单独提交，消息里写清从哪个 SHA 到哪个 SHA，方便回溯和回滚。</p>
+        <div class="code-head"><span>terminal — 拉最新与锁版本</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 只看差异，不落盘：确认远端比记录新了多少
+git submodule update --remote --dry-run libs/test-utils
+
+# 拉取远端分支最新，会改写工作区和暂存区里的 gitlink
+git submodule update --remote libs/test-utils
+
+# 关键一步：把新指针提交进父仓库，否则别人拉到的还是旧版本
+git add libs/test-utils
+git commit -m "chore: bump test-utils 8f3c1a9 -> 4b2d7e0"
+git push
+
+# 发布分支只认记录，不要加 --remote
+git switch release/1.4
+git submodule update --init --recursive</code></pre>
+        <p>还要记住 --remote 只改工作区和暂存区里的指针，不会自动提交。很多人看到目录里的文件变了就以为完事，push 时只推了别的改动，第二天同事拉下来仍指向老提交。判断方法只有一个：看父仓库有没有针对该子模块路径的新提交。</p>
+
+        <h2>游离 HEAD：改子模块代码的正确姿势</h2>
+        <p>update 之后进子模块执行 git status，会看到 HEAD detached at 某个 SHA。这是设计使然：父仓库锁的是提交不是分支。只读没问题，但一旦要改代码就必须先离开这个状态，否则提交出来的是一个没有分支指向的孤儿提交。</p>
+        <p>正确顺序是：进子模块，切到分支或新建修复分支，提交并推送，再回到父仓库提交指针。顺序反了会很难受——先在游离状态下改了代码，又执行了一次 git submodule update，改动会被直接覆盖；而且因为没有任何引用指向那个提交，能找回来的窗口只有 reflog 的保留期，过了就真没了。</p>
+        <div class="code-head"><span>terminal — 在子模块里改代码</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>cd libs/test-utils
+git status
+# HEAD detached at 8f3c1a9
+
+# 不要在这个状态直接 commit，先离开游离 HEAD
+git switch main                    # 已有分支
+git switch -c fix/phone-factory    # 或新建修复分支
+
+# 改完提交并推到子模块自己的远端
+git commit -am "fix: 手机号造数出现重复"
+git push -u origin fix/phone-factory
+
+# 回到父仓库，提交指针
+cd ../..
+git add libs/test-utils
+git commit -m "chore: 更新 test-utils 到包含造数修复的版本"</code></pre>
+        <div class="callout warn"><p>在游离 HEAD 上直接 commit，再用 git submodule update 更新一次，那笔提交就再也找不到了。它的表现是「代码明明改过，现在全没了」，而 git log 里连痕迹都没有。</p></div>
+        <p>多人维护同一个子模块时还要对齐分支策略。父仓库在 release/1.4，子模块却在 main 上改，bump 指针时很容易把未发布的改动带进发布分支；稳妥做法是子模块开同名分支，或 bump 时只挑需要的提交。</p>
+
+        <h2>CI 里怎么给子模块鉴权</h2>
+        <p>本地能跑通、CI 全线报错，八成是鉴权问题。CI 拉父仓库时用的凭证默认也会被拿去拉子模块，但私有库往往没给这个凭证开权限，于是报一个看起来很莫名的 Could not read from remote repository。常见做法有三种，各有代价。</p>
+        <p>第一种是 SSH 部署密钥：给子模块配一把只读密钥，CI 里用 GIT_SSH_COMMAND 指定私钥路径，同时把 .gitmodules 的地址改成 ssh 形式。权限最小，缺点是要在平台管密钥、轮换麻烦。第二种是 HTTPS 加令牌，用 insteadOf 重写域名，配置简单，但令牌会落进本地配置和日志，必须保证不打印。第三种用平台自带支持，如 GitHub Actions 的 checkout 声明递归拉取并传令牌，GitLab 侧有 GIT_SUBMODULE_STRATEGY。</p>
+        <div class="code-head"><span>yaml — CI 里拉子模块</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># GitHub Actions：递归拉子模块，并用令牌覆盖私有库鉴权
+- uses: actions/checkout@v4
+  with:
+    submodules: recursive
+    token: ${{ secrets.SUBMODULE_TOKEN }}
+    persist-credentials: false
+
+# 通用做法：把 https 域名重写成带令牌的形式，注意不要开 set -x
+git config --global \
+  url."https://oauth2:${SUBMODULE_TOKEN}@git.example.com/".insteadOf \
+  "https://git.example.com/"
+
+# 拉完断言指针干净：出现 + 或 - 前缀说明版本不对，直接失败
+git submodule status --recursive | grep -E '^[+-]' &amp;&amp; exit 1</code></pre>
+        <p>高频坑：为加速给父仓库加了 --depth 1，结果子模块拉取失败——父仓库记录的是具体 SHA，浅克隆没有足够历史时服务端无法按 SHA 提供对象。要加速就整条链路都浅，或对子模块单独 fetch 指定 SHA。另一个坑是把令牌写进环境变量又开了命令回显，明文进日志，公开仓库上几分钟就会被扫到。</p>
+
+        <h2>替代方案对比：monorepo、包管理、软链接</h2>
+        <p>先说结论：只有当「共享代码需要和调用方一起改，并且必须锁定到具体提交」时，子模块才是合理选择。其他情况都有更省心的方案，不必因为听说过大厂用子模块就硬上。</p>
+        <table>
+          <thead>
+            <tr><th>方案</th><th>适合的场景</th><th>主要代价</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>子模块</td><td>共享库与调用方一起改，需锁定提交</td><td>克隆、鉴权、指针、游离 HEAD 四类坑</td></tr>
+            <tr><td>monorepo</td><td>团队不大，跨项目重构频繁</td><td>仓库膨胀，CI 要路径过滤和增量构建</td></tr>
+            <tr><td>包管理</td><td>库稳定、接口清晰、变更低频</td><td>改一行也要发版，本地调试要 build</td></tr>
+            <tr><td>软链接</td><td>纯本地的临时复用</td><td>跨平台失效，不能入库</td></tr>
+          </tbody>
+        </table>
+        <p>monorepo 把代码放进一个仓库，原子提交，没有指针和鉴权问题，跨项目重构一次改完还能一起验证。代价是体积和 CI 时间，要靠路径过滤、增量构建控制，权限也只能粗粒度。团队几十人以内、共享代码变更频繁时，它的综合成本往往低于子模块。</p>
+        <p>这份共享代码的变更频率是否和用例库接近？是否需要在同一个提交里同时改库和用例？团队能否接受每次改动都发一个版本？前两问答是、第三问答否，选子模块；三个都答是，选 monorepo；第三问也答是，用包管理。</p>
+        <p>软链接只适合纯本地的临时复用。Git 把符号链接存成 120000 的对象，克隆到 Windows 或容器里往往指向不存在的路径，表现是「文件在但打不开」，比报错更难查。判断时问三句：共享代码的变更频率是否和用例库接近？是否需要在同一个提交里同时改库和用例？能否接受每次改动都发一个版本？前两个答是、第三个答否选子模块；都答是选 monorepo；第三个也答是用包管理。</p>
+
+        <h2>五次事故复盘</h2>
+        <p>第一条，CI 拉到的子模块是旧版本，用例跑错分支。现象是本地全绿、CI 大面积 import 失败或断言对不上；原因通常是父仓库最后一次提交没有包含指针更新，或者 CI 配置里错误地用了 --remote 拉到了最新。定位只需要一行命令，看每个子模块前面的前缀：空格表示与父仓库记录一致，加号表示工作区版本比记录新，减号表示尚未初始化。</p>
+        <p>第二条，本地改完子模块忘记提交父仓库。表现是同事拉下来一切正常，只有你这台机器上有未提交改动；或者 PR 里只提交了用例，评审通过后 CI 用的还是旧工具库。解法是提交前跑一次 git status，看到 modified: libs/test-utils (new commits) 就必须一起 add，这条可以做成 pre-push 钩子。</p>
+        <p>第三条，仓库迁移后老克隆拉不动。改了 .gitmodules 里的地址，但本地 .git/config 缓存了旧地址，update 时去连一个已经不存在的域名。修复命令是 git submodule sync --recursive，它把 .gitmodules 里的地址重新写进本地配置，改完再 update 一次。</p>
+        <p>第四条，子模块目录被误删，git checkout 找不回来。因为父仓库里只有一个 gitlink，没有文件内容，checkout 只能恢复那个空目录，表现是「目录回来了但还是空的」。正确恢复方式是 git submodule update --init --recursive。</p>
+        <p>第五条，Windows 上 .gitmodules 永远是脏的。多是换行符或文件模式导致，检查 core.autocrlf 与 core.filemode，团队内统一配置；如果是大小写路径冲突，还需要处理文件系统不区分大小写带来的假改动。</p>
+        <div class="code-head"><span>terminal — 巡检与修复</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 前缀含义：空格=一致，+=工作区比记录新，-=未初始化，U=冲突
+git submodule status --recursive
+ 8f3c1a9d2b7e4f0c5a1d3e6b9c2f4a7d0e5b8c1f libs/test-utils (v2.3.1-4-g8f3c1a9)
+
+# 地址变更后先同步配置，再重新拉取
+git submodule sync --recursive
+git submodule update --init --recursive
+
+# 彻底重来一次（会丢子模块内的未提交改动，慎用）
+git submodule deinit -f libs/test-utils
+git submodule update --init libs/test-utils</code></pre>
+        <p>这五条里前两条占了实际事故的绝大多数，而且症状都不是「报错」，而是「结果不对」——这恰恰是测试最不能接受的一类故障，因为它会让人怀疑用例本身，把时间浪费在错误的方向上。</p>
+
+        <h2>上线前检查清单</h2>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>通过标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>指针一致性</td><td>git submodule status --recursive 输出无 + 与 - 前缀</td></tr>
+            <tr><td>提交完整性</td><td>父仓库最后一次提交包含 .gitmodules 与 gitlink 变更</td></tr>
+            <tr><td>CI 日志</td><td>出现 checked out 的 SHA，且与本地 git ls-tree 结果一致</td></tr>
+            <tr><td>版本策略</td><td>发布分支未使用 --remote，只认记录的提交</td></tr>
+            <tr><td>凭证安全</td><td>令牌未出现在日志、未写入持久化配置</td></tr>
+            <tr><td>新人可用</td><td>入职文档写明 --recurse-submodules 与初始化命令</td></tr>
+          </tbody>
+        </table>
+        <p>结尾给一句判断标准：如果你不能在不问任何人的情况下，说出当前流水线跑的到底是子模块的哪一个提交，那这套配置就还不算可靠。把这句话写进发布检查表，比写十页文档有用。子模块从来不复杂，复杂的是它把「版本」这件事从仓库级别下沉到了目录级别，而这个粒度必须有人负责。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://git-scm.com/book/en/v2/Git-Tools-Submodules" target="_blank" rel="noopener">Pro Git：Git Tools - Submodules — git-scm.com</a></li>
+            <li><a href="https://git-scm.com/docs/git-submodule" target="_blank" rel="noopener">git-submodule 命令手册 — git-scm.com</a></li>
+            <li><a href="https://git-scm.com/docs/gitsubmodules" target="_blank" rel="noopener">gitsubmodules：子模块机制说明 — git-scm.com</a></li>
+            <li><a href="https://git-scm.com/docs/gitmodules" target="_blank" rel="noopener">gitmodules：.gitmodules 文件格式 — git-scm.com</a></li>
+            <li><a href="https://docs.gitlab.com/ee/ci/git_submodules.html" target="_blank" rel="noopener">在 CI 中使用子模块 — GitLab Docs</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#git</span>
+          <span class="tag">#submodule</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

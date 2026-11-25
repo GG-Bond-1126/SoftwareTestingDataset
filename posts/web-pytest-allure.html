@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Playwright Agents + pytest + Allure：AI 规划-生成-自愈三合一 · 软件测试资料集</title>
+<meta name="description" content="pytest 编排 Playwright 三件套：把 spec 步骤映射成 Allure，失败取证与自愈标注都要留痕。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-pytest-allure.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Playwright Agents + pytest + Allure：AI 规划-生成-自愈三合一">
+<meta property="og:description" content="pytest 编排 Playwright 三件套：把 spec 步骤映射成 Allure，失败取证与自愈标注都要留痕。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-pytest-allure.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Playwright Agents + pytest + Allure：AI 规划-生成-自愈三合一">
+<meta name="twitter:description" content="pytest 编排 Playwright 三件套：把 spec 步骤映射成 Allure，失败取证与自愈标注都要留痕。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Playwright Agents + pytest + Allure：AI 规划-生成-自愈三合一","description":"pytest 编排 Playwright 三件套：把 spec 步骤映射成 Allure，失败取证与自愈标注都要留痕。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-pytest-allure.html","articleSection":"Web 自动化","keywords":"Playwright, pytest, Allure, trace","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统+AI 接口</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>19 min read</span>
+        </div>
+        <h1>Playwright Agents + pytest + Allure：AI 规划-生成-自愈三合一</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-pytest-allure">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>本地先跑通，报告才有意义</h2>
+<p>这篇只解决一件事：在你自己的机器上，让 planner、generator、healer 的产出能被 pytest 管起来、被 Allure 讲清楚。CI 怎么接、密钥怎么放、分片怎么切，那是流水线视角的事，这里不重复。先本地跑通的理由很实际——如果你连一次自愈有没有发生都看不见，把它搬进 CI 只会让问题更难查。</p>
+<p>读者画像：已经在用 Playwright 加 pytest 写 E2E，报告要么没有、要么只有一行 passed。你想要的是一份能回答「这条用例按什么规格写的、卡在哪一步、失败那一秒长什么样、是不是 Agent 刚改过」的报告。这三件套配起来刚好能答。</p>
+<p>先把期待校准一下。generator 产出的是 Playwright Test 的 TypeScript 用例，而你的存量是 pytest，所以本地这套骨架的定位是「pytest 做编排与报告，Agent 产出 spec 与参考实现」。两者不是同一个运行时，硬接只会在 conftest 里打架。</p>
+
+<h2>目录结构：四类产物各有各的家</h2>
+<p>Agent 工作流的混乱，九成来自产物乱放。定好四个目录就够了：<code>specs/</code> 放人读的规划，<code>tests/</code> 放 pytest 用例，<code>prompts/</code> 放触发 Agent 的模板，<code>reports/</code> 放一切可丢弃的产物（Allure 结果、trace、截图、自愈台账）。前三个进版本库，最后一个进 <code>.gitignore</code>。</p>
+<p>这条边界要守死：<code>reports/</code> 里的东西任何时刻删掉都不该影响下一次运行。反过来，如果某条结论只存在于 reports 里（比如「这条用例上周自愈过」），那它就该被提升成版本库里的文件——否则下次清理报告，证据就没了。</p>
+
+<div class="code-head"><span>text — 本地三件套目录</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>web-e2e/
+├── specs/
+│   └── checkout/
+│       └── guest-checkout.md      # planner 产出，人工评审
+├── tests/
+│   ├── conftest.py                # fixture、取证、自愈标注
+│   ├── seed.spec.ts               # Agent 的 seed，环境初始化样板
+│   └── test_guest_checkout.py     # pytest 编排的真实用例
+├── prompts/
+│   ├── planner.md
+│   └── generator.md
+├── tools/
+│   ├── spec_reader.py             # 解析 spec 供 step 使用
+│   └── fingerprint.py             # 用例去重
+├── reports/                       # 全部可丢弃
+│   ├── allure-results/
+│   ├── allure-report/
+│   └── healed.json                # 自愈台账，例外见下
+├── playwright.config.ts
+└── pytest.ini</code></pre>
+
+<div class="callout"><p><code>reports/healed.json</code> 是个例外：它记录哪些用例被自愈过，需要跨运行保留，建议改成 <code>tests/healed.json</code> 并提交，这样「这条用例最近被机器改过」才具有可追溯性。</p></div>
+
+<h2>依赖与环境：包名别写错</h2>
+<p>Python 侧只需要两个包：<code>pytest-playwright</code> 提供 browser、context、page 这组 fixture 与浏览器管理，<code>allure-pytest</code> 提供报告适配器。网上大量文章把适配器写成 <code>pytest-allure-adapter</code>，这个包不存在，装不上的人会以为是网络问题。</p>
+<p>Node 侧要装 Playwright Test 本体，因为 <code>init-agents</code> 是 Playwright CLI 的子命令。生成的定义文件属于工具产物，Playwright 升级后要重新生成，所以它该提交进仓库，跟着版本走。</p>
+
+<div class="code-head"><span>shell — 安装</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>python -m venv .venv
+.venv\Scripts\activate
+
+pip install pytest pytest-playwright allure-pytest
+
+npm init -y
+npm install -D @playwright/test
+npx playwright install chromium
+
+# 生成 planner / generator / healer 的定义
+npx playwright init-agents --loop=claude
+npx playwright --version</code></pre>
+
+<p>Allure 命令行单独装，Node 版与 Python 版在报告渲染上没有差别，团队里统一一个即可：<code>npm install -g allure-commandline</code>，装完 <code>allure --version</code> 能出版本号就算通过。版本上唯一要留意的是 <code>allure-pytest</code> 与 pytest 大版本的兼容性，升级 pytest 时顺手跑一次带附件的失败用例，确认截图还挂得上。</p>
+
+<h2>pytest 作为编排层：交给 fixture，别自己 new_page</h2>
+<p><code>pytest-playwright</code> 已经帮你做好了浏览器生命周期：<code>browser</code> 是 session 级，<code>context</code> 与 <code>page</code> 是函数级，每条用例拿到独立的 context，cookie 与存储天然隔离。自己写 <code>sync_playwright().start()</code> 再 <code>new_page()</code> 的后果是：并行时互相污染，失败时拿不到 trace，报告里所有用例共用一个浏览器实例。</p>
+<p>要加的是三样东西：tracing、console 采集、失败时把证据挂进报告。tracing 一定要在 <code>page</code> 创建之前启动，并把 <code>stop(path=...)</code> 放在 fixture 的收尾里，这样即使用例断言失败，trace 也能正常落盘。<code>request.node.rep_call</code> 由下面那个 <code>makereport</code> 钩子写入，用它判断这次是不是真失败，避免把 teardown 阶段的报错误当成业务失败。</p>
+<p>注意：<code>pytest-playwright</code> 自己也有 <code>--tracing</code> 选项，两者同时开会在第二次 <code>start()</code> 时报「Tracing is already started」。要么全交给插件，要么全交给 fixture，不要各管一半。</p>
+
+<div class="code-head"><span>python — tests/conftest.py 浏览器与取证</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pathlib
+
+import allure
+import pytest
+from allure_commons.types import AttachmentType
+
+ARTIFACTS = pathlib.Path("reports/artifacts")
+
+
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+    # 三个阶段的 report 都挂在 item 上，供 fixture 收尾时判断
+    setattr(item, f"rep_{report.when}", report)
+
+
+@pytest.fixture
+def page(context, request):
+    ARTIFACTS.mkdir(parents=True, exist_ok=True)
+    context.tracing.start(screenshots=True, snapshots=True, sources=True)
+    page = context.new_page()
+
+    console = []
+    page.on("console", lambda m: console.append(f"[{m.type}] {m.text}"))
+    page.on("pageerror", lambda e: console.append(f"[pageerror] {e}"))
+
+    yield page
+
+    call_report = getattr(request.node, "rep_call", None)
+    if call_report is not None and call_report.failed:
+        trace = ARTIFACTS / f"{request.node.name}-trace.zip"
+        context.tracing.stop(path=str(trace))
+        allure.attach.file(
+            str(trace), name="trace.zip", attachment_type=AttachmentType.ZIP
+        )
+        allure.attach(
+            page.screenshot(), name="失败截图", attachment_type=AttachmentType.PNG
+        )
+        allure.attach(
+            "\n".join(console) or "(无 console 输出)",
+            name="console",
+            attachment_type=AttachmentType.TEXT,
+        )
+    else:
+        context.tracing.stop()</code></pre>
+
+<p><code>trace.zip</code> 用 <code>AttachmentType.ZIP</code> 挂上去之后，点开就是 Playwright Trace Viewer，能一帧一帧看 DOM 快照与网络。<code>AttachmentType.TEXT</code> 用来挂 console 则不合适——它会被当成纯文本显示，长的 JSON 会糊成一片，所以 console 里只留 <code>type</code> 与 <code>text</code>，别把 <code>location</code> 整个对象 dump 进去。</p>
+
+<h2>把 spec 的步骤映射成 Allure 的 step</h2>
+<p>Allure 的层级是 feature（业务域）→ story（场景）→ step（步骤）→ attachment（证据）。这套结构与 spec 的结构几乎同构：spec 里的业务域对应 feature，场景标题对应 story，编号步骤对应 step，期望结果对应断言所在的 step。映射做对了，报告读起来就是一份带截图的验收文档；不做映射，报告里只有一个绿色的用例名。</p>
+<p>做法分两步。第一步写个小解析器，把 Markdown 里的编号步骤与期望结果读成列表，顺带校验 spec 是否存在——spec 被删了但用例还在，是 Agent 工作流里最常见的一种漂移。第二步在用例里用 <code>allure.step</code> 包住每个动作，step 的标题直接取 spec 的原文，而不是自己另写一遍。</p>
+
+<div class="code-head"><span>python — tools/spec_reader.py</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pathlib
+import re
+from dataclasses import dataclass
+
+
+@dataclass
+class SpecCase:
+    title: str
+    steps: list
+    expected: list
+
+
+def load_case(spec_path: str, section: str) -> SpecCase:
+    text = pathlib.Path(spec_path).read_text(encoding="utf-8")
+    block = re.search(
+        rf"#### {re.escape(section)} (.+?)\n(.*?)(?=\n#### |\n## |\Z)",
+        text,
+        flags=re.S,
+    )
+    if block is None:
+        raise LookupError(f"{spec_path} 中找不到 {section}，spec 已漂移")
+
+    body = block.group(2)
+    steps = re.findall(r"^\d+\.\s+(.+)$", body, flags=re.M)
+    expected = re.findall(r"^-\s+(.+)$", body, flags=re.M)
+    return SpecCase(title=block.group(1).strip(), steps=steps, expected=expected)</code></pre>
+
+<p>用例这边，<code>allure.step</code> 用上下文管理器包住一组动作，嵌套时会自动缩进，报告里能看到清晰的层次。断言那一步的标题建议直接拼上期望原文，失败时报告上就能看到「期望什么」与「实际什么」并排。</p>
+
+<div class="code-head"><span>python — tests/test_guest_checkout.py</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import allure
+import pytest
+
+from tools.spec_reader import load_case
+
+SPEC = "specs/checkout/guest-checkout.md"
+CASE = load_case(SPEC, "1.1")
+
+
+@pytest.mark.smoke
+@pytest.mark.agent_generated
+@allure.feature("结算")
+@allure.story(CASE.title)
+@allure.severity(allure.severity_level.CRITICAL)
+def test_guest_checkout(page, base_url):
+    with allure.step(CASE.steps[0]):
+        page.goto(f"{base_url}/cart")
+        page.get_by_role("button", name="去结算").click()
+
+    with allure.step(CASE.steps[1]):
+        page.get_by_label("姓名").fill("张三")
+        page.get_by_label("手机号").fill("13800000000")
+        page.get_by_label("详细地址").fill("示例市示例路 1 号")
+
+    with allure.step(CASE.steps[2]):
+        page.get_by_role("radio", name="在线支付").check()
+        page.get_by_role("button", name="提交订单").click()
+
+    with allure.step("断言: " + CASE.expected[0]):
+        order_no = page.get_by_test_id("order-no")
+        assert order_no.inner_text().startswith("GUEST-")
+
+    with allure.step("断言: " + CASE.expected[2]):
+        assert page.get_by_role("button", name="提交订单").is_disabled() is False</code></pre>
+
+<p>用 <code>get_by_role</code> 与 <code>get_by_label</code> 而不是 CSS，不只是可读性问题：语义定位对 DOM 结构变化更稳，generator 生成这类定位时，healer 需要出手的概率会明显下降。</p>
+
+<h2>失败取证的另一半：让证据一站式可读</h2>
+<p>有了 trace、截图、console 三件套，还要解决「打开报告时先看哪个」。Allure 的附件按挂载顺序排列，所以命名要带序号：<code>01-失败截图</code>、<code>02-console</code>、<code>03-trace.zip</code>。人打开报告的第一眼应该是截图，确认是白屏还是弹窗，再顺着 console 看报错，最后才拖进 trace 里逐帧回放。</p>
+<p>console 采集有个坑：<code>page.on</code> 只对新产生的消息生效，页面跳转后旧监听仍然有效，但如果你的 fixture 在 <code>goto</code> 之后才挂监听，前面所有请求日志全丢。所以监听必须在 <code>new_page()</code> 紧接着注册。</p>
+<p>再补一层 <code>environment.properties</code>，写清浏览器版本、被测环境地址、代码版本。Allure 会自动把它渲染成报告首页的环境栏；没有这一栏，同一份报告过两周就没人说得清是在什么环境上跑的。</p>
+
+<div class="code-head"><span>python — tests/conftest.py 环境信息写入</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import os
+import pathlib
+import subprocess
+
+
+def pytest_configure(config):
+    results = pathlib.Path("reports/allure-results")
+    results.mkdir(parents=True, exist_ok=True)
+    commit = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        capture_output=True, text=True,
+    ).stdout.strip() or "unknown"
+
+    lines = [
+        f"Browser={os.getenv('BROWSER_NAME', 'chromium')}",
+        f"BaseUrl={os.getenv('BASE_URL', 'http://localhost:3000')}",
+        f"Commit={commit}",
+        f"AgentSuite={os.getenv('AGENT_SUITE', 'planner+generator')}",
+    ]
+    (results / "environment.properties").write_text(
+        "\n".join(lines), encoding="utf-8"
+    )</code></pre>
+
+<h2>自愈过的用例，必须在报告里显形</h2>
+<p>healer 把一条用例修绿，从流程上说是好事，从信号上说很危险：这条用例的断言可能已经被顺手改松了。所以报告里必须一眼看出「哪些用例这次是自愈过的」，并且给它单独的筛选维度，而不是混在绿色里。</p>
+<p>做法是一个台账加一个自动标记的 fixture。healer 每改一条用例，就往 <code>tests/healed.json</code> 追加一条记录：用例 nodeid、时间、改了哪个定位器、谁触发的。conftest 在每条用例开始时读台账，命中就动态打上 <code>healed</code> 标签与 Allure tag。这样既能按标签筛选，也能在 Allure 的 tag 视图里看到自愈密度。</p>
+<p>配套的纪律是：自愈记录只增不删，用例被人工复核确认无误后，在台账里补一个 <code>reviewed</code> 字段，而不是删掉那一行。删除等于销毁证据，而这条证据在事后复盘「为什么回归没抓到问题」时往往是决定性的。</p>
+
+<div class="code-head"><span>python — tests/conftest.py 自愈标注</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import json
+import pathlib
+
+import allure
+import pytest
+
+LEDGER = pathlib.Path("tests/healed.json")
+
+
+def _healed_map() -> dict:
+    if not LEDGER.exists():
+        return {}
+    return {row["nodeid"]: row for row in json.loads(LEDGER.read_text("utf-8"))}
+
+
+@pytest.fixture(autouse=True)
+def mark_healed(request):
+    entry = _healed_map().get(request.node.nodeid)
+    if entry is None:
+        return
+    request.node.add_marker(pytest.mark.healed(reason=entry["reason"]))
+    allure.dynamic.tag("healed")
+    allure.dynamic.parameter("自愈时间", entry["at"])
+    allure.attach(
+        json.dumps(entry, ensure_ascii=False, indent=2),
+        name="自愈记录",
+        attachment_type=allure.attachment_type.JSON,
+    )</code></pre>
+
+<p>这里的取舍要讲清：给自愈用例单独打标签，会让「绿色」的数量看起来少一点，但换来的是可信。反过来，如果把自愈当成普通修复、不做任何标记，两三个月后你会得到一套没人敢信的绿色回归。宁可在报告上难看一点。</p>
+
+<h2>标记与分组：smoke、regression、agent_generated</h2>
+<p>分组的目的不是好看，是让「跑哪些」变成一个可组合的表达式。本地改完一个页面，只想跑冒烟与相关业务域；发版前跑全量回归；评审 Agent 生成的新用例时，只跑 <code>agent_generated</code> 那批。三种诉求对应三个标记，再加上 <code>healed</code>，四个维度基本够用。</p>
+<p>标记必须注册在 <code>pytest.ini</code> 里，否则 pytest 会给一堆警告，而警告在 CI 日志里会淹没真正的错误。另外一个容易忽略的点：<code>smoke</code> 与 <code>regression</code> 是互斥的设计还是包含关系，要提前定。我倾向于互斥——冒烟是发版前十分钟必须绿的子集，回归是全量，同一条用例只挂一个，选择表达式才不会写成一团。</p>
+
+<div class="code-head"><span>ini — pytest.ini</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>[pytest]
+testpaths = tests
+addopts = -q --alluredir=reports/allure-results
+markers =
+    smoke: 发版前必绿的子集
+    regression: 全量回归
+    agent_generated: Agent 生成，需人工评审后保留
+    healed: 近期被 healer 修改过定位或等待</code></pre>
+
+<p>选择表达式写起来很直接：<code>pytest -m 'smoke and not healed'</code> 就是「冒烟里没被自愈污染的那批」。这句话能写出来，说明标记体系是健康的；如果每次都要翻文档拼表达式，说明维度设计错了。</p>
+
+<h2>怎么防止 Agent 生成的用例膨胀</h2>
+<p>Agent 最大的副作用是产能过剩：一次规划生成二十条用例，其中八条与存量重复，五条覆盖的是同一个表单的不同文案。三个月后用例数翻倍，运行时间翻倍，通过率没变，维护成本却压垮了唯一的负责人。</p>
+<p>三道闸门。第一道，spec 层面去重：同一业务域下，步骤序列的指纹（步骤标题排序后取哈希）相同就算重复，规划阶段就合并。第二道，代码层面查孤儿：每条用例头部必须写 <code># spec: 路径#小节</code>，没有出处的直接拒绝；反过来，spec 里的小节没有对应用例，也要报出来，防止规划写了一堆没人实现的场景。第三道，配额：单个 PR 新增用例数设上限（比如 15 条，示例值），超过就得拆 PR 并说明覆盖了什么新风险。</p>
+
+<div class="code-head"><span>python — tools/fingerprint.py 规划去重与孤儿检查</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import hashlib
+import pathlib
+import re
+
+def fingerprint(steps: list) -> str:
+    normalized = "|".join(sorted(s.strip() for s in steps))
+    return hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:12]
+
+
+def audit() -> int:
+    seen = {}
+    dup = []
+    for spec in pathlib.Path("specs").rglob("*.md"):
+        text = spec.read_text(encoding="utf-8")
+        for section, body in re.findall(
+            r"#### (\d+\.\d+)[^\n]*\n(.*?)(?=\n#### |\n## |\Z)", text, flags=re.S
+        ):
+            steps = re.findall(r"^\d+\.\s+(.+)$", body, flags=re.M)
+            fp = fingerprint(steps)
+            if fp in seen:
+                dup.append((spec, section, seen[fp]))
+            seen[fp] = f"{spec}#{section}"
+
+    covered = {
+        m.group(1)
+        for f in pathlib.Path("tests").rglob("test_*.py")
+        for m in re.finditer(r"# spec: (\S+#\d+\.\d+)", f.read_text("utf-8"))
+    }
+    orphan_specs = [key for key in seen.values() if key not in covered]
+
+    for spec, section, origin in dup:
+        print(f"重复规划: {spec}#{section} 与 {origin} 步骤相同")
+    for key in orphan_specs:
+        print(f"未实现: {key}")
+    return 1 if dup or orphan_specs else 0</code></pre>
+
+<p>这段脚本跑在提交前的本地钩子里，比放进 CI 更有用——生成完立刻就知道自己多写了几条重复的。等它稳定了再挪进流水线当门禁，顺序别反。</p>
+
+<h2>从零跑通：一条命令序列</h2>
+<p>下面这条序列假设你已经有一个能访问的测试环境，并且把 <code>BASE_URL</code> 配好了。顺序上有个关键点：先有 seed，再有 spec，最后才有用例。seed 是 planner 的入口，没有它，规划里会塞满「先登录」这类空话。</p>
+
+<div class="code-head"><span>shell — 最小跑通路径</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 1. 用 planner 生成 specs/checkout/guest-checkout.md
+#    在 AI 客户端里输入 prompts/planner.md 的内容，并附上 seed 文件
+
+# 2. 人工评审 spec：步骤可执行、期望可断言、数据明确
+
+# 3. 让 generator 参考 spec 产出实现（或按 spec 手写 pytest）
+
+# 4. 只跑冒烟
+pytest -m "smoke and not healed" -v
+
+# 5. 出报告
+allure generate reports/allure-results -o reports/allure-report --clean
+allure open reports/allure-report
+
+# 6. 失败后触发 healer，改动会写入 tests/healed.json
+#    再跑一次，报告里能看到 healed 标签</code></pre>
+
+<p>第一步不要跳过评审。spec 是唯一能约束生成质量的文档，评审它比评审代码便宜一个数量级。第四步用 <code>-m</code> 过滤而不是靠目录结构，是因为同一条用例可能既属于冒烟又属于某个业务域，标签能表达多对多关系，目录不能。</p>
+
+<h2>常见坑：现象、原因、解法</h2>
+<p>这些坑几乎每个搭这套东西的人都踩过一遍，提前知道能省半天。</p>
+<table>
+  <thead>
+    <tr><th>现象</th><th>原因</th><th>解法</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Allure 里没有 trace 附件</td><td>用例自己 <code>new_page()</code>，绕过了 fixture</td><td>统一从 <code>page</code> fixture 拿页面</td></tr>
+    <tr><td>报错 Tracing is already started</td><td>插件 <code>--tracing</code> 与手动 tracing 同时开</td><td>只保留一种，删掉 addopts 里的选项</td></tr>
+    <tr><td>报告里附件全部丢失</td><td><code>allure-pytest</code> 版本与 pytest 大版本不匹配</td><td>固定版本组合，升级后跑一次带附件的失败用例</td></tr>
+    <tr><td>Greenlet 相关异常</td><td>sync_api 与 async_api 在同一进程混用</td><td>整个项目只用一种 API 风格</td></tr>
+    <tr><td>报告只有用例名、没有步骤</td><td>只写了断言，没有用 <code>allure.step</code> 包住动作</td><td>按 spec 步骤逐个包 step</td></tr>
+    <tr><td>自愈过的用例看起来和正常一样</td><td>healer 直接改代码，没写台账</td><td>自愈脚本必须同步写 <code>healed.json</code></td></tr>
+  </tbody>
+</table>
+<p>还有两个不在表里的判断题。第一，不要为了让报告好看而把 <code>allure.step</code> 写得极细，一步一个点击会让报告变成操作日志，人反而找不到关键动作；按 spec 的粒度走，通常三到五步一条用例。第二，不要在用例里动态生成 step 标题（比如拼时间戳），Allure 的历史趋势会因此把同一条用例当成不同的，趋势图直接废掉。</p>
+<p>最后是检查清单：每条用例有 spec 出处；每个 spec 小节有对应用例；失败必带截图、console、trace 三件套；自愈过的用例带 <code>healed</code> 标签且能在报告里筛出；<code>environment.properties</code> 有浏览器版本与 commit；<code>reports/</code> 可以随时删。<code>pytest -m smoke</code> 十分钟内能绿，这套骨架就值得留下来了。</p>
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://playwright.dev/docs/test-agents" target="_blank" rel="noopener">Playwright Test Agents（planner / generator / healer）</a></li>
+            <li><a href="https://playwright.dev/docs/pytest" target="_blank" rel="noopener">Playwright 的 pytest 插件文档</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/fixtures.html" target="_blank" rel="noopener">pytest fixtures 官方文档</a></li>
+            <li><a href="https://allurereport.org/docs/pytest/" target="_blank" rel="noopener">Allure Report 与 pytest 集成</a></li>
+            <li><a href="https://allurereport.org/docs/steps/" target="_blank" rel="noopener">Allure Report 的步骤与附件</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">Playwright</span>
+          <span class="tag">pytest</span>
+          <span class="tag">Allure</span>
+          <span class="tag">trace</span>
+          <span class="tag">自愈测试</span>
+          <span class="tag">测试报告</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>接口突然变慢？教你用 EXPLAIN 看 SQL 有没有走索引 · 软件测试资料集</title>
+<meta name="description" content="用 EXPLAIN 输出解读 type、key、rows，给测试同学一份索引验证 Checklist。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-index-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="接口突然变慢？教你用 EXPLAIN 看 SQL 有没有走索引">
+<meta property="og:description" content="用 EXPLAIN 输出解读 type、key、rows，给测试同学一份索引验证 Checklist。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-index-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="接口突然变慢？教你用 EXPLAIN 看 SQL 有没有走索引">
+<meta name="twitter:description" content="用 EXPLAIN 输出解读 type、key、rows，给测试同学一份索引验证 Checklist。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"接口突然变慢？教你用 EXPLAIN 看 SQL 有没有走索引","description":"用 EXPLAIN 输出解读 type、key、rows，给测试同学一份索引验证 Checklist。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-index-testing.html","articleSection":"数据库测试","keywords":"mysql, index, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>11 min read</span>
+        </div>
+        <h1>接口突然变慢？教你用 EXPLAIN 看 SQL 有没有走索引</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="mysql-index-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<figure class="article-figure">
+  <svg viewBox="0 0 720 420" width="100%" role="img" aria-labelledby="fig-index-1-title" xmlns="http://www.w3.org/2000/svg">
+    <title id="fig-index-1-title">索引命中判定链：从 SQL 与执行计划出发，先看是否走索引，再看扫描行数与回表次数，最终判定通过或不通过</title>
+    <defs>
+      <marker id="fig-index-1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--text-faint)"/>
+      </marker>
+    </defs>
+
+    <rect x="56" y="28" width="248" height="52" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.4"/>
+    <text x="72" y="49" font-family="inherit" font-size="15" fill="var(--text)">SQL 慢 / 可疑</text>
+    <text x="72" y="69" font-family="inherit" font-size="12.5" fill="var(--text-dim)">来源：慢查询日志</text>
+
+    <line x1="180" y1="82" x2="180" y2="101" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-index-1-arrow)"/>
+
+    <rect x="56" y="104" width="248" height="52" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.4"/>
+    <text x="72" y="125" font-family="inherit" font-size="15" fill="var(--text)">执行计划</text>
+    <text x="72" y="145" font-family="inherit" font-size="12.5" fill="var(--text-dim)">看 type / key / rows</text>
+
+    <line x1="180" y1="158" x2="180" y2="177" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-index-1-arrow)"/>
+
+    <rect x="56" y="180" width="248" height="52" rx="10" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.4"/>
+    <text x="72" y="201" font-family="inherit" font-size="15" fill="var(--text)">是否走索引</text>
+    <text x="72" y="221" font-family="inherit" font-size="12.5" fill="var(--text-dim)">key 为空？type=ALL？</text>
+
+    <line x1="180" y1="234" x2="180" y2="253" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-index-1-arrow)"/>
+
+    <rect x="56" y="256" width="248" height="52" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.4"/>
+    <text x="72" y="277" font-family="inherit" font-size="15" fill="var(--text)">扫描行数 rows</text>
+    <text x="72" y="297" font-family="inherit" font-size="12.5" fill="var(--text-dim)">接近总行数即未过滤</text>
+
+    <line x1="180" y1="310" x2="180" y2="329" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-index-1-arrow)"/>
+
+    <rect x="56" y="332" width="248" height="52" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.4"/>
+    <text x="72" y="353" font-family="inherit" font-size="15" fill="var(--text)">回表次数</text>
+    <text x="72" y="373" font-family="inherit" font-size="12.5" fill="var(--text-dim)">二级索引取主键</text>
+
+    <line x1="308" y1="206" x2="384" y2="198" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-index-1-arrow)"/>
+    <text x="340" y="192" font-family="inherit" font-size="11.5" fill="var(--amber)">否</text>
+
+    <rect x="392" y="166" width="296" height="64" rx="10" fill="rgba(230,180,80,0.14)" stroke="var(--amber)" stroke-width="1.4"/>
+    <text x="408" y="192" font-family="inherit" font-size="12.5" fill="var(--amber)">判定不通过：全表扫描</text>
+    <text x="408" y="214" font-family="inherit" font-size="11.5" fill="var(--text-dim)">先补索引再跑一遍</text>
+
+    <line x1="308" y1="358" x2="384" y2="352" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-index-1-arrow)"/>
+    <text x="340" y="344" font-family="inherit" font-size="11.5" fill="var(--accent)">是</text>
+
+    <rect x="392" y="318" width="296" height="64" rx="10" fill="rgba(61,220,132,0.12)" stroke="var(--accent)" stroke-width="1.4"/>
+    <text x="408" y="344" font-family="inherit" font-size="12.5" fill="var(--accent)">判定通过：key 有值</text>
+    <text x="408" y="366" font-family="inherit" font-size="11.5" fill="var(--text-dim)">rows 小且回表少</text>
+  </svg>
+  <figcaption>图 1 · 一条 SQL 走没走索引，按这五步判定</figcaption>
+</figure>
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 启动 MySQL（Docker）
+docker run -d --name test-mysql -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=test123 -e MYSQL_DATABASE=testdb mysql:8.0
+
+# 连接验证
+mysql -h localhost -u root -ptest123 testdb
+
+# 创建测试表
+CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(100), email VARCHAR(200) UNIQUE);</code></pre>
+
+<h2>基础应用：第一个 SQL 验证</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector
+
+conn = mysql.connector.connect(host="localhost", port=3306, user="root", password="test123", database="testdb")
+cur = conn.cursor()
+cur.execute("INSERT INTO users (name, email) VALUES (%s, %s)", ("测试", "t@e.com"))
+conn.commit()
+cur.execute("SELECT * FROM users WHERE name = %s", ("测试",))
+assert cur.fetchone() is not None
+print("基础验证通过 ✓")
+cur.close(); conn.close()</code></pre>
+
+<h2>项目进阶：并发测试 + 数据一致性</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector, threading
+
+def deduct(uid, qty):
+    c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+    cur = c.cursor()
+    cur.execute("UPDATE products SET stock=stock-%s WHERE product_id=1 AND stock>=%s", (qty, qty))
+    c.commit(); cur.close(); c.close()
+
+threads = [threading.Thread(target=deduct, args=(i, 2)) for i in range(10)]
+[t.start() for t in threads]
+[t.join() for t in threads]
+
+# 验证库存非负
+c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+cur = c.cursor()
+cur.execute("SELECT stock FROM products WHERE product_id=1")
+assert cur.fetchone()[0] >= 0
+print("并发测试通过 ✓")</code></pre>
+
+        <h2>什么是索引，为什么测试要懂</h2>
+        <p>索引可以理解成数据库的「目录页」：没有它，查一条记录要从第一行扫到最后一行（全表扫描）；有它，数据库能直接「跳」到目标位置。测试工程师不一定要会设计索引，但必须会<strong>判断一条 SQL 有没有真正用上索引</strong>——这是定位「接口变慢」和「性能回归」最快的抓手。</p>
+
+        <h2>EXPLAIN 输出的关键字段，先看这几个</h2>
+        <p>对任何一条 SELECT，前面加个 <code>EXPLAIN</code> 就能看执行计划：</p>
+        <div class="code-head"><span>explain1.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>EXPLAIN SELECT * FROM orders WHERE user_id = 1;</code></pre>
+        <p>重点看 4 列：</p>
+        <table>
+          <thead><tr><th>字段</th><th>看什么</th><th>危险信号</th></tr></thead>
+          <tbody>
+            <tr><td>type</td><td>访问类型，从好到差大致是 <code>const &gt; ref &gt; range &gt; index &gt; ALL</code></td><td>出现 <code>ALL</code> 意味着全表扫描</td></tr>
+            <tr><td>key</td><td>实际用到的索引名，NULL 表示「没用到任何索引」</td><td>大表查询时 key 为 NULL，基本可以确认全表扫描</td></tr>
+            <tr><td>rows</td><td>估算要扫描多少行</td><td>rows 接近表总行数，且数据量还很大，说明没被有效过滤</td></tr>
+            <tr><td>Extra</td><td>额外动作</td><td>出现 <code>Using filesort</code>（排序靠临时空间）、<code>Using temporary</code>（建了临时表），往往意味着 SQL 还能优化</td></tr>
+          </tbody>
+        </table>
+        <div class="callout">
+          <p>判断「有没有走索引」最快的两步：看 <strong>key 是否为 NULL</strong>，看 <strong>type 是不是 ALL</strong>。两个都命中，就是全表扫描，基本可以认定这条 SQL 是当前慢的元凶（前提是表本身够大）。</p>
+        </div>
+
+        <h2>4 种高频「索引失效」场景</h2>
+        <h3>① 大表查询未走索引（最常见）</h3>
+        <p>对 <code>user_id</code> 没建任何索引，<code>EXPLAIN ... WHERE user_id = 1</code> 直接看到 <code>type=ALL, key=NULL, rows≈表总行数</code>。修复就是加索引，属于「送分题」，但测试要先能发现它，而不是等上线后接口超时才反应过来。</p>
+        <h3>② 复合索引顺序用错</h3>
+        <p>建了复合索引 <code>(a, b, c)</code>，按「最左前缀」原则，查询条件必须从 a 开始连续匹配才有效：</p>
+        <div class="code-head"><span>explain2.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>EXPLAIN SELECT * FROM t WHERE a = 1 AND c = 3;
+-- 跳过了 b，只能用到索引的 a 这一层，c 无法在索引里直接定位，往往退化成"索引扫完再过滤"</code></pre>
+        <h3>③ 在索引列上套函数，索引直接失效</h3>
+        <div class="code-head"><span>explain3.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- created_at 上有索引，下面这条 SQL 里套了 YEAR()，索引就用不上了
+EXPLAIN SELECT * FROM orders WHERE YEAR(created_at) = 2026;
+-- 修复：改成范围写法，让索引能用上
+EXPLAIN SELECT * FROM orders
+WHERE created_at &gt;= '2026-01-01' AND created_at &lt; '2027-01-01';</code></pre>
+        <h3>④ 隐式类型转换</h3>
+        <p>列是 <code>varchar</code>，查询时传的是数字，MySQL 会悄悄把整列都转成数字再比，索引也废了：</p>
+        <div class="code-head"><span>explain4.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>EXPLAIN SELECT * FROM users WHERE phone = 13800000000;   -- phone 是 varchar，索引失效
+EXPLAIN SELECT * FROM users WHERE phone = '13800000000'; -- 加引号，类型匹配，索引正常命中</code></pre>
+
+        <h2>Python 脚本：批量跑 EXPLAIN 并标记全表扫描</h2>
+        <p>把「上线前抓一遍核心 SQL 的索引情况」做成自动化脚本，跑完直接告诉你哪些 SQL 有风险：</p>
+        <div class="code-head"><span>audit_explain.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pymysql
+
+# 待审计的 SQL 列表（生产环境里通常来自慢查询日志或核心接口梳理）
+SQL_LIST = [
+    ("用户按 id 查订单", "SELECT * FROM orders WHERE user_id = 1"),
+    ("按年统计订单",     "SELECT COUNT(*) FROM orders WHERE YEAR(created_at) = 2026"),
+    ("手机号查用户",     "SELECT * FROM users WHERE phone = 13800000000"),
+]
+
+def main():
+    conn = pymysql.connect(host="127.0.0.1", port=3306,
+                           user="test_user", password="test_pwd",
+                           database="shop", charset="utf8mb4")
+    with conn.cursor() as cur:
+        for label, sql in SQL_LIST:
+            cur.execute(f"EXPLAIN {sql}")
+            row = cur.fetchone()
+            # EXPLAIN 返回是位置型结果，按列名取值更稳妥：
+            cur.execute(f"EXPLAIN {sql}")
+            desc = cur.description
+            row_dict = dict(zip([d[0] for d in desc], row))
+            type_ = row_dict.get("type")
+            key = row_dict.get("key")
+            rows = row_dict.get("rows")
+            flagged = (type_ == "ALL") or (key is None)
+            mark = "❌ 未走索引（全表扫描风险）" if flagged else "✅ 命中索引"
+            print(f"[{label}] type={type_} key={key} rows={rows}  {mark}")
+            if flagged:
+                print(f"   建议：确认 {sql.split('FROM')[-1].strip().split('WHERE')[0]} 相关列是否缺索引，或 SQL 写法是否触发失效")
+
+if __name__ == "__main__":
+    main()</code></pre>
+        <div class="callout warn">
+          <p><code>rows</code> 是数据库的<strong>估算值</strong>，不是精确行数，别拿它当「必须小于某个数」的硬性标准；判断「走没走索引」以 <strong>type + key</strong> 为主，<code>rows</code> 只作辅助参考。</p>
+        </div>
+        <p>把这份 Checklist 固化进每次上线前的性能冒烟流程：核心接口对应的 SQL 全量跑一遍 EXPLAIN，有 ALL/NULL 的就先找开发确认是「已知问题」还是「新引入的问题」，别把隐患带上线。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/explain.html" target="_blank" rel="noopener">MySQL 官方文档：EXPLAIN</a></li>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/create-index.html" target="_blank" rel="noopener">MySQL 官方文档：CREATE INDEX</a></li>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/optimization-indexes.html" target="_blank" rel="noopener">MySQL 官方文档：索引优化相关说明</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#mysql</span>
+          <span class="tag">#index</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

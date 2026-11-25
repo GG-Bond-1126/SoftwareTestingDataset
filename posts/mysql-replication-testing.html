@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>主从库延迟到底影响谁：写一份测试延迟场景的操作手册 · 软件测试资料集</title>
+<meta name="description" content="模拟主从延迟、验证读写分离路由策略，覆盖 4 种典型延迟触发条件。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-replication-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="主从库延迟到底影响谁：写一份测试延迟场景的操作手册">
+<meta property="og:description" content="模拟主从延迟、验证读写分离路由策略，覆盖 4 种典型延迟触发条件。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-replication-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="主从库延迟到底影响谁：写一份测试延迟场景的操作手册">
+<meta name="twitter:description" content="模拟主从延迟、验证读写分离路由策略，覆盖 4 种典型延迟触发条件。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"主从库延迟到底影响谁：写一份测试延迟场景的操作手册","description":"模拟主从延迟、验证读写分离路由策略，覆盖 4 种典型延迟触发条件。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-replication-testing.html","articleSection":"数据库测试","keywords":"mysql, replication, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>12 min read</span>
+        </div>
+        <h1>主从库延迟到底影响谁：写一份测试延迟场景的操作手册</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="mysql-replication-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 启动 MySQL（Docker）
+docker run -d --name test-mysql -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=test123 -e MYSQL_DATABASE=testdb mysql:8.0
+
+# 连接验证
+mysql -h localhost -u root -ptest123 testdb
+
+# 创建测试表
+CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(100), email VARCHAR(200) UNIQUE);</code></pre>
+
+<h2>基础应用：第一个 SQL 验证</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector
+
+conn = mysql.connector.connect(host="localhost", port=3306, user="root", password="test123", database="testdb")
+cur = conn.cursor()
+cur.execute("INSERT INTO users (name, email) VALUES (%s, %s)", ("测试", "t@e.com"))
+conn.commit()
+cur.execute("SELECT * FROM users WHERE name = %s", ("测试",))
+assert cur.fetchone() is not None
+print("基础验证通过 ✓")
+cur.close(); conn.close()</code></pre>
+
+<h2>项目进阶：并发测试 + 数据一致性</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector, threading
+
+def deduct(uid, qty):
+    c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+    cur = c.cursor()
+    cur.execute("UPDATE products SET stock=stock-%s WHERE product_id=1 AND stock>=%s", (qty, qty))
+    c.commit(); cur.close(); c.close()
+
+threads = [threading.Thread(target=deduct, args=(i, 2)) for i in range(10)]
+[t.start() for t in threads]
+[t.join() for t in threads]
+
+# 验证库存非负
+c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+cur = c.cursor()
+cur.execute("SELECT stock FROM products WHERE product_id=1")
+assert cur.fetchone()[0] >= 0
+print("并发测试通过 ✓")</code></pre>
+
+        <h2>主从复制原理（测试视角的简化版）</h2>
+        <p>主库（Master）每次写操作，都会把变更记进一条<strong>二进制日志（binlog）</strong>；从库（Slave）上有两个线程：一个负责把主库的 binlog 拉过来存成本地的中继日志（Relay Log），另一个负责把中继日志里的变更「重放」到从库自己的数据文件里。<strong>从「主库提交」到「从库重放完成」，中间这段耗时就是主从延迟</strong>。</p>
+        <div class="code-head"><span>check_replication.sql — 在从库上看延迟有多大</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 在从库执行
+SHOW SLAVE STATUS\G
+-- 重点看两个字段：
+--   Seconds_Behind_Master：从库当前落后主库多少秒（0 不代表"绝对没延迟"，
+--     只代表"这一刻的重放追上了"，是个瞬时值）
+--   Slave_IO_Running / Slave_SQL_Running：两个复制线程是否都在正常跑，
+--     任何一个是 "No"，说明复制链路本身断了，比"延迟大"更严重</code></pre>
+        <p>读写分离架构里，业务通常是「写打主库、读打从库」。从库追上的时间差，就是用户「写完了立刻读，却读到旧数据」的根源。</p>
+
+        <h2>4 种典型延迟触发条件，逐一模拟</h2>
+        <h3>① 大批量写入</h3>
+        <p>一次灌入几万行（数据修复、批量导入、大促前的库存初始化），从库重放跟不上，延迟会明显拉大。模拟方式：</p>
+        <pre><code>-- 在主库上，分批插入 5 万行（测试环境按量级缩小即可）
+-- 插入期间，持续在从库跑 SHOW SLAVE STATUS，观察 Seconds_Behind_Master 的变化曲线</code></pre>
+        <h3>② 网络抖动</h3>
+        <p>主从之间的网络延迟/丢包，会拖慢「拉 binlog」这一步。模拟方式（Linux 环境）：</p>
+        <pre><code>-- 用 tc 工具给从库到主库的网卡加 200ms 延迟（需要对应系统权限，仅测试环境操作）
+sudo tc qdisc add dev eth0 root netem delay 200ms
+-- 观察从库延迟是否随网络延迟同步放大，验证完记得 tc qdisc del dev eth0 root 恢复</code></pre>
+        <h3>③ 从库自身负载高</h3>
+        <p>从库上挂了大量读请求或者在跑慢查询，重放线程排不上队，延迟被「拖」出来。模拟方式：在从库上手动跑一批耗时大的查询（大表全表扫、聚合），同时监控 <code>SHOW SLAVE STATUS</code>，验证「从库被读请求挤占」是否真的会推高复制延迟——这是很多团队没意识到的延迟来源。</p>
+        <h3>④ 复制线程停止</h3>
+        <p>主从的表结构不一致、主键冲突等问题，会让从库的 SQL 线程直接报错停止，<code>Slave_SQL_Running</code> 变成 No，延迟不再是「变大」而是「直接不追了」。模拟方式：手动在主库改一张表结构（比如加列），让从库重放到同一变更时报错停住，验证监控能不能及时抓到「线程停了」这种比「延迟大」更紧急的状态。</p>
+
+        <h2>3 个测试场景：写读分离路由到底怎么「对」</h2>
+        <h3>场景 ①：写主读从，延迟导致读到旧数据</h3>
+        <p>这是最核心的场景，步骤固定：写入 → 立刻读 → 观察「读到旧数据」的窗口期有多长。</p>
+        <div class="code-head"><span>scenario1.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 主库
+INSERT INTO orders (user_id, amount, status) VALUES (1, 100, 1);
+COMMIT;
+
+-- 立刻在从库
+SELECT * FROM orders WHERE user_id = 1 AND amount = 100;
+-- 大概率第一秒查不到（延迟窗口期），几秒后查到；记录这个"窗口期"的实测值</code></pre>
+        <p>关键产出是一个数字：<strong>写读分离下，「写入后立刻读」最长能读到旧数据多久</strong>。这个数字要反馈给业务层——如果业务不能接受「下单后 3 秒内查不到」，就得改用「写后读强制走主库」策略（见场景②）。</p>
+        <h3>场景 ②：强制读主（写后读一致性）</h3>
+        <p>很多框架支持「这个用户的请求，在 N 秒内的读操作全部路由到主库」，用来消除「刚写完就读」的窗口期。测试方法：制造一次写入，验证紧随其后的读请求<strong>确实</strong>落到了主库而不是从库（可以在主从库分别打日志/打标记来确认路由结果），以及「强制读主」的窗口期时长（比如 5s）是否符合配置。</p>
+        <h3>场景 ③：延迟补偿</h3>
+        <p>有些系统会在检测到从库延迟超过阈值时，临时把读切回主库，延迟恢复后再切回来。测试要点：阈值触发是否准确、切换本身有没有引入新的不一致（比如切换瞬间正好有一笔「刚提交」的读，落在主库/从库上结果不同）。</p>
+
+        <h2>Python 脚本：检测主从延迟 + 验证路由策略</h2>
+        <div class="code-head"><span>check_replication_lag.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pymysql
+import time
+
+def conn(host):
+    return pymysql.connect(host=host, port=3306, user="test_user",
+                           password="test_pwd", database="shop",
+                           charset="utf8mb4")
+
+def slave_lag_seconds():
+    """从从库拿 Seconds_Behind_Master"""
+    c = conn("127.0.0.1")  # 换成实际的从库地址
+    try:
+        with c.cursor() as cur:
+            cur.execute("SHOW SLAVE STATUS")
+            row = cur.fetchone()
+            # 列顺序不固定，按列名定位更稳
+            cur.execute("SHOW SLAVE STATUS")
+            desc = cur.description
+            cols = [d[0] for d in desc]
+            cur.execute("SHOW SLAVE STATUS")
+            row = cur.fetchone()
+            status = dict(zip(cols, row))
+            return status.get("Seconds_Behind_Master") or 0
+    finally:
+        c.close()
+
+def verify_write_then_read_window():
+    """验证'写入后立刻读'读到旧数据的窗口期"""
+    mc = conn("127.0.0.1")  # 主库
+    with mc.cursor() as cur:
+        cur.execute("DELETE FROM orders WHERE remark = 'lag-test'")
+        cur.execute("INSERT INTO orders (user_id, amount, remark) VALUES (999, 10, 'lag-test')")
+        mc.commit()
+    mc.close()
+
+    sc = conn("127.0.0.1")  # 从库，换成实际地址
+    deadline = time.time() + 30
+    while time.time() &lt; deadline:
+        with sc.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM orders WHERE remark = 'lag-test'")
+            if cur.fetchone()[0] &gt; 0:
+            sc.close()
+                print("✅ 从库已追上主库，窗口期结束")
+                return
+        time.sleep(0.5)
+    sc.close()
+    print("❌ 30s 内从库仍未同步，延迟超出预期，需排查")
+
+if __name__ == "__main__":
+    lag = slave_lag_seconds()
+    print(f"当前主从延迟 = {lag}s")
+    verify_write_then_read_window()</code></pre>
+        <div class="callout">
+          <p>脚本里主库、从库地址要换成各自真实 IP；核心逻辑是「主库写入 → 轮询从库直到可见」，这个「可见耗时」就是实测的读写分离一致性窗口期，可以固定进每次回归测试，数值比上次明显变大就要追查。</p>
+        </div>
+
+        <h2>生产环境监控该盯什么</h2>
+        <ul>
+          <li><code>Seconds_Behind_Master</code> 持续监控，按业务容忍度设阈值（通常 5s 就要开始关注，30s 以上直接告警）；</li>
+          <li><code>Slave_IO_Running</code> / <code>Slave_SQL_Running</code> 任一为 No，属于「链路断了」级别的告警，优先级高于延迟数值本身；</li>
+          <li>对「写后读」强一致诉求高的接口，单独记录其「强制读主」的实际触发次数，数值异常波动往往意味着延迟比预期大。</li>
+        </ul>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/replication.html" target="_blank" rel="noopener">MySQL 官方文档：复制原理</a></li>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/replication-commands.html" target="_blank" rel="noopener">MySQL 官方文档：复制相关命令（SHOW SLAVE STATUS）</a></li>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/replication-glossary.html" target="_blank" rel="noopener">MySQL 官方文档：复制术语（延迟相关概念）</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#mysql</span>
+          <span class="tag">#replication</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

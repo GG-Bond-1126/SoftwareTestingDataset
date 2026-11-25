@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Electron 应用测试：把桌面应用当 Web 测 · 软件测试资料集</title>
+<meta name="description" content="Electron 应用（VS Code/Slack）用 CDP 当 Web 自动化、DevTools 调试…">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/electron-app-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Electron 应用测试：把桌面应用当 Web 测">
+<meta property="og:description" content="Electron 应用（VS Code/Slack）用 CDP 当 Web 自动化、DevTools 调试…">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/electron-app-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Electron 应用测试：把桌面应用当 Web 测">
+<meta name="twitter:description" content="Electron 应用（VS Code/Slack）用 CDP 当 Web 自动化、DevTools 调试…">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Electron 应用测试：把桌面应用当 Web 测","description":"Electron 应用（VS Code/Slack）用 CDP 当 Web 自动化、DevTools 调试…","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/electron-app-testing.html","articleSection":"PC 自动化","keywords":"pc-automation, electron, cdp","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>Electron 应用测试：把桌面应用当 Web 测</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="electron-app-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Python 3.10+
+python -m venv venv
+venv\Scripts\activate
+pip install pytest
+pytest --version</code></pre>
+
+<h2>基础应用：第一个测试用例</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>def test_basic():
+    assert 1 + 1 == 2
+    print("基础用例通过 ✓")</code></pre>
+
+<h2>项目进阶：fixture + 参数化 + CI</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest
+
+@pytest.fixture
+def data():
+    return [1, 2, 3, 4, 5]
+
+@pytest.mark.parametrize("n, expected", [(3, 6), (5, 15)])
+def test_sum(data, n, expected):
+    assert sum(data[:n]) == expected</code></pre>
+
+        <h2>Electron 应用测试的特殊性</h2>
+        <p>Electron 应用和普通 Web 应用的 3 个区别：</p>
+        <div class="code-head"><span>区别</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. IPC 通信（主进程 ↔ 渲染进程）
+# - 渲染进程（UI）通过 ipcRenderer 发请求
+# - 主进程（Node.js）处理系统调用（文件、网络、硬件）
+# - 测试时"断言 IPC 通信"比"断言 UI 文本"更底层
+
+# 2. 多窗口
+# - 一个应用可能开多个 BrowserWindow
+# - CDP 每个窗口一个"target"，要分别操控
+# - 主窗口 + 弹窗 + 通知，每个都要测
+
+# 3. 渲染进程 + 主进程
+# - UI 在渲染进程（像浏览器）
+# - 系统调用在主进程（像 Node.js）
+# - 测试要覆盖两个进程：UI 操作（CDP）+ IPC 通信（mock）</code></pre>
+        <div class="callout">
+          <p>Electron 应用「最好的测试方式」是<strong>当 Web 测</strong>（CDP 操控 UI）+ <strong>IPC mock</strong>（模拟主进程响应）。比 pywinauto「控件树定位」稳得多，因为 Electron UI 就是 HTML（CSS 选择器定位）。</p>
+        </div>
+
+        <h2>用 CDP 操控 Electron 应用</h2>
+        <p>Electron 应用启动时加 <code>--remote-debugging-port=9222</code>，就能用 CDP 连接（和 Web 自动化一样）：</p>
+        <div class="code-head"><span>terminal — 启动 Electron 应用（带调试端口）</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># Linux / Mac
+# 启动 Electron 应用时加参数
+./my-electron-app --remote-debugging-port=9222
+
+# Windows（用命令行参数）
+my-electron-app.exe --remote-debugging-port=9222
+
+# 验证调试端口
+curl http://localhost:9222/json
+# 输出：所有窗口的 CDP target 列表</code></pre>
+        <div class="code-head"><span>python — CDP 连接 Electron</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># pip install pyppeteer  （或 playwright）
+# playwright 更推荐（官方维护，跨应用）
+# pip install playwright
+# playwright install chromium
+
+import asyncio
+from playwright.async_api import async_playwright
+
+async def test_vscode():
+    """用 CDP 操控 VS Code（Electron 应用）。"""
+    async with async_playwright() as p:
+        # 连接已启动的 VS Code（调试端口 9222）
+        browser = await p.chromium.connect_over_cdp(
+            "http://localhost:9222"
+        )
+
+        # 找 VS Code 的上下文（渲染进程）
+        context = browser.contexts[0]
+        page = context.pages[0]
+
+        # 操控 UI（和 Web 一样）
+        await page.wait_for_selector("[data-view-id='workbench.parts.editor']")
+
+        # 验证编辑器可见
+        assert await page.is_visible(".monaco-editor")
+        print("✅ 编辑器可见")
+
+        # 打开文件（菜单 → 文件 → 打开）
+        await page.click("[role='menuitem'][data-command-id='workbench.action.files.openFile']")
+        await page.wait_for_selector(".monaco-dialog-box", timeout=5000)
+
+        # 输入文件路径
+        await page.type(".monaco-dialog-box .monaco-input", "C:\\test\\hello.py")
+        await page.keyboard.press("Enter")
+
+        # 等待编辑器加载
+        await page.wait_for_selector(".monaco-editor .view-line", timeout=10000)
+
+        # 验证文件内容
+        content = await page.text_content(".monaco-editor")
+        print(f"编辑器内容：{content[:50]}...")
+
+        # 关闭
+        await browser.close()
+
+asyncio.run(test_vscode())</code></pre>
+
+        <h2>IPC 通信测试（Electron 特有）</h2>
+        <p>Electron 应用「主进程 ↔ 渲染进程」通过 IPC 通信。测试时要「mock IPC 响应」，验证渲染进程逻辑：</p>
+        <div class="code-head"><span>python — mock IPC（pytest + 注入）</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># test_ipc.py（Electron 应用 IPC 测试）
+import asyncio
+import json
+from playwright.async_api import async_playwright
+
+async def test_file_read_ipc():
+    """测试"读文件"IPC 通信（渲染进程 → 主进程 → 返回）。"""
+    async with async_playwright() as p:
+        browser = await p.chromium.connect_over_cdp("http://localhost:9222")
+        context = browser.contexts[0]
+        page = context.pages[0]
+
+        # 注入：监听 IPC 消息（在渲染进程执行 JS）
+        await page.evaluate("""
+            () => {
+                // 监听 Electron IPC 渲染进程端
+                window._ipcMessages = [];
+                const originalSend = window.electron.ipcRenderer.send;
+                window.electron.ipcRenderer.send = (channel, ...args) => {
+                    window._ipcMessages.push({ channel, args, timestamp: Date.now() });
+                    return originalSend(channel, ...args);
+                };
+            }
+        """)
+
+        # 触发"读文件"操作（UI 按钮）
+        await page.click("[data-action='open-file']")
+
+        # 等 IPC 消息
+        await page.wait_for_function(
+            "() => window._ipcMessages && window._ipcMessages.length > 0",
+            timeout=5000
+        )
+
+        # 检查 IPC 消息
+        messages = await page.evaluate("() => window._ipcMessages")
+        print(f"IPC 消息：{json.dumps(messages, indent=2)}")
+
+        # 断言：发送了"read-file"通道
+        read_msgs = [m for m in messages if m["channel"] == "read-file"]
+        assert len(read_msgs) > 0, "没发送 read-file IPC"
+
+        await browser.close()
+
+asyncio.run(test_file_read_ipc())</code></pre>
+
+        <h2>多窗口测试</h2>
+        <div class="code-head"><span>python — 多窗口 CDP</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import asyncio
+from playwright.async_api import async_playwright
+
+async def test_multi_window():
+    """测试 Electron 多窗口（主窗口 + 弹窗）。"""
+    async with async_playwright() as p:
+        browser = await p.chromium.connect_over_cdp("http://localhost:9222")
+        context = browser.contexts[0]
+
+        # 初始只有一个窗口（主窗口）
+        assert len(context.pages) == 1
+        main_window = context.pages[0]
+
+        # 触发"新建窗口"（比如 VS Code 的"拆分编辑器"）
+        await main_window.click("[data-command-id='workbench.action.splitEditor']")
+
+        # 等第二个窗口出现
+        await main_window.wait_for_function(
+            "() => window.electron.remote.getCurrentWindow() !== null",
+            timeout=5000
+        )
+        await asyncio.sleep(1)   # 等窗口创建
+
+        # 现在有两个窗口
+        assert len(context.pages) == 2, f"期望 2 个窗口，实际 {len(context.pages)}"
+        second_window = context.pages[1]
+
+        # 验证第二个窗口
+        await second_window.wait_for_selector(".monaco-editor")
+        print(f"✅ 第二个窗口：{second_window.url}")
+
+        await browser.close()
+
+asyncio.run(test_multi_window())</code></pre>
+
+        <h2>Electron 应用测试的「三层」策略</h2>
+        <div class="code-head"><span>三层策略</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 第一层：UI 测试（CDP 操控）
+# - 用 Playwright 操控 Electron 窗口
+# - CSS 选择器定位（和 Web 一样）
+# - 验证：界面元素、文本、交互
+# 适合：功能验证、UI 回归
+
+# 第二层：IPC 测试（mock 通信）
+# - 注入 JS 监听 IPC 消息
+# - mock 主进程响应（不依赖真实系统调用）
+# - 验证：IPC 通道、参数格式、响应
+# 适合：主进程逻辑、系统调用边界
+
+# 第三层：主进程测试（Node.js）
+# - Electron 主进程是 Node.js，可以用 Jest/Mocha 测
+# - 测试：文件操作、数据库、网络请求
+# 适合：主进程单元测试（开发写，测试跑）</code></pre>
+        <div class="callout">
+          <p>Electron 应用测试「核心思路」：<strong>当 Web 测</strong>（CDP + Playwright），IPC 用 <strong>mock</strong>（注入 JS 监听），主进程用 <strong>Node.js 单测</strong>。比 pywinauto「控件树」稳 10 倍（Electron UI 就是 HTML），比图像识别「快 10 倍」（CDP 直接操控，不用截图匹配）。</p>
+        </div>
+
+        <h2>案例：测试 VS Code 的「打开文件 + 搜索」</h2>
+        <div class="code-head"><span>python — 完整案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import asyncio
+import os
+from playwright.async_api import async_playwright
+
+async def test_vscode_open_and_search():
+    """VS Code：打开文件 + 搜索内容（完整流程）。"""
+    async with async_playwright() as p:
+        # 1. 连接 VS Code（假设已启动 + 调试端口）
+        browser = await p.chromium.connect_over_cdp("http://localhost:9222")
+        context = browser.contexts[0]
+        page = context.pages[0]
+
+        # 2. 验证 VS Code 主界面
+        await page.wait_for_selector("[data-view-id='workbench.parts.editor']", timeout=10000)
+        assert await page.is_visible(".monaco-editor")
+        print("✅ VS Code 编辑器可见")
+
+        # 3. 新建文件（Ctrl+N）
+        await page.keyboard.press("Control+n")
+        await page.wait_for_selector(".monaco-editor .view-line", timeout=5000)
+
+        # 4. 输入内容
+        test_content = "def hello():\n    print('Hello, VS Code')\n"
+        # 逐行输入（VS Code 编辑器不支持一次性设置）
+        await page.keyboard.press("Control+a")   # 全选
+        await page.keyboard.type(test_content)
+
+        # 5. 保存文件（Ctrl+S）
+        await page.keyboard.press("Control+s")
+        await page.wait_for_function(
+            "() => !document.querySelector('.monaco-editor .dirty')",
+            timeout=5000
+        )
+        print("✅ 文件已保存")
+
+        # 6. 搜索内容（Ctrl+F）
+        await page.keyboard.press("Control+f")
+        await page.wait_for_selector(".search-view .monaco-input", timeout=5000)
+        await page.keyboard.type("hello")
+
+        # 7. 验证搜索结果
+        await page.wait_for_selector(".search-view .search-match", timeout=5000)
+        matches = await page.locator(".search-view .search-match")
+        count = await matches.count()
+        print(f"✅ 搜索 'hello'：{count} 处匹配")
+        assert count >= 1, "搜索没找到结果"
+
+        # 8. 截图（取证）
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        await page.screenshot(path=f"vscode_test_{timestamp}.png")
+
+        # 9. 关闭
+        await browser.close()
+        print("✅ 测试完成")
+
+if __name__ == "__main__":
+    from datetime import datetime
+    asyncio.run(test_vscode_open_and_search())</code></pre>
+        <div class="callout">
+          <p>Electron 应用测试「三步走」：① <strong>启动应用 + 调试端口</strong>（<code>--remote-debugging-port=9222</code>）；② <strong>Playwright 连接 CDP</strong>（当 Web 测，CSS 选择器定位）；③ <strong>断言 UI + IPC</strong>（界面元素 + 通信消息）。比 pywinauto 稳（HTML 定位 vs 控件树）、比图像识别快（CDP 直接操控 vs 截图匹配）。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://www.electronjs.org/docs/latest/tutorial/testing" target="_blank" rel="noopener">Electron 官方测试指南</a></li>
+            <li><a href="https://playwright.dev/docs/chromium" target="_blank" rel="noopener">Playwright Chromium CDP 连接</a></li>
+            <li><a href="https://chromedevtools.github.io/devtools-protocol/" target="_blank" rel="noopener">Chrome DevTools Protocol 文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#pc-automation</span>
+          <span class="tag">#electron</span>
+          <span class="tag">#cdp</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

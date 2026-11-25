@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web 端到端测试：用户场景 + E2E 设计 · 软件测试资料集</title>
+<meta name="description" content="E2E 只验证链路接通：场景筛选、数据隔离、登录态复用、失败归因与执行节奏。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-e2e-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Web 端到端测试：用户场景 + E2E 设计">
+<meta property="og:description" content="E2E 只验证链路接通：场景筛选、数据隔离、登录态复用、失败归因与执行节奏。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-e2e-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Web 端到端测试：用户场景 + E2E 设计">
+<meta name="twitter:description" content="E2E 只验证链路接通：场景筛选、数据隔离、登录态复用、失败归因与执行节奏。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Web 端到端测试：用户场景 + E2E 设计","description":"E2E 只验证链路接通：场景筛选、数据隔离、登录态复用、失败归因与执行节奏。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-e2e-testing.html","articleSection":"Web 自动化","keywords":"e2e-testing, user-scenario, web-automation","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>20 min read</span>
+        </div>
+        <h1>Web 端到端测试：用户场景 + E2E 设计</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-e2e-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>这篇写给谁，解决什么问题</h2>
+        <p>读者画像很具体：你已经能用 Playwright 或 Selenium 把一条流程跑通，手上也维护着一套 E2E，但它的处境不太妙。用例从二十条涨到九十条，全量执行从二十分钟涨到两个半小时，失败列表每天十几条，其中一半重跑就过。产品改一句文案，挂五条；后端换一个字段名，挂八条。到最后，红了的构建没人点开，E2E 变成一种昂贵的心理安慰。</p>
+        <p>问题通常不在工具，而在设计。多数团队写 E2E 的方式是看到哪个页面就录一条脚本，于是用例数量跟着页面数走，断言跟着文案走，等待跟着感觉走。页面一改版，用例集体报废；文案一调整，断言集体误报。工具再好，也救不了这个结构。</p>
+        <p>这篇不复述 Playwright 的接口用法，而是回答四个设计问题：E2E 到底该证明什么；场景从哪来、控制在多少条；一条用例怎么写成可维护的样子；数据、登录态、失败归因、执行节奏这些绕不开的现实问题怎么处理。读完你应该能拿着一张清单，把现有套件砍掉一半，同时提高它对线上故障的预测力。</p>
+
+        <h2>E2E 该测什么，不该测什么</h2>
+        <p>单元测试证明一段逻辑在隔离条件下算得对，接口测试证明一个服务在给定请求下返回得对，E2E 唯一不可替代的价值是证明这些东西拼起来还能用。浏览器渲染、网关鉴权、服务间调用、数据库写入、消息投递、第三方回调，任何一处协议对不上、字段名不一致、超时配置过短，单层测试都是绿的，只有端到端跑一遍才会暴露。</p>
+        <p>反过来，这也划出了它的边界：E2E 不该承担分支覆盖。一个密码字段有必填、长度、字符集、错误次数锁定等十几种组合，这些组合在接口层用参数化几百毫秒就能跑完，在浏览器里跑要几分钟，失败时你还得分辨是校验逻辑错了还是页面元素变了。把分支覆盖压给 E2E，等于拿最贵的工具做最便宜的活。</p>
+        <p>判断一条用例该不该留在 E2E，先问它能不能回答「用户能不能完成一件有业务价值的事」。再看失败归因：E2E 挂了而同场景的接口测试全绿，说明问题出在集成层，这条用例有独立价值；接口测试也挂了，说明你只是用更慢的方式重复了接口测试的结论，应该把这条降级到接口层。</p>
+
+        <h2>场景从哪来：四条筛选标准</h2>
+        <p>成熟的 E2E 套件几乎都来自四个地方。第一是核心用户旅程：新用户注册并完成首单、老用户复购、申请退款、改地址后重新下单。第二是高频路径：看埋点或访问日志里占比最高的那几个操作，它未必是核心链路，但量大，一旦坏了受影响人数立刻放大。第三是资金与权限敏感路径：支付、退款、提现、改价，以及越权访问别人的订单。</p>
+        <p>第四是历史故障路径，这一条最容易忽略也最划算。线上事故很少是某个函数算错了，更多是 A 服务改了返回结构、B 服务没跟着改，或者灰度开关只在部分节点生效，或者退款回调重试导致重复入账。这类问题在需求评审时想不到，在用例库里也查不到，只躺在故障复盘记录里。把复盘记录当成用例来源，等于让过去的每一次事故为未来买一次保险。</p>
+        <p>反面做法是按页面建用例：首页一条、列表一条、详情一条、个人中心一条。这种划分看着整齐，其实是跟着信息架构走，而信息架构恰恰是产品迭代中最易变的部分。改一次导航，二十条用例的选择器全废。按业务结果划分稳定得多，页面改版只是换定位器，场景本身不动。</p>
+
+        <h2>一条 E2E 用例的完整结构</h2>
+        <p>一条合格的 E2E 用例由四段构成，缺一段就会变成不可维护的脚本。第一段是前置数据，指这条场景开始时系统必须处于什么状态：账号等级、库存数量、优惠券是否在有效期、灰度开关是否打开。第二段是用户步骤，只写用户在界面上看得到、点得到的操作，不写内部调用了哪个接口。第三段是断言，必须可观测、可验证、与实现解耦。第四段是清理，把这条用例造出来的数据收回去。</p>
+        <p>前置数据最容易被偷懒。很多脚本靠上一个用例留下的数据启动，跑单条能过，并行就崩，换个执行顺序也崩。正确的做法是由 fixture 显式准备：造一个独立租户、给它充库存、发一张指定面额的券，用例结束后按租户级联清理。这样即使并行八个进程，彼此也不会踩到对方的订单。</p>
+        <p>断言的稳定性决定这套用例能活多久。断言页面文案「支付成功」是最脆的写法，文案改一个字就挂；断言 DOM 结构和类名次之，改版就挂；最稳的是断言业务状态，比如订单状态字段变成已支付、库存扣减了一条、消息队列里出现了对应事件。这些和界面如何呈现无关，改十次版也不会误报。</p>
+        <div class="code-head"><span>python — 下单场景的四段结构</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import re
+
+from playwright.sync_api import Page, expect
+
+
+def test_checkout_with_coupon(page: Page, buyer):
+    # 前置数据由 fixture 准备：登录态、库存、优惠券
+    page.goto('/cart')
+    expect(page.get_by_test_id('cart-line')).to_have_count(1)
+
+    # 只写用户可见的动作
+    page.get_by_role('button', name='去结算').click()
+    page.get_by_label('收货地址').select_option(buyer.address_id)
+    page.get_by_label('优惠券').fill('NEW100')
+    page.get_by_role('button', name='使用').click()
+    expect(page.get_by_test_id('payable')).to_have_text('199.00')
+
+    page.get_by_role('button', name=re.compile('提交订单')).click()
+
+    # 断言落在业务状态上，不依赖文案
+    order_no = page.get_by_test_id('order-no').inner_text()
+    assert re.fullmatch(r'SO\d{18}', order_no)
+    buyer.assert_order_status(order_no, 'PAID')</code></pre>
+        <p>代码里有三个刻意的选择。定位器用 <code>get_by_role</code> 与 <code>get_by_test_id</code>，前者跟随可访问性语义，后者由开发专门留给测试，二者都比 CSS 路径稳。金额只比对数字，不比对货币符号和千分位。最后一步跳出了浏览器，直接去接口确认订单状态，因为页面跳转成功不等于业务落库成功。</p>
+
+        <h2>数据隔离：每个用例自己造数</h2>
+        <p>数据隔离是 E2E 从能跑变成能信的分水岭。共享测试账号的套件，在串行时一切正常，一旦开并行就原形毕露：两个进程同时用同一张优惠券，必然一个成功一个失败；同时改同一个地址，最后写入的把前面的覆盖掉。这类失败看起来像产品 bug，实际上是用例互相踩，排查时最浪费时间。</p>
+        <p>造数有两条路。走测试支撑接口，让后端专门提供一组只在测试环境开放的接口，好处是数据符合业务规则，坏处是需要后端配合；直接写库，快、不受接口限制，但容易造出线上不可能出现的脏数据，比如一张已过期却仍可用的券，测出来的结论没有意义。批量铺底数据可以写库，单条用例的前置状态建议走接口。</p>
+        <p>隔离的粒度也要选。按用例造数最干净，但慢；按测试类或按分片共享一个租户，快，但用例之间就有了隐式耦合，单独执行时必须先跑造数那条。折中方案是每个用例一个唯一标识、共享租户模板，清理时按前缀批量删除。判断标准很简单：任意一条用例单独跑、乱序跑、并行跑，结果都必须一致。</p>
+        <div class="code-head"><span>python — 独立租户与级联清理</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import random
+import uuid
+
+import pytest
+
+
+@pytest.fixture
+def buyer(api):
+    suffix = uuid.uuid4().hex[:8]
+    tenant = f'e2e-{suffix}'
+    user = api.post('/test-support/users', json={
+        'phone': '139' + ''.join(random.choices('0123456789', k=8)),
+        'tenant': tenant,
+    }).json()
+    api.post('/test-support/stock', json={
+        'tenant': tenant, 'sku': 'SKU-1001', 'qty': 5,
+    })
+
+    yield BuyerSession(api, user)
+    # 失败时同样执行，保证环境可重跑
+    api.delete(f'/test-support/tenants/{tenant}')</code></pre>
+
+        <h2>登录态：复用状态还是每次登录</h2>
+        <p>登录态处理是 E2E 里最容易被忽视的性能与稳定性问题。每条用例都从登录页开始填账号密码，最真实，但每条多三到五秒，三十条就是两三分钟纯属浪费；更麻烦的是登录页最爱加验证码、滑块、风控，一旦灰度上线，整套用例在同一个早上集体变红。</p>
+        <p>常见做法是复用会话状态：整个测试会话只登录一次，把 cookie 与 localStorage 导出成文件，其余用例创建上下文时直接注入。Playwright 的 <code>storage_state</code> 就是干这个的，登录一次存盘，后续每个 context 都从这份状态启动，打开页面就是已登录。速度快，也绕开了登录页的界面波动。</p>
+        <p>代价也要算清。会话有有效期，长时间流水线跑到后半段可能过期；不同角色的权限用例不能共用同一份状态；最要命的是，如果登录流程本身坏了，复用状态的套件一条都不会红。所以合理的分工是：绝大多数旅程复用状态，登录、注册、会话过期、多角色切换这几类仍然走真实界面登录，并放进冒烟集。省时间可以，但别把登录这件事本身测没了。</p>
+        <div class="code-head"><span>python — 会话级登录并导出 storage_state</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import os
+
+import pytest
+from playwright.sync_api import Browser
+
+
+@pytest.fixture(scope='session')
+def auth_state(browser: Browser, tmp_path_factory):
+    context = browser.new_context()
+    page = context.new_page()
+    page.goto('/login')
+    page.get_by_label('账号').fill(os.environ['E2E_USER'])
+    page.get_by_label('密码').fill(os.environ['E2E_PASS'])
+    page.get_by_role('button', name='登录').click()
+    page.wait_for_url('/home')
+
+    path = tmp_path_factory.mktemp('auth') / 'state.json'
+    context.storage_state(path=str(path))
+    context.close()
+    return str(path)
+
+
+@pytest.fixture
+def page(browser, auth_state):
+    context = browser.new_context(storage_state=auth_state)
+    yield context.new_page()
+    context.close()</code></pre>
+
+        <h2>失败归因：产品、脚本还是环境</h2>
+        <p>E2E 最贵的成本不是执行，是判断一条红色用例到底是谁的问题。三种可能大致各占三分之一：产品真的坏了、脚本跟不上页面、环境在抖。归因顺序错了，代价很直接——把产品缺陷当成环境抖动重试掉，事故就漏到线上；把环境问题当成产品缺陷提给开发，三次之后没人再信你的报告。</p>
+        <p>一个可操作的判定顺序是这样的。先看同一批次里红的用例是否集中在同一个服务或同一个环境，报错是不是 502、连接超时、DNS 失败，这类几乎都是环境。再看同场景的接口测试是不是也红，如果接口层复现了同样的错误，基本可以判定是产品问题。最后才看 trace，确认失败发生在哪一步：是元素没出现，还是断言的值不对。</p>
+        <p>trace 是归因效率的关键。没有它，你得本地重跑碰运气；有它，时间轴上能看到每一次点击前后的 DOM 快照、每个请求的响应体、控制台报错，一分钟内就能分辨是页面没渲染还是后端返回了错。代价是录制有开销，所以只在失败时保留，成功用例直接丢弃。</p>
+        <div class="code-head"><span>python — 仅失败时保留 trace</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+
+
+@pytest.fixture
+def page(context, request):
+    context.tracing.start(screenshots=True, snapshots=True, sources=True)
+    page = context.new_page()
+    yield page
+
+    failed = getattr(getattr(request.node, 'rep_call', None), 'failed', False)
+    path = f'artifacts/{request.node.name}.zip' if failed else None
+    context.tracing.stop(path=path)</code></pre>
+        <div class="code-head"><span>terminal — 打开 trace 与单条重跑</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 回放失败现场：每步的 DOM、请求与 console
+playwright show-trace artifacts/test_checkout_with_coupon.zip
+
+# 单条重跑并保留全部产物，用于确认是否偶发
+pytest tests/e2e/test_checkout.py::test_checkout_with_coupon -x -s --tb=short</code></pre>
+        <p>归因结论要落成标签，而不是留在聊天记录里。<code>product</code> 直接提缺陷单，<code>script</code> 当天下班前修掉，<code>env</code> 汇总给运维并在统计里单列。坚持一个月，你会看到 flaky 率的真实来源，而不是一句笼统的「环境不稳」。</p>
+
+        <h2>执行节奏：PR 冒烟子集 + 每日全量</h2>
+        <p>全量 E2E 放在每个 PR 上是灾难。一次二十几分钟，开发等不起就绕过流水线，最后合并还是靠人肉判断。正确的节奏是分两档：PR 阶段只跑冒烟子集，每条核心链路的正常路径各一条，十到十五条，五分钟内出结果，红了就是阻断合并的硬门禁；每日夜间跑全量，覆盖异常分支、多角色、跨时区这些慢而全的场景。</p>
+        <p>两档的用例不是各写一套，而是同一批用例打不同标记。冒烟子集是回归集里挑出来的子集，标记为 smoke；夜间全量标记为 regression。这样新增用例时只需要决定它是否进冒烟，不需要维护两份脚本。发布前再跑一次全量作为上线门禁，把夜间那次的结论刷新到最新代码上。</p>
+        <p>再往前一步是按变更影响面选跑。改支付模块就跑支付相关，改地址簿就跑下单链路，这需要在用例上加模块标签，收益是反馈时间从二十分钟降到三五分钟。代价是标签维护，标签错了会漏测，所以它只作为 PR 阶段的加速手段，夜间全量仍然是兜底。</p>
+        <div class="code-head"><span>yaml — 两档触发</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>name: e2e
+on:
+  pull_request:
+  schedule:
+    - cron: '0 18 * * *'
+
+jobs:
+  smoke:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pytest tests/e2e -m smoke -n 4 --dist loadfile
+
+  nightly:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pytest tests/e2e -m regression --splits 4 --group 1 --store-durations</code></pre>
+        <p>并行与分片是压缩耗时的另一条路，但有前提：每个进程必须有独立的数据和独立的登录态，后端也要扛得住。二十个浏览器同时打接口，测试环境往往比生产弱一个数量级，最后变成自己把自己压垮，表现为大面积超时，看起来像产品挂了。分片按历史耗时切比按数量均分稳，第一次会退化到均分，跑几次之后就有真实分布。</p>
+
+        <h2>用例数量与维护成本</h2>
+        <p>用例数量不该拍一个数字，而该从关键旅程倒推。一个中等规模的电商站点，核心旅程通常在八到十五条之间，每条配一到两条 E2E，总量落在二三十条是合理的；如果超过五十条，通常说明你把接口层的活搬上来了。这个区间不是标准答案，但它能帮你判断当前套件是偏胖还是偏瘦。</p>
+        <p>维护成本集中在三处：定位器、数据、断言。定位器散落在用例里，改版时要全局搜索替换，收敛到页面对象后只改一处；数据靠共享账号，跑几次就脏，收敛到 fixture 后可以随时重建；断言绑文案，产品改一个字就批量红，收敛到业务状态后基本免疫。三处都收敛，维护就从体力活变成了改配置。</p>
+        <p>成本还要有预算意识。一条完整的下单场景涉及登录、加购、支付、回调，十几到二十几秒是常见量级，三十条串行大约八到十二分钟，切四个分片后能压到两三分钟，这些是示例值，实际取决于环境和外部依赖。预算的意义在于：当全量时间从十分钟涨到二十分钟，你该去查是不是新增了 sleep、是不是某个前置接口变慢，而不是默默接受。</p>
+        <table>
+          <thead>
+            <tr><th>层次</th><th>主要证明什么</th><th>单条耗时（示例）</th><th>建议数量级</th><th>失败定位精度</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>单元</td><td>函数与分支</td><td>毫秒级</td><td>数千</td><td>精确到行</td></tr>
+            <tr><td>接口</td><td>服务契约与业务规则</td><td>百毫秒级</td><td>数百</td><td>精确到接口与字段</td></tr>
+            <tr><td>组件 / UI</td><td>页面渲染与交互</td><td>秒级</td><td>数十</td><td>精确到组件</td></tr>
+            <tr><td>E2E</td><td>跨系统链路</td><td>十几秒到分钟级</td><td>十几到三十</td><td>精确到环节</td></tr>
+          </tbody>
+        </table>
+        <p>这张表最有用的一列是失败定位精度。当 E2E 报红，你要先问的是它替哪一层背了锅。如果一条用例既在验证金额计算又在验证页面跳转，失败时两种可能各占一半，定位成本立刻翻倍。拆开写，让 E2E 只守住链路是否接通，计算部分交给接口测试，是数量和质量同时改善的唯一路径。</p>
+
+        <h2>E2E 与接口测试的分工边界</h2>
+        <p>这两者的差别不在用什么工具，而在验证对象。接口测试面对的是一个服务的契约：给定请求，返回的状态码、字段、错误提示对不对，权限校验有没有漏，边界值处理得如何。它不需要浏览器，可以随意构造异常数据，跑得飞快，失败时能精确指到某个字段。E2E 面对的是系统拼装后的行为，浏览器、网关、多个服务、缓存、消息一起参与，任何一处接线错误都可能导致用户拿不到结果。</p>
+        <p>所以合理的分工是：接口测试负责广度，把每个服务的规则、边界、异常铺满；E2E 负责纵深，只验证关键旅程能不能从头走到尾。同一段业务两条都写是正常的，但断言点必须不同——接口断言字段和错误码，E2E 断言用户可见结果加上服务端最终状态。如果两边断言的是同一件事，E2E 就退化成了慢速接口测试。</p>
+        <table>
+          <thead>
+            <tr><th>维度</th><th>接口测试</th><th>E2E</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>验证对象</td><td>单服务契约、业务规则、错误码</td><td>浏览器到数据库再到外部的整条链路</td></tr>
+            <tr><td>数据准备</td><td>直接造接口数据或写库</td><td>需要真实会话与完整前置业务状态</td></tr>
+            <tr><td>单条耗时（示例）</td><td>百毫秒</td><td>十几秒</td></tr>
+            <tr><td>失败通常意味着</td><td>逻辑或契约变更</td><td>集成、配置、环境、数据问题</td></tr>
+            <tr><td>最擅长发现</td><td>边界、异常、越权</td><td>接线错误、字段不一致、回调丢失</td></tr>
+          </tbody>
+        </table>
+        <p>落地时有一条经验：任何在 E2E 里发现的业务逻辑 bug，修完之后都应该在接口层补一条用例。因为这类 bug 的本质是规则问题，接口层能用更低成本、更精确地守住；E2E 那条留着做链路兜底即可。长期坚持，你会发现 E2E 的失败越来越集中在环境与集成，这恰恰是它该管的事。</p>
+
+        <h2>常见坑与排查</h2>
+        <p><strong>症状</strong>：一条用例本地稳定通过，CI 上十次挂三次，日志里只有一句超时。<strong>原因</strong>：等待的是元素可见，但元素可见时按钮仍被遮罩挡住，点击被吞掉。<strong>处理</strong>：把等待条件改成可点击，先断言遮罩消失再点击；同时打开 trace，回看失败那一刻的 DOM 快照。</p>
+        <p><strong>症状</strong>：改了一版页面，八条用例同时报找不到元素。<strong>原因</strong>：定位器绑定了层级结构，比如三段式 CSS 路径。<strong>处理</strong>：改用角色加可访问名称，或者与开发约定 test id；把定位器集中到页面对象里，改版只改一处。</p>
+        <p><strong>症状</strong>：并行四个进程后，偶发出现订单金额翻倍、库存变成负数。<strong>原因</strong>：多个进程共用同一个测试账号和同一张优惠券，服务端又没有幂等保护。<strong>处理</strong>：每个进程独立租户，前置数据现造现清；同时把这个问题当成真实缺陷提给后端，因为线上用户也可能双击。</p>
+        <p><strong>症状</strong>：失败了却完全无法复盘，只能本地重跑碰运气。<strong>原因</strong>：没开 trace，截图只截了最后一帧，日志里没有请求记录。<strong>处理</strong>：失败时保留 trace，它包含每一步的 DOM 快照、网络请求和控制台输出，能像录像一样回放。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>这套清单适合在新增或重构 E2E 时逐条过一遍，也适合给存量套件做体检。它不检查代码风格，只检查设计是否站得住。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>合格判据</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>场景来源</td><td>每条都能对应核心旅程、高频路径、资金权限或历史故障，没有按页面凑数</td></tr>
+            <tr><td>断言对象</td><td>断言业务状态与页面语义，不依赖文案与 CSS 层级</td></tr>
+            <tr><td>数据隔离</td><td>每次运行独立租户，用例之间无顺序依赖，可单条执行</td></tr>
+            <tr><td>登录态</td><td>常规旅程复用状态，登录与会话过期仍走真实界面</td></tr>
+            <tr><td>失败归因</td><td>有固定判定顺序，结论落成 product / script / env 标签</td></tr>
+            <tr><td>执行节奏</td><td>PR 只跑冒烟且五分钟内返回，全量每日夜间加发布前各一次</td></tr>
+            <tr><td>失败取证</td><td>失败保留 trace 与截图，报错信息含最后一次观测值</td></tr>
+            <tr><td>稳定性</td><td>flaky 率有统计、有归属人，重试只用于已归因的抖动项</td></tr>
+          </tbody>
+        </table>
+        <p>最后给一个判断标准：如果一套 E2E 连续两周没有抓到一个真实问题，也没有一次失败被确认是环境问题，那它大概率既没有在保护质量，也没有在被认真维护。健康的 E2E 应该稳定地绿，偶尔地红，每次红都有人愿意点开看，这才是它值得存在的样子。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://playwright.dev/python/docs/best-practices" target="_blank" rel="noopener">Best Practices — Playwright Python</a></li>
+            <li><a href="https://martinfowler.com/articles/practical-test-pyramid.html" target="_blank" rel="noopener">The Practical Test Pyramid — Martin Fowler</a></li>
+            <li><a href="https://testing.googleblog.com/2015/04/just-say-no-to-more-end-to-end-tests.html" target="_blank" rel="noopener">Just Say No to More End-to-End Tests — Google Testing Blog</a></li>
+            <li><a href="https://playwright.dev/python/docs/auth" target="_blank" rel="noopener">Authentication — Playwright</a></li>
+            <li><a href="https://playwright.dev/python/docs/trace-viewer" target="_blank" rel="noopener">Trace Viewer — Playwright</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#e2e-testing</span>
+          <span class="tag">#user-scenario</span>
+          <span class="tag">#web-automation</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

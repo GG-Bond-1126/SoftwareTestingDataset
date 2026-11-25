@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web 兼容性测试：浏览器 + 分辨率 · 软件测试资料集</title>
+<meta name="description" content="按用户占比与内核定浏览器矩阵，拆解缩放错位、CSS 与 JS 降级、Safari 与微信 WebView 的坑">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-compatibility-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Web 兼容性测试：浏览器 + 分辨率">
+<meta property="og:description" content="按用户占比与内核定浏览器矩阵，拆解缩放错位、CSS 与 JS 降级、Safari 与微信 WebView 的坑">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-compatibility-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Web 兼容性测试：浏览器 + 分辨率">
+<meta name="twitter:description" content="按用户占比与内核定浏览器矩阵，拆解缩放错位、CSS 与 JS 降级、Safari 与微信 WebView 的坑">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Web 兼容性测试：浏览器 + 分辨率","description":"按用户占比与内核定浏览器矩阵，拆解缩放错位、CSS 与 JS 降级、Safari 与微信 WebView 的坑","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-compatibility-testing.html","articleSection":"Web 自动化","keywords":"compatibility, browser-testing, webkit","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>20 min read</span>
+        </div>
+        <h1>Web 兼容性测试：浏览器 + 分辨率</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-compatibility-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>兼容性测试测的不是「能不能打开」</h2>
+        <p>收到「把站点在主流浏览器上过一遍」这种需求时，先把它翻译成可执行的判据：在约定的一组浏览器、版本、视口宽度和系统缩放下，核心业务路径结果一致，非核心页面不出现遮挡、错位和不可读。</p>
+        <p>失败分三类，投入按类分配。功能不可用，表现为白屏、点击无响应、提交后卡死，脚本跑通关键路径就能拦住。功能可用但结果错，比如日期变 NaN、金额缺千分位、排序与桌面端不一致，期望值藏在业务规则里，自动化只能覆盖一部分。呈现错，重叠、截断、吸底遮挡，仍主要靠人眼和截图对比。前提是环境清单从自己的访问日志里长出来，而不是抄市场份额排行榜。</p>
+
+        <h2>浏览器矩阵怎么定：用户占比 × 内核 × 风险</h2>
+        <p>矩阵是三个维度的交集：用户占比定优先级，内核定技术风险，业务风险定哪些组合不能漏。把访问日志按月按 UA 聚合，通常会发现 Blink 系占大头、iOS 端 Safari 稳定存在、Firefox 是长尾；具体数字必须以自家埋点为准，To C 与 To B 站点的差异极大。</p>
+        <p>决定行为的是内核与版本，不是品牌。最容易误判的是 360 兼容模式，它切到 IE 内核（Trident），跑的是完全另一套引擎。所以客户说 360 打不开，第一句先问是极速模式还是兼容模式。</p>
+        <p>业务风险要单独立项：支付走微信 JSAPI、分享依赖 JSSDK、登录依赖第三方 Cookie，这些一旦在某个容器里不可用就是资损；页脚版权年份偏两像素，哪怕全矩阵都错也不值得排期。</p>
+        <div class="code-head"><span>python — 矩阵配置，随埋点每月复核</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># browser_matrix.py
+MATRIX = {
+    "engines": [
+        # (内核, 版本策略, 必测, 覆盖的品牌)
+        ("blink",  ["latest", "latest-2"], True,  "Chrome / Edge / 360 极速 / QQ"),
+        ("webkit", ["latest"],             True,  "Safari macOS 与 iOS"),
+        ("gecko",  ["latest"],             False, "Firefox ESR"),
+        ("trident", ["ie11"],              False, "360 兼容模式，仅政务与银行客户"),
+    ],
+    "viewports": [
+        # (宽, 高, 系统缩放) —— 宽高是缩放后的 CSS 像素
+        (1920, 1080, 1.00),
+        (1536,  864, 1.25),
+        (1280,  720, 1.50),
+        (1366,  768, 1.00),
+        (390,   844, 3.00),
+    ],
+}
+</code></pre>
+        <p>取舍是按 UA 全量铺开还是按内核抽样。前者不漏厂商定制，但组合很快破百，跑一轮一整天；后者能压到十几个，代价是可能漏掉壳层特性。我们的做法是抽样跑回归，用线上错误上报做补偿，每周看异常 UA 再决定加不加。</p>
+
+        <h2>同内核不等于同行为：Chromium 版本差在哪</h2>
+        <p>最常见的误判是「都是 Chromium，Chrome 通过就等于 360 极速通过」。Chromium 四周一个大版本，而企业内嵌浏览器、CEF 客户端、国产双核浏览器常年停在旧版本，中间隔着几十个版本。</p>
+        <p>CSS 侧，容器查询、:has()、嵌套语法是逐步落地的，旧内核遇到不认识的声明直接丢弃，不报错但布局塌掉。JS 侧更致命，可选链、空值合并、类字段在旧内核上是解析期错误，整段脚本不执行，表现就是首屏一直转圈。不必背版本号，查 caniuse 的首支持版本，对着矩阵里的最低版本卡一次即可。</p>
+        <p>一个真实失败长这样：本地最新 Chrome 全绿，客户现场的 360 极速一片空白，控制台只有一行 Uncaught SyntaxError: Unexpected token '?'。原因就是构建产物保留了可选链。修复不在业务代码，而在构建配置里把目标语法降级。</p>
+
+        <h2>分辨率与系统缩放：125% 和 150% 是怎么把布局搞坏的</h2>
+        <p>影响布局的是 CSS 像素下的视口宽度，不是显示器参数。1920×1080 的笔记本在 125% 缩放下视口是 1536×864，150% 是 1280×720。用户什么都没改，只是系统推荐缩放生效，页面就掉进窄屏断点，这正是大量「客户那边错位」的来源。</p>
+        <p>缩放还带来像素取整：1px 边框落在 1.25 个物理像素上，四舍五入后有的变粗、有的消失，表格线出现断续；rem 间距的累积误差让长列表底部对不齐。100vh 在缩放加地址栏收起时超出可视区，吸底按钮被顶出屏幕。</p>
+        <p>判断方法很直接：打出 innerWidth、devicePixelRatio 和 clientWidth 三个值，与报告里写的分辨率对照。innerWidth 明显小于标称宽度，说明缩放没被算进去，这一轮结论全部作废。回归时视口和缩放要作为两个独立参数记录。</p>
+        <div class="code-head"><span>python — 视口与缩放分开设置，并断言没有横向滚动</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+
+
+VIEWPORTS = [
+    (1920, 1080, 1.0),
+    (1536, 864, 1.25),
+    (1280, 720, 1.5),
+    (390, 844, 3.0),
+]
+
+
+@pytest.mark.parametrize("width,height,scale", VIEWPORTS,
+                         ids=lambda v: f"{v[0]}x{v[1]}@{v[2]}")
+def test_no_horizontal_scroll(browser, width, height, scale):
+    context = browser.new_context(
+        viewport={"width": width, "height": height},
+        device_scale_factor=scale,
+    )
+    page = context.new_page()
+    page.goto("https://app.example.com/checkout")
+
+    overflow = page.evaluate(
+        "() => document.documentElement.scrollWidth - window.innerWidth"
+    )
+    assert overflow &lt;= 1, f"{width}x{height}@{scale} 横向溢出 {overflow}px"
+    context.close()
+</code></pre>
+        <p>取舍在于要不要把缩放纳入常规回归。只测 100% 省时间，但漏掉大量笔记本用户的默认体验；补 125% 和 150% 会让组合数翻三倍。折中方案是核心链路跑三档，其余页面只跑 100%，并把缩放相关缺陷单独打标签观察趋势。</p>
+
+        <h2>CSS 兼容：flex、grid、gap、aspect-ratio、backdrop-filter</h2>
+        <p>CSS 兼容的特点是沉默：不报错、不中断脚本，只是样式失效，只能靠<a class="ilink" href="web-visual-regression.html">视觉回归</a>加特性清单兜。最高频的是 flex 容器里的 gap，旧内核不生效也没有提示，元素直接挤在一起；grid 的 subgrid 同样只有较新的三大内核才有，用它做对齐在旧环境会退化成不齐。</p>
+        <p>aspect-ratio 的旧方案是 padding-top 百分比加绝对定位。backdrop-filter 做毛玻璃，Safari 需要 -webkit- 前缀，低端安卓 GPU 上可能渲染成黑块或者掉帧到无法交互，属于「能跑但体验崩」。:has()、容器查询、文本换行属性也都要按矩阵最低版本确认。</p>
+        <p>正确做法是特性分支而不是判断浏览器：新内核走新实现，旧内核走兜底，构建期用自动前缀补齐。缺点是兜底路径也必须被真正测到。另外 @supports 只能说明语法被识别，不保证实现没 bug，所以还要配合真机截图核对。</p>
+        <div class="code-head"><span>css — 特性查询 + 兜底，不判断浏览器</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>/* 默认走兜底实现，老内核也能得到可用的布局 */
+.stack {
+  display: flex;
+  flex-direction: column;
+}
+.stack &gt; * + * {
+  margin-top: 12px;
+}
+
+/* 有 gap 的内核再切换成 gap，避免 margin 与 gap 叠加 */
+@supports (gap: 1px) {
+  .stack { gap: 12px; }
+  .stack &gt; * + * { margin-top: 0; }
+}
+
+.card-media {
+  position: relative;
+  padding-top: 56.25%;
+}
+
+@supports (aspect-ratio: 16 / 9) {
+  .card-media {
+    padding-top: 0;
+    aspect-ratio: 16 / 9;
+  }
+}
+</code></pre>
+
+        <h2>JS API 可用性探测与降级</h2>
+        <p>一个不存在的方法被调用就是 TypeError，如果发生在应用初始化阶段，后面的逻辑全部不执行，页面表现为永久骨架屏。兼容性测试要盯的不是有没有报错，而是报错之后核心功能还活着吗。关注三类 API：观察者、数据处理工具、浏览器能力接口。</p>
+        <p>观察者包括 IntersectionObserver 和 ResizeObserver，前者做懒加载与曝光，后者做自适应布局，缺了会直接让列表不加载或尺寸算错。工具类包括 structuredClone、AbortSignal.timeout、crypto.randomUUID，在新代码里出现频率很高，旧内核完全没有。能力类包括剪贴板、分享、通知，即使存在也有权限和用户手势限制。</p>
+        <p>处理分三档。能降级的写兜底，比如深拷贝退化成 JSON 序列化，代价是丢失 Date、Map 和 undefined，要在注释里写清。不能降级但可绕过的做功能开关，检测不到就隐藏入口。两者都不行的，在顶部明确提示用户升级浏览器。</p>
+        <div class="code-head"><span>javascript — 能力探测与降级封装</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>// capability.js —— 探测能力，不嗅探 UA
+export const can = {
+  observer: typeof IntersectionObserver === "function",
+  resize: typeof ResizeObserver === "function",
+  clone: typeof structuredClone === "function",
+  abortTimeout: typeof AbortSignal !== "undefined"
+    &amp;&amp; typeof AbortSignal.timeout === "function",
+  uuid: typeof crypto !== "undefined"
+    &amp;&amp; typeof crypto.randomUUID === "function",
+};
+
+export function safeClone(value) {
+  if (can.clone) return structuredClone(value);
+  // 降级：Date 会变成字符串，Map/Set 会变成空对象
+  return JSON.parse(JSON.stringify(value));
+}
+
+export function warnOnce(key, message) {
+  const flag = `__warned_${key}`;
+  if (window[flag]) return;
+  window[flag] = true;
+  console.warn(`[compat] ${message}`);
+}
+</code></pre>
+        <p>高频失败：旧 Safari 白屏，控制台第一行是 TypeError: structuredClone is not a function，后面全是它引发的连锁错误。只看最后一条会误判成接口问题，排查顺序应该是先看第一条，再看它被抛出的位置，判断是不是初始化路径上的能力缺失。</p>
+
+        <h2>Safari 的独有坑：日期、100vh、滚动穿透、输入框缩放</h2>
+        <p>Safari 的差异不是版本落后，而是实现取向不同。最常见的第一个坑是日期解析。后端返回 2026-11-23 10:00:00 这种空格分隔格式，Chrome 能解析，Safari 返回 Invalid Date，页面上的时间就变成 NaN 或空白。规范只保证 ISO 8601 格式，宽松解析属于各引擎自由发挥，所以要统一走一个解析函数，把空格换成 T 并补时区。</p>
+        <p>第二个坑是 100vh。iOS Safari 的地址栏会随滚动收起展开，100vh 始终按最大可视高度算，首屏底部的吸底按钮被顶出屏幕，用户根本点不到。用 dvh 可以解决，但要给旧版本留一行 vh 兜底。第三个坑是滚动穿透：给 body 加 overflow: hidden 在 iOS 上挡不住底层滚动，手指划过弹层边缘，背后页面还是会动，需要记录 scrollY 后设 fixed 负偏移。</p>
+        <p>第四个坑是输入框自动放大。表单元素字号小于 16 像素时，iOS 聚焦会触发页面缩放，输入完还要手动缩回，安卓没有这个问题，容易被放过。另外 ITP 会清理长期不访问站点的脚本存储，把登录态放 localStorage 就要接受一段时间后重新登录。</p>
+        <div class="code-head"><span>javascript — 统一日期解析，别让业务代码直接 new Date</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>const SPACE_FORMAT = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/;
+
+export function parseDate(input) {
+  if (input instanceof Date) return input;
+  if (typeof input === "string" &amp;&amp; SPACE_FORMAT.test(input)) {
+    // Safari 不认空格分隔，改成 T 并补秒与时区
+    const iso = input.replace(" ", "T");
+    return new Date(/:\d{2}$/.test(iso) ? iso : `${iso}:00`);
+  }
+  return new Date(input);
+}
+
+export function formatOrDash(input) {
+  const date = parseDate(input);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("zh-CN", { hour12: false });
+}
+</code></pre>
+        <div class="code-head"><span>css — 移动端高度与安全区</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>.sheet {
+  height: 100vh;
+  height: 100dvh;                 /* 支持 dvh 的浏览器覆盖上一行 */
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* iOS 弹层打开时锁滚动，配合 JS 记录 scrollY 使用 */
+body.is-locked {
+  position: fixed;
+  left: 0;
+  right: 0;
+  overflow: hidden;
+}
+</code></pre>
+        <p>这里有一个方案取舍：用真机 Safari 测，还是用 Playwright 的 WebKit 引擎测。WebKit 桌面版能覆盖大部分渲染与 JS 行为，跑得快、可进 CI，但它没有地址栏收起、没有软键盘、没有触摸惯性和安全区，100vh、输入框缩放、滚动穿透这几类问题在它身上根本复现不出来。结论是结构性问题用 WebKit 早筛，交互与视口问题必须真机过一遍。</p>
+
+        <h2>微信与钉钉内置 WebView 的限制</h2>
+        <p>微信内置浏览器的特殊之处有三层：容器自己的 UA、能力靠 JSSDK 注入、支付和分享经过原生桥。安卓内核由厂商 XWeb 提供，版本不一定与系统 WebView 一致；iOS 统一是 WKWebView。同一页面在两端可能是两套内核行为。</p>
+        <p>UA 带 MicroMessenger 只能说明在微信里，不能说明内核版本，定位必须附整段 UA。JSSDK 接入有硬门槛：后台配置安全域名、服务端签名、前端注入，任一环错位，分享卡片就没有标题和缩略图。签名用当前页面 URL，带 hash 的单页应用要在路由变化后重新签名。</p>
+        <p>支付必须走 WeixinJSBridge，而这个对象由容器在合适的时机注入并派发事件，直接判断 typeof 会得到 undefined，代码走进错误分支，用户看到支付不可用。正确写法是监听桥就绪事件，并加超时兜底，避免容器异常时页面一直卡在等待状态。</p>
+        <p>钉钉容器能力类似，JSAPI 走另一套鉴权。两者共同的限制是文件下载常被拦截、window.open 行为与普通浏览器不同、返回走容器历史栈，页面没有历史记录时安卓物理返回键会直接退出。用例里要专门覆盖「从分享链接进入、无历史、按返回」这条路径。</p>
+        <div class="code-head"><span>javascript — 等桥就绪，而不是判断对象是否存在</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>export function whenBridgeReady(timeoutMs = 3000) {
+  return new Promise((resolve, reject) =&gt; {
+    if (typeof window.WeixinJSBridge === "object") {
+      resolve(window.WeixinJSBridge);
+      return;
+    }
+    const timer = setTimeout(() =&gt; {
+      reject(new Error("WeixinJSBridge 在超时内未就绪"));
+    }, timeoutMs);
+    document.addEventListener("WeixinJSBridgeReady", () =&gt; {
+      clearTimeout(timer);
+      resolve(window.WeixinJSBridge);
+    }, { once: true });
+  });
+}
+</code></pre>
+        <p>取舍在于测微信内页面用什么工具。开发者工具调试方便，但渲染内核是桌面版，键盘、安全区、支付流程一概测不到，只能用于开发自测，验收必须真机扫码，这一点没有捷径。</p>
+
+        <h2>最小复现与截图取证模板</h2>
+        <p>兼容性缺陷最耗时间的环节不是修，而是确认到底在什么环境复现。一句「Safari 打不开」会让开发和测试来回问三轮：哪个版本、什么系统、是打不开还是打开了空白。要减少这种消耗，就把取证模板固化下来，提缺陷时强制填满，缺项直接打回。</p>
+        <p>模板里最重要的不是截图，而是环境四件套：完整 UA、内核与版本、系统与显示缩放、视口宽度加设备像素比；其次是构建号，没有构建号的报告三个月后无法回溯；再其次是控制台原文，要复制粘贴而不是转述成「报了个错」；最后是复现率，必现和偶现的处理路径完全不同。</p>
+        <div class="code-head"><span>markdown — 兼容性缺陷取证模板</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>## 环境
+- UA（整段复制）：Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...
+  Chrome/86.0.4240.198 Safari/537.36
+- 内核与版本：360 极速模式，Chromium 86
+- 系统与缩放：Windows 10 22H2，显示缩放 125%
+- 视口：1536 x 864 CSS px，devicePixelRatio 1.25
+- 构建号：web-20261123-3
+
+## 复现步骤
+1. 登录后进入「我的订单」
+2. 选择「近三个月」，点击分页第 2 页
+3. 等待列表区域停止 loading
+
+## 期望 / 实际
+- 期望：列表刷新，底部「加载更多」按钮可见可点
+- 实际：列表区域空白，页面无报错提示
+
+## 控制台原文
+Uncaught SyntaxError: Unexpected token '?'
+
+## 复现率
+5 / 5，必现；同机器 Chrome 120 无法复现
+</code></pre>
+
+        <h2>自动化跨浏览器的取舍：Playwright 多内核与云平台</h2>
+        <p>先说能力边界。Playwright 自带 Chromium、Firefox、WebKit 三个引擎，分别对应 Blink、Gecko 和 Safari 的渲染内核，但 WebKit 不是 iOS Safari，也没有任何国产内核和 IE。它能解决同一份代码在不同引擎上的结构性差异，不能解决真机环境。云平台卖的是真机和历史版本浏览器，按分钟计费、网络往返慢，适合发版前的一次性验证。</p>
+        <p>合理的组合是两层。每次提交跑三内核冒烟，只覆盖登录、加购、下单、支付回调，十分钟内拦住白屏和脚本错误；每个迭代末用云平台跑一次扩展矩阵：iOS Safari 真机、一个国产内核、一个低版本 Chromium，既控制成本又保证真机覆盖。</p>
+        <p>另一个取舍是视觉回归用像素对比还是结构断言。像素对比能发现所有呈现差异，也把字体渲染差异当成缺陷，噪音大到团队会关掉；结构断言噪音低，看不出颜色和间距变化。务实做法是只对少数稳定页面开像素对比，设合理容差并遮罩动态区域。</p>
+        <div class="code-head"><span>ini — pytest.ini 三内核冒烟</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>[pytest]
+addopts =
+    --browser chromium
+    --browser firefox
+    --browser webkit
+    --screenshot only-on-failure
+    --tracing retain-on-failure
+    -m smoke
+</code></pre>
+        <p>需要强调：装了 WebKit 不等于测了 Safari。很多团队看到报告里三内核全绿就宣布兼容性通过，结果上线后 iOS 用户反馈吸底按钮点不到。CI 的三内核结果代表代码层面的引擎兼容，真机结果代表设备与容器层面的兼容，两者缺一都不算完成。</p>
+
+        <h2>上线前检查清单</h2>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>判据</th><th>未通过的典型后果</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>浏览器矩阵</td><td>覆盖占比前四的内核，且包含最低支持版本</td><td>某个壳层白屏，线上才被发现</td></tr>
+            <tr><td>系统缩放</td><td>100% / 125% / 150% 三档核心页无横向滚动</td><td>笔记本用户看到错位与断行</td></tr>
+            <tr><td>CSS 特性</td><td>矩阵最低版本下关键布局不塌</td><td>间距消失、比例容器变形</td></tr>
+            <tr><td>JS 能力</td><td>缺失 API 有降级或显式提示</td><td>首屏骨架屏卡死</td></tr>
+            <tr><td>Safari 专项</td><td>日期、100vh、软键盘、滚动穿透逐项过</td><td>时间显示 NaN、按钮点不到</td></tr>
+            <tr><td>微信容器</td><td>分享卡片、支付桥、返回路径真机验证</td><td>分享裸链接、支付不可用</td></tr>
+            <tr><td>取证完备</td><td>环境四件套加构建号齐全</td><td>缺陷来回确认，修复周期翻倍</td></tr>
+            <tr><td>自动化覆盖</td><td>三内核冒烟进 CI，真机矩阵按版本跑</td><td>回归靠人肉，发版前通宵</td></tr>
+          </tbody>
+        </table>
+        <p>最后给一条判断标准：如果无法在五分钟内说清某个兼容性缺陷发生在哪个内核、哪个视口、哪个缩放档位，以及控制台第一行报错是什么，这条缺陷就还没被描述清楚。兼容性测试的价值不在于跑遍所有浏览器，而在于把环境这个变量拆成可复现、可验证、可回归的几段，让每一次线上问题都能落回矩阵里的一个格子。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://caniuse.com/" target="_blank" rel="noopener">Can I Use — 浏览器特性支持查询</a></li>
+            <li><a href="https://developer.mozilla.org/zh-CN/docs/Web/CSS/@supports" target="_blank" rel="noopener">MDN — @supports 特性查询</a></li>
+            <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio" target="_blank" rel="noopener">MDN — Window.devicePixelRatio</a></li>
+            <li><a href="https://playwright.dev/python/docs/browsers" target="_blank" rel="noopener">Playwright — 浏览器与安装说明</a></li>
+            <li><a href="https://developers.weixin.qq.com/doc/offiaccount/OA_Web_Apps/JS-SDK.html" target="_blank" rel="noopener">微信公众平台 — 微信 JS-SDK 说明文档</a></li>
+            <li><a href="https://gs.statcounter.com/" target="_blank" rel="noopener">StatCounter — 全球浏览器市场份额</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#compatibility</span>
+          <span class="tag">#browser-testing</span>
+          <span class="tag">#webkit</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

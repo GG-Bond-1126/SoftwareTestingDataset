@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC 自动化中的等待与同步：别让脚本「跑太快」 · 软件测试资料集</title>
+<meta name="description" content="固定等待、条件等待、轮询、超时四种同步策略，配等待界面加载完成案例，解决脚本跑太快的核心问题。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-waiting-sync.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="PC 自动化中的等待与同步：别让脚本「跑太快」">
+<meta property="og:description" content="固定等待、条件等待、轮询、超时四种同步策略，配等待界面加载完成案例，解决脚本跑太快的核心问题。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-waiting-sync.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="PC 自动化中的等待与同步：别让脚本「跑太快」">
+<meta name="twitter:description" content="固定等待、条件等待、轮询、超时四种同步策略，配等待界面加载完成案例，解决脚本跑太快的核心问题。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"PC 自动化中的等待与同步：别让脚本「跑太快」","description":"固定等待、条件等待、轮询、超时四种同步策略，配等待界面加载完成案例，解决脚本跑太快的核心问题。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-waiting-sync.html","articleSection":"PC 自动化","keywords":"pc-automation, synchronization, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>9 min read</span>
+        </div>
+        <h1>PC 自动化中的等待与同步：别让脚本「跑太快」</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="pc-automation-waiting-sync">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 PC 自动化工具
+pip install pyautogui pynput uiautomation pywinauto opencv-python
+# 验证
+python -c "import pyautogui; print(pyautogui.size())"</code></pre>
+<div class="code-head"><span>python — 验证环境</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui
+# 获取屏幕尺寸（验证）
+print(f"屏幕尺寸：{pyautogui.size()}")
+print("PC 自动化环境就绪 ✓")</code></pre>
+
+<h2>基础应用：自动操作桌面应用</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui, subprocess, time
+
+# 启动记事本
+subprocess.Popen(["notepad.exe"])
+time.sleep(1)
+
+# 输入 + 保存
+pyautogui.write("Hello, PC Automation!")
+time.sleep(0.3)
+pyautogui.hotkey("ctrl", "s")
+time.sleep(0.5)
+
+# 截图
+pyautogui.screenshot("result.png")
+print("基础操作完成 ✓")</code></pre>
+
+<h2>项目进阶：pytest + 多场景 + CI</h2>
+<div class="code-head"><span>python — pytest fixture</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># conftest.py
+import pytest, subprocess, time
+import uiautomation as auto
+
+@pytest.fixture
+def notepad():
+    subprocess.Popen(["notepad.exe"])
+    time.sleep(1)
+    win = auto.WindowControl(searchDepth=1, subTitle="无标题 - 记事本")
+    assert win.Exists(5)
+    yield win
+    auto.press_keys("alt+f4")
+
+# test_notepad.py
+def test_type(notepad):
+    import pyautogui
+    pyautogui.write("测试内容")
+    pyautogui.hotkey("ctrl", "s")
+    time.sleep(0.5)</code></pre>
+
+        <h2>四种同步策略对比</h2>
+        <div class="code-head"><span>策略对比</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 策略 1：固定等待（time.sleep）
+# - 最简单，一行代码
+# - 慢（等多久是"猜的"）
+# - 脆（界面快了等多 5s，慢了不够 5s）
+# 适合：兜底、调试
+
+# 策略 2：条件等待（轮询检查）
+# - 等"某个条件成立"才继续
+# - 快（条件成立了立即走）
+# - 稳（不用猜等多久）
+# 适合：等界面加载、等元素出现
+
+# 策略 3：轮询 + 超时
+# - 条件等待 + 最大等待时间
+# - 条件不成立也"最多等 N 秒"
+# - 最常用（90% 场景）
+# 适合：等接口响应、等文件生成
+
+# 策略 4：事件驱动（监听）
+# - 注册"事件监听"（鼠标/键盘/窗口变化）
+# - 事件触发时立即响应
+# - 最复杂（要写监听器）
+# 适合：监听用户操作、监听窗口状态</code></pre>
+
+        <h2>固定等待：time.sleep（简单但慢）</h2>
+        <div class="code-head"><span>python — 固定等待</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import time
+
+# 基本用法
+pyautogui.press("enter")
+time.sleep(2)   # 等 2 秒（"猜"界面需要 2 秒加载）
+
+# pyautogui 的 PAUSE（每次操作后自动等）
+pyautogui.PAUSE = 0.5
+pyautogui.press("enter")   # 自动等 0.5s
+pyautogui.press("enter")   # 自动等 0.5s
+
+# 问题：
+# - 界面 0.5s 加载完，你等了 2s（浪费 1.5s）
+# - 界面 3s 才加载完，你只等 2s（"跑太快"失败）
+# - 不同机器速度不同，"猜"的等待时间不准</code></pre>
+
+        <h2>条件等待：轮询检查（推荐）</h2>
+        <div class="code-head"><span>python — 条件等待</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import time
+
+def wait_for_condition(check_func, timeout=10, interval=0.5):
+    """轮询等待条件成立。
+
+    Args:
+        check_func: 无参数函数，返回 bool（True = 条件成立）
+        timeout: 最长等待时间（秒）
+        interval: 检查间隔（秒）
+
+    Returns:
+        条件成立返回 True，超时返回 False
+    """
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            if check_func():
+                print(f"  条件成立（{time.time() - start:.1f}s）")
+                return True
+        except Exception as e:
+            print(f"  检查异常：{e}")
+        time.sleep(interval)
+    print(f"  超时（{timeout}s）")
+    return False
+
+# 场景 1：等界面元素出现（图像识别）
+def file_saved():
+    """检查"已保存"提示是否出现（截图找图）。"""
+    return find_image_in_screen("saved_toast.png", confidence=0.9) is not None
+
+pyautogui.hotkey("ctrl", "s")   # 保存
+wait_for_condition(file_saved, timeout=10)
+
+# 场景 2：等窗口标题变化
+import uiautomation as auto
+
+def window_ready():
+    """检查窗口是否就绪（标题不含"加载"）。"""
+    notepad = auto.WindowControl(searchDepth=1, subTitle="记事本")
+    if not notepad.Exists(1):
+        return False
+    return "加载中" not in notepad.Name
+
+pyautogui.hotkey("alt", "f4")   # 关闭旧窗口
+pyautogui.hotkey("ctrl", "n")    # 新建
+wait_for_condition(window_ready, timeout=15)
+
+# 场景 3：等文件存在
+import os
+
+def file_exists():
+    """检查文件是否生成。"""
+    return os.path.exists(r"C:\temp\result.txt")
+
+trigger_file_generation()
+wait_for_condition(file_exists, timeout=30)   # 文件生成可能慢</code></pre>
+
+        <h2>轮询 + 超时：最常用（90% 场景）</h2>
+        <div class="code-head"><span>python — 轮询 + 超时</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import time
+
+def wait_for_image(image_path, timeout=10, interval=0.5, confidence=0.9):
+    """等图片出现（轮询 + 超时）。
+
+    Args:
+        image_path: 参考图路径
+        timeout: 最长等待（秒）
+        interval: 检查间隔（秒）
+        confidence: 置信度
+
+    Returns:
+        图片位置 (x, y)，超时返回 None
+    """
+    start = time.time()
+    while time.time() - start < timeout:
+        location = pyautogui.locateOnScreen(image_path, confidence=confidence)
+        if location:
+            center = pyautogui.center(location)
+            print(f"  找到图片（{time.time() - start:.1f}s）")
+            return center
+        time.sleep(interval)
+    print(f"  图片 {image_path} 没出现（{timeout}s）")
+    return None
+
+# 使用：等"成功弹窗"出现
+location = wait_for_image("success_popup.png", timeout=15, confidence=0.9)
+if location:
+    pyautogui.click(location)
+    print("✅ 成功弹窗已点击")
+else:
+    print("❌ 成功弹窗没出现（15s 超时）")
+
+# 批量：等 3 张图片按顺序出现
+def wait_for_images_sequential(image_paths, timeout_each=10):
+    """按顺序等图片出现。"""
+    for path in image_paths:
+        location = wait_for_image(path, timeout=timeout_each)
+        if location is None:
+            return False
+        pyautogui.click(location)
+    return True
+
+# 使用：登录流程（3 步）
+images = ["login_form.png", "password_input.png", "success_popup.png"]
+success = wait_for_images_sequential(images, timeout_each=10)
+if success:
+    print("✅ 登录流程完成")
+else:
+    print("❌ 登录流程中断")</code></pre>
+
+        <h2>事件驱动：监听（复杂场景）</h2>
+        <div class="code-head"><span>python — 事件监听（pynput）</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># pip install pynput
+from pynput import mouse, keyboard
+import threading
+
+# 监听鼠标点击（事件驱动）
+click_count = 0
+click_done = threading.Event()
+
+def on_click(x, y, button, pressed):
+    global click_count
+    if pressed:
+        click_count += 1
+        print(f"第 {click_count} 次点击：({x}, {y})")
+        if click_count == 3:
+            click_done.set()   # 3 次点击后停止
+
+listener = mouse.Listener(on_click=on_click)
+listener.start()
+
+# 触发操作（模拟 3 次点击）
+import pyautogui
+for _ in range(3):
+    pyautogui.click(500, 300)
+    time.sleep(0.5)
+
+click_done.wait(timeout=5)   # 等事件
+listener.stop()
+print(f"共 {click_count} 次点击")
+
+# 监听键盘（事件驱动）
+key_pressed = threading.Event()
+
+def on_key_press(key):
+    global key_pressed
+    if key == keyboard.Key.esc:
+        key_pressed.set()   # ESC 键按下后停止
+
+key_listener = keyboard.Listener(on_press=on_key_press)
+key_listener.start()
+
+# 等 ESC 键（超时 10s）
+if not key_pressed.wait(timeout=10):
+    print("10s 内没按 ESC，继续...")
+key_listener.stop()</code></pre>
+        <div class="callout warn">
+          <p>事件驱动最复杂（要写监听器 + 线程），只在「监听用户操作」或「监听窗口状态变化」时用。<strong>90% 的 PC 自动化场景用「条件等待 + 超时」就够了</strong>（轮询检查某条件，超时兜底）。</p>
+        </div>
+
+        <h2>PC 自动化的「等待策略」选择</h2>
+        <div class="code-head"><span>策略选择</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 场景 → 推荐策略
+# - 点击按钮后等弹窗 → 条件等待（等弹窗出现）
+# - 等待文件生成 → 轮询 + 超时（等文件存在）
+# - 等待窗口标题变化 → 条件等待（检查标题）
+# - 等待网络响应 → 固定等待（1~2s 兜底）
+# - 监听用户操作 → 事件驱动（pynput）
+# - 兜底（不确定等多久）→ 固定等待（time.sleep）</code></pre>
+
+        <h2>案例：等待界面加载完成的完整流程</h2>
+        <div class="code-head"><span>python — 完整案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import uiautomation as auto
+import time
+import os
+
+# 1. 启动应用（固定等待 1s 启动）
+import subprocess
+subprocess.Popen(["notepad.exe"])
+time.sleep(1)
+
+# 2. 等窗口就绪（条件等待）
+def window_ready():
+    notepad = auto.WindowControl(searchDepth=1, subTitle="记事本")
+    if not notepad.Exists(1):
+        return False
+    # 窗口就绪：不含"加载中"
+    return "加载中" not in notepad.Name
+
+notepad = wait_for_condition(window_ready, timeout=15)
+if not notepad:
+    print("❌ 记事本窗口没就绪（15s）")
+    exit(1)
+
+# 3. 输入文本 + 保存
+edit_box = notepad.child_window(control_type="Edit")
+edit_box.set_edit_text("测试等待 + 同步")
+
+# 4. 保存（Ctrl+S）
+pyautogui.hotkey("ctrl", "s")
+
+# 5. 等"已保存"提示（条件等待 + 图像识别）
+def saved_toast_visible():
+    location = pyautogui.locateOnScreen("saved_toast.png", confidence=0.9)
+    return location is not None
+
+if not wait_for_condition(saved_toast_visible, timeout=10):
+    print("⚠️ 保存提示没出现（可能没弹窗）")
+else:
+    print("✅ 保存成功（提示出现）")
+
+# 6. 等文件存在（轮询 + 超时）
+save_path = os.path.join(os.path.expanduser("~"), "Desktop", "untitled.txt")
+
+def file_exists():
+    return os.path.exists(save_path)
+
+if not wait_for_condition(file_exists, timeout=15, interval=1.0):
+    print(f"❌ 文件 {save_path} 没生成（15s）")
+else:
+    print(f"✅ 文件已生成：{save_path}")
+
+# 7. 关闭
+pyautogui.hotkey("alt", "f4")
+
+print("\n=== 等待与同步测试完成 ===")</code></pre>
+        <div class="callout">
+          <p>PC 自动化「等待三原则」：① <strong>固定等待只做兜底</strong>（启动应用、等 1 秒），核心操作不用 sleep；② <strong>条件等待是主力</strong>（轮询检查某条件，成立立即走）；③ <strong>加超时</strong>（条件不成立也「最多等 N 秒」，避免死循环）。100 条用例跑下来，「固定等待」省 50% 时间，「条件等待 + 超时」稳 90%。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/library/time.html" target="_blank" rel="noopener">Python time 官方文档</a></li>
+            <li><a href="https://pynput.readthedocs.io/" target="_blank" rel="noopener">pynput 官方文档（事件监听）</a></li>
+            <li><a href="https://pywinauto.readthedocs.io/en/latest/patterns.html" target="_blank" rel="noopener">pywinauto 等待模式</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#pc-automation</span>
+          <span class="tag">#synchronization</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

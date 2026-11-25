@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web 性能压测：JMeter + k6 · 软件测试资料集</title>
+<meta name="description" content="从目标定法、场景设计、关联参数化到拐点判读，讲清 JMeter 与 k6 的分工，以及压测失真的常见来源。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-load-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Web 性能压测：JMeter + k6">
+<meta property="og:description" content="从目标定法、场景设计、关联参数化到拐点判读，讲清 JMeter 与 k6 的分工，以及压测失真的常见来源。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-load-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Web 性能压测：JMeter + k6">
+<meta name="twitter:description" content="从目标定法、场景设计、关联参数化到拐点判读，讲清 JMeter 与 k6 的分工，以及压测失真的常见来源。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Web 性能压测：JMeter + k6","description":"从目标定法、场景设计、关联参数化到拐点判读，讲清 JMeter 与 k6 的分工，以及压测失真的常见来源。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-load-testing.html","articleSection":"Web 自动化","keywords":"performance, load-testing, k6, jmeter","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>20 min read</span>
+        </div>
+        <h1>Web 性能压测：JMeter + k6</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-load-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>先把「能扛多少」翻译成可验证的目标</h2>
+        <p>性能压测最常见的失败不是工具用错，而是目标没定。业务方一句「大促别挂」、开发一句「接口很快」，都无法变成能判定通过或失败的结论。压测工程师要做的第一件事，是把期待翻译成带数字的句子：核心接口在 300 QPS 下 P95 不超过 500 毫秒、错误率低于 0.1%，连续跑 30 分钟不出现吞吐下滑。这串数字定不下来，后面的脚本、场景、报告都只是自娱自乐。</p>
+        <p>换算靠业务数据，不靠感觉。假设某电商日订单 12 万（示例值），40% 集中在晚八点到十点，平均下单 QPS 约 6.7；峰值取均值的 4 倍是 27 QPS。再把一次下单拆成商品详情、库存查询、优惠计算、提交订单，各乘上页面中的调用次数，才是每个接口的目标。跳过这一步直接压 1000 并发，数字没人敢用。</p>
+        <p>目标还要分层：单接口基准看接口自身，混合场景看链路之间是否互相拖累，全链路容量看整套部署能承接多少真实流量。三层的环境、数据量、观察时长都不同，塞进一次压测里通常都做不好。判断标准很简单：如果一份报告写不出「不达标该改什么」，它就只是数字堆。</p>
+
+        <h2>指标口径不统一，数字就没法比</h2>
+        <p>同一次压测，开发看到 200 毫秒，测试报出 900 毫秒，九成原因是计时口径不同：一方算服务端处理时间，另一方算从发出请求到收完响应的全链路时间，中间夹着 DNS、TLS 与连接建立。报告不写清计时起点，跨团队对比就是鸡同鸭讲。固定写四行：压测机位置、是否走 CDN、是否复用连接、统计取自哪一层。</p>
+        <p>并发也要拆开。VU 是虚拟用户数，不等于同时在处理的请求数：一个 VU 在「请求、思考、再请求」的循环里，在途请求只占一小段。按排队论近似，吞吐约等于并发除以平均响应时间（秒）。200 并发、平均 200 毫秒，吞吐约 1000 QPS；平均响应涨到 1 秒，同样并发只剩 200 QPS。这条关系能快速判断报告数字是否自相矛盾。</p>
+        <p>分位比平均值可信。平均值会被极快请求拉低，也被长尾掩盖。P95 是最慢 5% 请求的门槛，P99 看尾部，P999 只在核心交易链路才值得盯。错误率要看三类：超时、非 2xx、返回 200 但业务码失败。只看 5xx 会漏掉业务失败，只看业务码又漏掉超时，分开统计再给合并口径才说得清。</p>
+        <table>
+          <thead>
+            <tr><th>指标</th><th>推荐口径</th><th>常见误用</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>TPS</td><td>每秒完成且校验通过的事务数</td><td>把发出的请求数当吞吐，失败也计入</td></tr>
+            <tr><td>P95 / P99</td><td>对应分位请求的端到端耗时上限</td><td>只报平均值，长尾被抹平</td></tr>
+            <tr><td>并发</td><td>同时在途的请求数，而非 VU 数</td><td>拿 VU 数直接对外承诺容量</td></tr>
+            <tr><td>错误率</td><td>超时、非 2xx、业务失败三者合计</td><td>只统计 5xx，业务失败当成功</td></tr>
+          </tbody>
+        </table>
+
+        <h2>JMeter 与 k6：不是新旧之争，是分工</h2>
+        <p>JMeter 的优势在门槛：有 GUI，能挂代理录制真实操作，非开发背景的同事半小时就能建出可用脚本；协议覆盖广，FTP、JDBC、JMS 都有原生支持。代价是测试计划为 XML，几百行 jmx 在评审里几乎不可读，两个人同时改必然冲突。</p>
+        <p>k6 把脚本当代码：一个 js 文件进 Git，可 review、可复用函数。基于 goroutine 的执行模型，单机堆几千 VU 比 JVM 线程模型现实，同样机器上更容易先把服务端压出瓶颈。代价是必须会 JS，上传、签名都要自己拼。</p>
+        <p>CI 友好度是决定性差异。k6 的 <code>thresholds</code> 直接决定退出码，超阈值构建就红，不需要后处理；JMeter 的断言写在元件里，结果落进 jtl 再解析，多一层胶水就多一处失真。两者都能把指标推进 InfluxDB 或 Prometheus。</p>
+        <p>我们的分工是：日常回归与流水线守门用 k6，复杂协议、需要业务方自维护的压测用 JMeter，两边共用同一套场景定义与造数脚本。代价是维护两套脚本；如果团队只有一个人做性能，选 k6 一条路走到底更划算。</p>
+
+        <h2>场景设计：四种压法各自回答什么</h2>
+        <p>阶梯加压用来找拐点：每两分钟抬一级并发，看吞吐是否线性增长、响应时间是否抬头。产出是一条曲线而不是一个数字，回答的是「余量在哪个位置耗尽」。持续负载用固定并发跑 30 分钟以上，看内存是否单调上涨、连接数是否只增不减，这些问题在 5 分钟压测里完全看不出来。</p>
+        <p>尖峰验弹性与保护：10 秒内把流量抬到 3 倍，看扩容能否跟上、限流是否按预期返回 429、熔断是否生效。长跑至少 2 小时，专门钓慢性泄漏。四个场景判据不同：拐点看曲线，稳定性看斜率，尖峰看恢复时间，长跑看趋势。</p>
+        <p>高频错误是思考时间随手写。<code>sleep(0.5)</code> 和 <code>sleep(2)</code> 能让同样 VU 数的 QPS 差四倍，报告里的并发数字因此不可比。要么按真实用户行为设思考时间并在报告注明，要么直接用到达率模型控制 QPS，把 VU 当作实现手段而不是目标。</p>
+        <div class="code-head"><span>js — 阶梯与尖峰场景定义</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import { Trend, Rate } from 'k6/metrics';
+
+const orderLatency = new Trend('order_latency', true);
+const bizError = new Rate('biz_error');
+
+export const options = {
+  scenarios: {
+    ramp: {
+      executor: 'ramping-vus',
+      startVUs: 0,
+      stages: [
+        { duration: '2m', target: 50 },
+        { duration: '5m', target: 200 },
+        { duration: '10m', target: 200 },   // 稳态观察段
+        { duration: '2m', target: 400 },
+        { duration: '5m', target: 400 },    // 第二级稳态
+        { duration: '2m', target: 0 },
+      ],
+      gracefulRampDown: '30s',
+    },
+  },
+  thresholds: {
+    http_req_duration: ['p(95)&lt;800', 'p(99)&lt;2000'],
+    http_req_failed: ['rate&lt;0.01'],
+    biz_error: ['rate&lt;0.005'],
+  },
+};</code></pre>
+        <p>到达率模型是另一种写法：直接声明每秒要发多少请求，k6 自己扩缩 VU 去满足。它更贴近「业务峰值是多少 QPS」这类目标，也不会因为响应变慢而自动降低压力，从而把系统压到真正极限。代价是并发会随响应时间漂移，报告里的 VU 数不能当并发结论用。</p>
+        <div class="code-head"><span>js — 按 QPS 施压与尖峰</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>export const options = {
+  scenarios: {
+    steady_rps: {
+      executor: 'constant-arrival-rate',
+      rate: 300,            // 每秒 300 次迭代
+      timeUnit: '1s',
+      duration: '10m',
+      preAllocatedVUs: 100,
+      maxVUs: 500,
+    },
+    spike: {
+      executor: 'ramping-arrival-rate',
+      startRate: 50,
+      timeUnit: '1s',
+      stages: [
+        { duration: '1m', target: 50 },
+        { duration: '10s', target: 900 },    // 10 秒冲高
+        { duration: '2m', target: 900 },
+        { duration: '10s', target: 50 },
+      ],
+      preAllocatedVUs: 200,
+      maxVUs: 1200,
+    },
+  },
+};</code></pre>
+
+        <h2>脚本里的关联与参数化</h2>
+        <p>真实业务很少是单个匿名请求。下单要登录态，提交要 CSRF token，部分接口还带签名与时间戳。这类「上一步输出是下一步输入」叫关联。最省事的写法是 setup 登录一次、所有 VU 共享 token，代价是服务端只看到一个会话，一旦有单账号并发限制或风控，压出来就是被限流后的假象。</p>
+        <p>更真实的是每个 VU 用自己的账号登录并缓存 token。登录接口会承受 VU 数量的突发流量，要算进目标，或者放到预热阶段。判断标准很直接：如果服务端日志里全是同一个用户名，这份结果只证明了单会话能跑多快。</p>
+        <p>动态参数也常被忽略。幂等键写死一个值，服务端直接判重复，吞吐很高但什么都没做。CSRF token 有有效期，长跑跑到一半开始全量 403，很多人第一反应是服务挂了。这类参数必须每轮重新获取，并在断言里校验，否则失败会被 <code>check</code> 悄悄吞掉。</p>
+        <div class="code-head"><span>js — setup 登录与逐次取 token</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import http from 'k6/http';
+import { check } from 'k6';
+
+const BASE = __ENV.BASE_URL || 'https://staging.example.com';
+
+export function setup() {
+  const res = http.post(`${BASE}/api/auth/login`, JSON.stringify({
+    username: __ENV.LOAD_USER,
+    password: __ENV.LOAD_PASS,
+  }), { headers: { 'Content-Type': 'application/json' } });
+  check(res, { 'setup 登录成功': (r) =&gt; r.status === 200 });
+  return { token: res.json('data.accessToken') };
+}
+
+export default function (data) {
+  // CSRF 每次迭代重新取，避免长跑中途过期
+  const csrf = http.get(`${BASE}/api/csrf`, {
+    headers: { Authorization: `Bearer ${data.token}` },
+  }).json('data.value');
+
+  const res = http.post(`${BASE}/api/orders`, JSON.stringify({
+    sku: 'SKU-1001',
+    qty: 1,
+    csrfToken: csrf,
+    requestId: `${__VU}-${__ITER}-${Date.now()}`,
+  }), {
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${data.token}`,
+      'X-CSRF-Token': csrf,
+    },
+  });
+
+  const ok = check(res, { '下单 201': (r) =&gt; r.status === 201 });
+  if (!ok) {
+    console.warn(`VU ${__VU} 下单失败 code=${res.status}`);
+  }
+}</code></pre>
+
+        <h2>压测数据的准备与清理</h2>
+        <p>数据是压测最容易被忽略的一半：登录账号、业务前置数据（库存、优惠券）、以及压测产生的垃圾数据。账号数必须不少于 VU 数，否则会话互踢会让错误率莫名升高；库存必须充足，否则第二分钟开始全部返回库存不足，接口本身健康，报告看起来却像崩了。</p>
+        <p>造数有两种取舍。直接写库最快，几千条账号几秒搞定，但绕过业务校验，容易造出线上不可能出现的状态；调接口更真实，但慢，而且造数阶段就写进监控，污染压测窗口的统计。我们的做法是账号与静态配置走 SQL，业务单据走接口，造数后等监控指标回落再开始计时。</p>
+        <p>清理比准备更容易出事。不要在共享环境执行无条件删除或清表，那是经典的误伤事故。给本次数据打运行标签，只按标签删；标签同时写进 trace 与日志，出问题时能反向确认是这批流量造成的。</p>
+        <div class="code-head"><span>python — 按运行标签造数与清理</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import csv
+import uuid
+
+import psycopg
+
+RUN_TAG = f"lt-{uuid.uuid4().hex[:8]}"   # 每次运行唯一，透传到日志与 trace
+
+
+def seed(dsn: str, count: int = 2000) -&gt; None:
+    names = [f"{RUN_TAG}-{i:05d}" for i in range(count)]
+    with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+        cur.executemany(
+            "INSERT INTO lt_account (username, run_tag) VALUES (%s, %s)",
+            [(name, RUN_TAG) for name in names],
+        )
+        conn.commit()
+    with open("accounts.csv", "w", newline="", encoding="utf-8") as fh:
+        csv.writer(fh).writerows((name,) for name in names)
+
+
+def cleanup(dsn: str) -&gt; None:
+    with psycopg.connect(dsn) as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM lt_account WHERE run_tag = %s", (RUN_TAG,))
+        conn.commit()</code></pre>
+
+        <h2>结果怎么读：先看曲线，再看分位，最后看错误分布</h2>
+        <p>打开报告先找图，不要先找数字。横轴并发、纵轴吞吐的曲线通常分三段：线性区、饱和区、崩溃区。拐点就是吞吐不再上升、响应时间开始指数抬头的那个位置。这条曲线比任何单一数字都更能说服人，因为它同时回答「余量在哪」和「再压会怎样」。</p>
+        <p>分位要和曲线一起看。P50 与 P95 差距小，说明延迟分布集中；差距大，说明有慢请求拖尾，要去查缓存未命中、大查询、锁等待。P99 在某一级并发上突然跳变，往往对应连接池满或队列开始堆积，这种非线性跳变比数值本身更能定位瓶颈层。</p>
+        <p>错误类型分布比错误率有用得多。429 说明限流生效，是保护不是故障；连接超时通常是 accept 队列或连接池打满；读超时多半是慢 SQL 或下游依赖卡住；5xx 集中出现则要看服务端日志。同一个 5% 错误率，均匀分布和集中在最后两分钟，结论完全不同。</p>
+        <div class="code-head"><span>python — 解析 jtl 求分位与错误分布</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import collections
+import csv
+
+
+def nearest_rank(values, p):
+    """最近秩法求分位，结果与 JMeter 报告口径接近但不保证完全一致"""
+    values = sorted(values)
+    if not values:
+        return 0
+    idx = max(0, min(len(values) - 1, int(round(len(values) * p / 100)) - 1))
+    return values[idx]
+
+
+def summarize(path):
+    by_label = collections.defaultdict(list)
+    errors = collections.Counter()
+    with open(path, newline='', encoding='utf-8') as fh:
+        for row in csv.DictReader(fh):
+            by_label[row['label']].append(int(row['elapsed']))
+            if row['success'] != 'true':
+                key = f"{row['responseCode']} {row['responseMessage'][:40]}"
+                errors[key] += 1
+    for label, values in by_label.items():
+        pct = {p: nearest_rank(values, p) for p in (50, 90, 95, 99)}
+        print(f"{label:24s} n={len(values):7d} {pct}")
+    for msg, count in errors.most_common(5):
+        print(f"错误 {count:6d}  {msg}")</code></pre>
+
+        <h2>压测失真的六个来源</h2>
+        <p>第一是压测机自己成为瓶颈：CPU 打满、临时端口耗尽或带宽跑满，服务端却很清闲。此时报告里的响应时间包含的是压测机的排队时间，与服务能力无关。缓解手段是分布式发压、调大文件描述符与端口范围，并把发压机的资源指标一并放进看板。</p>
+        <p>第二是连接复用差异：脚本每次新建连接，真实浏览器与 App 复用长连接，服务端看到的连接数与握手开销差一个量级。第三是缓存命中率失真：压测数据集中在一小批商品上，缓存命中率远高于线上，结果系统性偏乐观。</p>
+        <p>其余三条是 CDN 与网关绕过、限流策略未对齐、环境规格差异。直连源站会低估真实链路耗时，也看不到 CDN 缓存效果；测试环境限流配得比生产宽，容量结论到线上会立刻被 429 打回；数据量只有生产百分之一，小表上的快查询到线上会变成全表扫描。这六项的实际配置必须写进报告。</p>
+
+        <h2>从压测数字到容量结论</h2>
+        <p>压测给出的能力永远是「这套配置、这份数据、这个时刻」的能力。换算要做三件事：单实例拐点乘实例数并扣掉故障冗余，按峰值与均值的比值放大，再留 30% 安全水位。示例：单台拐点 180 QPS，8 台按 N+2 只算 6 台，可用吞吐约 750 QPS（示例值，非基准数据）。</p>
+        <p>更要写清瓶颈在哪一层。数据库连接数或共享缓存成为瓶颈时，加应用实例不会线性提升容量，反而可能让情况更糟。容量结论必须带上瓶颈描述与扩容的边际效果，否则运维按数字扩容后问题依旧，压测的可信度就没了。</p>
+
+        <h2>CI 里的冒烟压测</h2>
+        <p>全量压测不可能每次提交都跑。冒烟压测固定小流量、5 到 10 分钟、只守 P95 与错误率两条线，与上一次基线比较。它抓不住容量问题，但能抓住「这次改动把某条 SQL 从 20 毫秒拖到 300 毫秒」这类明显退化，而这恰恰是代码评审最容易漏掉的。</p>
+        <p>实现上让 k6 的阈值决定构建结果，再用 <code>--summary-export</code> 把结果存成构件。CI 机器性能抖动大，绝对阈值容易误报，建议用相对阈值：比最近 5 次基线劣化超过 20% 才判失败，并把任务固定在专用发压机上，不要和单元测试抢同一台机器。</p>
+        <div class="code-head"><span>yaml — PR 冒烟压测</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>name: smoke-load
+on:
+  pull_request:
+    paths: ['src/**']
+
+jobs:
+  smoke:
+    runs-on: [self-hosted, loadgen]      # 专用发压机，避免与其他任务争抢
+    steps:
+      - uses: actions/checkout@v4
+      - run: k6 run --quiet tests/smoke.js
+          --summary-export=summary.json
+          -e BASE_URL=${{ secrets.STAGING_URL }}
+          -e LOAD_USER=${{ secrets.LOAD_USER }}
+          -e LOAD_PASS=${{ secrets.LOAD_PASS }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: k6-summary
+          path: summary.json
+          retention-days: 30</code></pre>
+
+        <h2>上线前检查清单</h2>
+        <p>压测做完不代表结论可用，下面这张表是出报告前逐项打勾的内容。任何一项没确认，报告首页就要标注为「参考值，不可用于容量承诺」，避免数字被下游误用。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>通过标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>目标与阈值</td><td>每个接口都有 QPS、P95、错误率三个数字，且与业务峰值对得上</td></tr>
+            <tr><td>发压端余量</td><td>压测机 CPU 低于 70%，端口与带宽未打满</td></tr>
+            <tr><td>数据分布</td><td>账号数不少于 VU 数，参数化数据覆盖长尾</td></tr>
+            <tr><td>环境对齐</td><td>实例规格、限流阈值、数据量级与生产同比例</td></tr>
+            <tr><td>监控留存</td><td>应用、数据库、中间件指标与压测时间段对齐存档</td></tr>
+            <tr><td>清理完成</td><td>运行标签数据已删除，库存与优惠券库存已回滚</td></tr>
+          </tbody>
+        </table>
+        <div class="callout warn"><p>最后提醒一句：在压测环境里把限流关掉再压，是最常见的自欺。限流关掉后的数字只能证明不限流时能跑多快，而线上一定是开着的。压测要和线上配置保持一致，把限流当作被测对象之一。</p></div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://jmeter.apache.org/usermanual/" target="_blank" rel="noopener">Apache JMeter 用户手册 — Apache</a></li>
+            <li><a href="https://grafana.com/docs/k6/latest/using-k6/scenarios/" target="_blank" rel="noopener">k6 场景执行器与负载模型 — Grafana k6 Docs</a></li>
+            <li><a href="https://grafana.com/docs/k6/latest/using-k6/thresholds/" target="_blank" rel="noopener">k6 阈值与构建失败判定 — Grafana k6 Docs</a></li>
+            <li><a href="https://web.dev/articles/lcp" target="_blank" rel="noopener">Core Web Vitals 与分位指标解读 — web.dev</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#performance</span>
+          <span class="tag">#load-testing</span>
+          <span class="tag">#k6</span>
+          <span class="tag">#jmeter</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

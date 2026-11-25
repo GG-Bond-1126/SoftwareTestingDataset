@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web 自动化测试管理：用例组织 + 数据隔离 · 软件测试资料集</title>
+<meta name="description" content="讲透用例分层与粒度取舍、四种数据隔离策略及其代价，以及并发冲突、生命周期与时长预算。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-test-management.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Web 自动化测试管理：用例组织 + 数据隔离">
+<meta property="og:description" content="讲透用例分层与粒度取舍、四种数据隔离策略及其代价，以及并发冲突、生命周期与时长预算。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-test-management.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Web 自动化测试管理：用例组织 + 数据隔离">
+<meta name="twitter:description" content="讲透用例分层与粒度取舍、四种数据隔离策略及其代价，以及并发冲突、生命周期与时长预算。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Web 自动化测试管理：用例组织 + 数据隔离","description":"讲透用例分层与粒度取舍、四种数据隔离策略及其代价，以及并发冲突、生命周期与时长预算。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-test-management.html","articleSection":"Web 自动化","keywords":"test-management, data-isolation, pytest","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>24 min read</span>
+        </div>
+        <h1>Web 自动化测试管理：用例组织 + 数据隔离</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-test-management">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>管理不是排目录：三个会持续恶化的指标</h2>
+        <p>Web 自动化项目写到第二年，通常会出现三个同时恶化的指标：用例数在涨、单次执行时间在涨、失败里说不清原因的比例也在涨。三者互相喂养——用例越多跑得越慢，越慢越没人愿意全量跑，于是只挑一部分执行，失败样本变少，分类越来越靠猜，最后所有人对红色的敏感度一起下降。</p>
+        <p>所以管理要解决的就是这三件事：用例怎么分层，才能在有限时间里覆盖最重要的风险；数据怎么隔离，才能让结果互不污染；生命周期怎么管，才能让用例集不腐烂。目录结构只是这三件事的外在表现，排得再整齐，也不等于管理到位。</p>
+        <p>这篇面向已经有一批能跑的 Playwright 或 Selenium 用例的一线测试工程师，也面向要给这套用例定规矩的负责人。下面出现的时长与比例都是示例值，用来演示判断方法，不代表任何具体项目的基准，实际数值请以自己流水线的统计为准。</p>
+
+        <h2>用例分层：smoke、regression、full</h2>
+        <p>分层的目的不是分类好看，而是给不同的触发时机准备不同的执行集。常见的三层是：smoke 覆盖关键路径，几分钟内出结果，每次提交都跑；regression 覆盖主要功能，几十分钟，合并到主干时跑；full 包含边界与低频场景，按天或按周跑，允许更长的反馈周期。</p>
+        <table>
+          <thead>
+            <tr><th>层级</th><th>目标时长（示例）</th><th>触发时机</th><th>失败处理</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>smoke</td><td>5 分钟以内</td><td>每次 push 或 PR</td><td>阻断合并</td></tr>
+            <tr><td>regression</td><td>30 分钟以内</td><td>合并主干、每日定时</td><td>当日修复</td></tr>
+            <tr><td>full</td><td>2 小时以内</td><td>夜间、发版前</td><td>排期修复</td></tr>
+          </tbody>
+        </table>
+        <p>落地上要用两个维度：目录表达业务归属，marker 表达执行层级。只有目录，跨模块的 smoke 集没法表达；只有 marker，找文件时没有业务视图。两者都写看似冗余，实际是让人和机器各取所需，人也找得到文件，机器也筛得出集合。</p>
+        <div class="code-head"><span>ini — 注册标记与目录约定</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># pytest.ini
+[pytest]
+testpaths = tests
+markers =
+    smoke: 关键路径，PR 阶段执行
+    regression: 主要功能，合并主干执行
+    full: 边界与低频场景，夜间执行
+    quarantine: 已隔离的不稳定用例，不阻塞流水线
+
+# 目录只表达业务归属
+tests/
+├── user/        test_login.py  test_register.py
+├── order/       test_create.py  test_cancel.py
+├── payment/     test_balance.py test_refund.py
+└── conftest.py</code></pre>
+        <p>marker 必须注册。不注册时 pytest 只给一条警告，而拼错的标记会被静默忽略，比如写成 <code>smoke</code> 之外的变体，用例照样跑，但任何按 smoke 筛选的执行都不会包含它。这类错误不会让构建变红，只会让覆盖悄悄缺失，往往在线上出问题后才被发现。</p>
+        <p>分层还要防止一个反模式：同一批用例被打上所有层级的标记。结果每一层都在跑全量，分层失去意义，执行时间也没有下降。规则可以定成互斥，一条用例只属于一个层级；跨层需求通过在命令里组合表达式实现，而不是给用例贴多张标签。</p>
+
+        <h2>用例粒度：一个断言主题，还是一条完整流程</h2>
+        <p>一条用例该写多长，是团队分歧最大的问题。全流程用例看起来贴近真实用户：登录、搜索、加购、下单、支付一气呵成。它的失败信息却很难读——任何一步断掉都只显示一个断言错误，你得回读五十行代码才知道断在支付还是搜索。</p>
+        <p>经验规则是：一条用例只验证一个断言主题，流程可以走多长都行，但结论只有一个。「下单成功后订单出现在待支付列表」是一条用例；「下单、支付、退款分别成功」是三条。这样失败时一眼能看出坏的是哪个能力，而不是只知道某条长链路挂了。</p>
+        <table>
+          <thead>
+            <tr><th>方案</th><th>优点</th><th>代价</th><th>适用</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>端到端长流程</td><td>贴近真实路径，用例数少</td><td>定位慢，前置步骤反复执行</td><td>夜间核心链路</td></tr>
+            <tr><td>单主题短用例</td><td>失败精确，可并行</td><td>数量多，依赖造数能力</td><td>高频回归</td></tr>
+          </tbody>
+        </table>
+        <p>还有一个很实用的折中：用接口准备前置状态，只把待验证的那一段交给 UI。测「订单列表分页」时，订单用接口批量造出来，UI 只负责翻页和断言；测「提交订单」时，登录态用接口拿，购物车用接口填。这样既保留了 UI 验证的价值，又避免了几十次点击只为了到达起点。</p>
+        <p>判断粒度是否合适，有个简单标准：失败时能不能只看报告里的步骤名就说出错在哪。如果必须点开代码逐行读，说明这条用例承担的职责太多；如果一条用例只有一个步骤，又说明它可能该和相邻用例合并，否则数量膨胀而信息量很低。</p>
+
+        <h2>测试数据隔离的四种策略与代价</h2>
+        <p>数据隔离是 Web 自动化里幽灵问题的主要来源。典型现象是「单独跑通过、一起跑失败」「昨天通过、今天失败」，日志里看不到任何异常，最后发现是另一条用例改了同一个账号的余额，或者把共享的库存买空了。这类问题排查一次要半天，而<a class="ilink" href="ai-defect-rootcause.html">根因</a>往往只是一行共享的测试账号。</p>
+        <p>四种策略的代价差别很大，选之前先想清楚并发形态和数据库权限。</p>
+        <table>
+          <thead>
+            <tr><th>策略</th><th>做法</th><th>隔离强度</th><th>主要代价</th><th>适用场景</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>每用例造数</td><td>前置接口创建专属实体，结束后删除</td><td>高</td><td>依赖造数接口，删除失败会留脏数据</td><td>大多数业务</td></tr>
+            <tr><td>快照回滚</td><td>执行前 dump，执行后恢复</td><td>最高</td><td>慢，需要数据库权限，期间不能有他人写入</td><td>独占测试库、夜间全量</td></tr>
+            <tr><td>事务回滚</td><td>用例包在事务里，结束 rollback</td><td>高</td><td>只对同一连接生效</td><td>接口层与进程内测试</td></tr>
+            <tr><td>独立租户</td><td>每个 worker 一个租户或命名空间</td><td>高</td><td>产品需支持多租户，初始化有成本</td><td>大规模并发</td></tr>
+          </tbody>
+        </table>
+        <p>快照回滚最彻底，但它和并发天然冲突：恢复快照会抹掉其他 worker 正在写的数据。所以它适合独占的测试库、串行执行、夜间全量，不适合 PR 阶段的高频执行。这个取舍必须提前说清，否则很容易出现「为了提速加了并发，结果数据全乱」的事故，最后又退回串行。</p>
+        <p>事务回滚听起来优雅，对浏览器自动化却基本不可用：UI 操作走的是服务端自己的连接，测试进程里的事务管不到它，页面上提交成功的订单在回滚后依然存在。它真正的用武之地是接口层测试，或者在同一进程内通过 ORM 调用的场景。</p>
+        <div class="code-head"><span>python — 每用例造数与清理</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import uuid
+
+import pytest
+
+
+@pytest.fixture
+def account(api_client):
+    name = f"qa_{uuid.uuid4().hex[:8]}"
+    created = api_client.post(
+        "/api/accounts",
+        json={"name": name, "balance": 1000},
+    ).json()
+    yield created
+    # 用 finally 语义：无论用例是否失败都要清理
+    api_client.delete(f"/api/accounts/{created['id']}")</code></pre>
+        <p>造数方案的关键不在创建，而在清理的可靠性。用例失败时 fixture 的 teardown 依然会执行，但如果进程被强杀、或删除接口本身报错，数据就留下了。务实做法是两层保险：一层是 fixture 清理，另一层是每日按命名前缀批量清理环境里的残留数据。</p>
+        <p>独立租户是并发规模上去之后最省心的方案：每个 worker 带一个租户标识，数据天然不交叉，清理只需要整租户重置。代价是产品必须支持多租户，且初始化租户本身有耗时。没有多租户能力时，退而求其次的做法是给每个 worker 一个数据前缀，靠命名约定换隔离。</p>
+
+        <h2>并发执行：xdist 下的数据冲突</h2>
+        <p>并发不是加一个 <code>-n 4</code> 就完事。pytest-xdist 把用例分发到多个 worker 进程，默认按用例轮询分发，同一个文件里的用例可能落到不同 worker 上并行执行。原本靠书写顺序隐式保证的前后置关系，立刻失效，而且失效得很安静——单独跑没问题，一起跑就随机挂。</p>
+        <div class="code-head"><span>terminal — 按文件分发</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 文件内用例共享前置数据时，按文件分发
+pytest tests/ -n 4 --dist=loadfile
+
+# 类级 fixture 较重时，按模块或类分发
+pytest tests/ -n 4 --dist=loadscope
+
+# 默认的 load 分发最均衡，也最容易被共享数据坑到
+pytest tests/ -n 4</code></pre>
+        <p>分发策略要按依赖形态选。loadfile 以文件为单位分发，适合文件内用例共享前置数据的情况，代价是各 worker 负载不均；loadscope 以模块或类为单位，适合类级 fixture 重的场景；默认的 load 最均衡，但对共享数据最不宽容。选错策略的症状都是「随机失败」，而不是明确的报错。</p>
+        <p>并发还会放大资源问题。每个 worker 一个浏览器实例，内存与文件句柄随 worker 数线性增长；数据库连接池在 4 个 worker 下就可能被占满，表现是用例随机超时，日志里出现等待连接的字样。排查时先看连接数，再看浏览器内存，不要一上来就怀疑选择器。</p>
+        <div class="code-head"><span>python — 用 worker 标识隔离数据</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import uuid
+
+import pytest
+
+
+@pytest.fixture(scope="session")
+def worker_id(request):
+    # 串行执行时没有 workerinput，统一按 master 处理
+    return getattr(request.config, "workerinput", {}).get("workerid", "master")
+
+
+@pytest.fixture
+def account(api_client, worker_id):
+    name = f"qa_{worker_id}_{uuid.uuid4().hex[:6]}"
+    created = api_client.post("/api/accounts", json={"name": name}).json()
+    api_client.headers.update({"X-Tenant-Id": created["tenant_id"]})
+    yield created
+    api_client.delete(f"/api/accounts/{created['id']}")</code></pre>
+        <p>用用例名当数据键是很常见的坑：并发时两个 worker 生成同名实体，互相覆盖，报告里看到的失败毫无规律。把 worker 标识和随机后缀拼进名称，问题就不会出现。命名里保留 worker 标识还有个好处——清理残留数据时能看出是哪个进程漏的。</p>
+
+        <h2>用例依赖与执行顺序陷阱</h2>
+        <p>用例之间不应该有顺序依赖，这句话人人都同意，但违反它的方式很隐蔽：不写在代码里，而藏在数据里。A 用例创建了订单，B 用例去列表里找最新一条，单独跑 B 就失败，一起跑就通过。开发者本地一直是全量跑，所以这个依赖可以存活很久。</p>
+        <p>pytest 默认按文件与定义顺序收集，看起来稳定，但这种稳定是假象：加一个 <code>-n</code>、加一个 <code>-k</code> 过滤、改一次文件顺序，依赖就会暴露。所以判断标准只有一条——每条用例单独执行时必须能通过。做不到就不要声称它独立。</p>
+        <p>还有一类依赖来自环境状态：登录态、缓存、特性开关。这类依赖可以接受，但必须显式化，放在 fixture 里带明确的建立与清理逻辑，而不是靠上一个用例留下的 cookie。显式化的好处是失败时原因清楚：是登录态过期，还是业务断言错了，一眼能分开。</p>
+        <p>自检方法很便宜：随机顺序跑一遍。pytest-randomly 之类的插件能打乱执行顺序和随机种子，如果打乱后出现新的失败，说明存在隐藏依赖。这一步放进夜间任务即可，不必每次都跑，但一定要有，否则依赖只会在某次重构后集中爆发。</p>
+
+        <h2>用例生命周期：新增、失效、重复</h2>
+        <p>用例集会腐烂，表现形式有三种：新增（新功能没有对应用例）、失效（功能已改，用例还在断言旧行为）、重复（同一个断言主题被写了三遍，改一处要改三处）。三种都不是靠个人自觉能解决的，需要机制，否则用例数在涨、有效覆盖不涨。</p>
+        <p>新增靠需求评审时的对照：每个需求至少有一条对应用例，或者明确写出不自动化的理由。理由也要留档，比如「一次性活动页，收益低于维护成本」。没有这一栏，评审就会变成「这次先不写，下次补」，然后永远没有下次。</p>
+        <p>失效靠失败数据，而不是靠人回忆。长期稳定失败、且分类为脚本问题的用例，应该被标记而不是继续占用执行时间。用脚本把连续 N 次失败且无人处理的用例列出来，比每周开会问「有没有要删的」有效得多。</p>
+        <div class="code-head"><span>python — 找出长期失败的用例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+import pathlib
+
+
+def long_failing(run_dirs, threshold: int = 5):
+    history = {}
+    for run_dir in sorted(run_dirs):  # 目录名需按运行序号可排序
+        for path in pathlib.Path(run_dir).glob("*-result.json"):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            history.setdefault(data["fullName"], []).append(data["status"])
+
+    return sorted(
+        name for name, states in history.items()
+        if len(states) &gt;= threshold
+        and states[-threshold:] == ["failed"] * threshold
+    )</code></pre>
+        <p>重复最难发现。常见信号是两个文件里出现几乎相同的步骤与断言，或者同一个缺陷被两条用例同时捕获。可以按用例标题和断言目标做一次粗筛，人工确认后合并。定期做一次全量去重，比事后逐条维护便宜得多，因为重复用例的修改成本是乘法的。</p>
+        <p>把这些动作写进例行流程：每个迭代结束看一次失效清单，每个季度做一次去重与合并，每次需求评审留一栏自动化覆盖结论。没有例行的清理时间，用例集只会单向膨胀，最后没人敢删，也没人敢信。</p>
+
+        <h2>执行时长预算与分层调度</h2>
+        <p>执行时长需要预算，而不是听天由命。先定目标：PR 阶段五分钟内给结论，主干合并半小时内，夜间两小时以内。目标定了，才知道哪些用例必须放在哪一层，也才有依据拒绝「这条也加进 smoke」的临时要求。</p>
+        <p>预算要按实测耗时分配。pytest 的 <code>--durations</code> 能列出最慢的用例，把它们归到一个慢速集合，交给夜间任务；高频层只保留快用例。多数项目的耗时分布是长尾的，少数用例占掉大半时间，先处理头部就能拿到大部分收益。</p>
+        <div class="code-head"><span>python — 用结果数据核对时长预算</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+import pathlib
+
+
+def duration_report(results_dir: str, budget_seconds: int = 1800):
+    cases = []
+    for path in pathlib.Path(results_dir).glob("*-result.json"):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        begin, end = data.get("start"), data.get("stop")
+        if begin and end:
+            cases.append((data["name"], (end - begin) / 1000))
+
+    total = sum(seconds for _, seconds in cases)
+    slowest = sorted(cases, key=lambda item: item[1], reverse=True)[:10]
+    return {
+        "total_seconds": round(total),
+        "over_budget": total &gt; budget_seconds,
+        "slowest": slowest,
+    }</code></pre>
+        <p>调度上还有两个细节：缓存与预热。首次启动浏览器、首次登录、首次访问冷缓存页面都会额外耗时，把登录做成会话级 fixture 只做一次，能省下可观的时间。代价是登录态过期会让整批用例一起失败，所以要有失效检测与自动重登，不能只享受收益不承担风险。</p>
+        <p>并行度也不是越高越好。worker 数受 CPU、内存、数据库连接三重约束，超过某个点总耗时反而上升，失败率也会升高。务实做法是从 CPU 核数起步，观察两三周再调；示例上，4 核机器先跑 4 个 worker，不建议一上来就 8 个。</p>
+        <div class="code-head"><span>yaml — 按触发时机分层调度</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>name: web-tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 18 * * *"   # 每日夜间全量
+
+jobs:
+  smoke:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r requirements.txt
+      - run: pytest tests/ -m smoke -n 2
+
+  regression:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r requirements.txt
+      - run: pytest tests/ -m "smoke or regression" -n 4
+
+  full:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -r requirements.txt
+      - run: pytest tests/ -n 4</code></pre>
+        <p>分层调度还要给每层单独设超时。没有超时的任务一旦卡死，会占满构建队列，后面的提交全部排队。超时值按预算略放宽即可，比如预算五分钟的层给十五分钟，既容忍偶发慢，也能及时止损。</p>
+
+        <h2>用例评审看什么</h2>
+        <p>用例评审常被做成代码风格检查，变量命名、行长度、注释格式占了大半时间，真正的风险反而没人看。更有价值的四件事是：断言是否有效、数据是否隔离、失败是否可诊断、是否已有重复覆盖。</p>
+        <ul>
+          <li><strong>断言有效性</strong>：验证业务结果，而不是元素是否出现。</li>
+          <li><strong>数据隔离</strong>：是否依赖其他用例的数据或执行顺序。</li>
+          <li><strong>可诊断性</strong>：失败时能否只看报告定位，步骤名与附件是否足够。</li>
+          <li><strong>重复覆盖</strong>：是否已有用例验证同一断言主题。</li>
+          <li><strong>时长归属</strong>：单条耗时是否超出所在层的预算，该不该降层。</li>
+        </ul>
+        <p>断言有效性是最容易出问题的一项。元素可见不代表业务正确，很多用例只验证了「按钮出现了」，没有验证「点击后订单真的创建成功」。评审时问一句「这条用例能捕获哪个具体缺陷」，答不上来就该改断言，而不是加注释解释它为什么存在。</p>
+        <p>评审还有一个反直觉的原则：宁缺毋滥。一条不稳定、断言弱的用例，比没有这条用例更糟，因为它消耗的是团队对整个套件的信任。删掉一条长期 flaky 且无人修的用例，往往比保留它更能提升可信度——保留的代价是每次失败都要重新判断真假。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>下面这份清单适合贴在团队文档里，项目启动时过一遍，之后每个季度复看一次。它不解决具体技术问题，只负责让「该做的事」变得可见，避免所有决定都落在某一个人的记忆里。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>合格标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>分层</td><td>smoke、regression、full 三层齐全，用例只属于一层</td></tr>
+            <tr><td>标记</td><td>marker 已在 pytest.ini 注册，无未注册警告</td></tr>
+            <tr><td>独立性</td><td>任意单条用例可以单独执行并通过</td></tr>
+            <tr><td>数据隔离</td><td>策略已选定并写明代价，残留数据有清理机制</td></tr>
+            <tr><td>并发</td><td>分发策略与数据隔离方式匹配，worker 数经过实测</td></tr>
+            <tr><td>时长</td><td>每层有预算与超时，最慢用例有归属</td></tr>
+            <tr><td>生命周期</td><td>失效清单与去重动作已排进例行流程</td></tr>
+          </tbody>
+        </table>
+        <div class="callout warn">
+          <p>最常见的自欺是「加了 -n 4 就等于并发安全」。真正验收要看两件事：连续三次全量执行是否全部通过，以及随机顺序执行是否出现新失败。两者都过，才算数据隔离真的做到了。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/mark.html" target="_blank" rel="noopener">Marking test functions and selecting them for a run — pytest 文档</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/fixtures.html" target="_blank" rel="noopener">Fixture 的作用域、setup 与 teardown — pytest 文档</a></li>
+            <li><a href="https://pytest-xdist.readthedocs.io/en/stable/distribution.html" target="_blank" rel="noopener">xdist 分发模式与 worker 配置 — pytest-xdist 文档</a></li>
+            <li><a href="https://playwright.dev/python/docs/api-testing" target="_blank" rel="noopener">用接口准备测试状态 — Playwright 文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#test-management</span>
+          <span class="tag">#data-isolation</span>
+          <span class="tag">#pytest</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

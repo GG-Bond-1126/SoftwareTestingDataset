@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>pyautogui 详解：鼠标键盘自动化的全部招式 · 软件测试资料集</title>
+<meta name="description" content="鼠标/键盘/截图/图像识别/安全机制五大类操作详解，配自动操作 Excel + 截图完整案例。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pyautogui-guide.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="pyautogui 详解：鼠标键盘自动化的全部招式">
+<meta property="og:description" content="鼠标/键盘/截图/图像识别/安全机制五大类操作详解，配自动操作 Excel + 截图完整案例。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pyautogui-guide.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="pyautogui 详解：鼠标键盘自动化的全部招式">
+<meta name="twitter:description" content="鼠标/键盘/截图/图像识别/安全机制五大类操作详解，配自动操作 Excel + 截图完整案例。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"pyautogui 详解：鼠标键盘自动化的全部招式","description":"鼠标/键盘/截图/图像识别/安全机制五大类操作详解，配自动操作 Excel + 截图完整案例。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/pyautogui-guide.html","articleSection":"PC 自动化","keywords":"pc-automation, pyautogui, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>11 min read</span>
+        </div>
+        <h1>pyautogui 详解：鼠标键盘自动化的全部招式</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="pyautogui-guide">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 PC 自动化工具
+pip install pyautogui pynput uiautomation pywinauto opencv-python
+# 验证
+python -c "import pyautogui; print(pyautogui.size())"</code></pre>
+<div class="code-head"><span>python — 验证环境</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui
+# 获取屏幕尺寸（验证）
+print(f"屏幕尺寸：{pyautogui.size()}")
+print("PC 自动化环境就绪 ✓")</code></pre>
+
+<h2>基础应用：自动操作桌面应用</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui, subprocess, time
+
+# 启动记事本
+subprocess.Popen(["notepad.exe"])
+time.sleep(1)
+
+# 输入 + 保存
+pyautogui.write("Hello, PC Automation!")
+time.sleep(0.3)
+pyautogui.hotkey("ctrl", "s")
+time.sleep(0.5)
+
+# 截图
+pyautogui.screenshot("result.png")
+print("基础操作完成 ✓")</code></pre>
+
+<h2>项目进阶：pytest + 多场景 + CI</h2>
+<div class="code-head"><span>python — pytest fixture</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># conftest.py
+import pytest, subprocess, time
+import uiautomation as auto
+
+@pytest.fixture
+def notepad():
+    subprocess.Popen(["notepad.exe"])
+    time.sleep(1)
+    win = auto.WindowControl(searchDepth=1, subTitle="无标题 - 记事本")
+    assert win.Exists(5)
+    yield win
+    auto.press_keys("alt+f4")
+
+# test_notepad.py
+def test_type(notepad):
+    import pyautogui
+    pyautogui.write("测试内容")
+    pyautogui.hotkey("ctrl", "s")
+    time.sleep(0.5)</code></pre>
+
+        <h2>鼠标操作：点击、拖拽、滚动</h2>
+        <div class="code-head"><span>python — 鼠标操作</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import time
+
+# 点击
+pyautogui.click()                     # 当前位置左键点击
+pyautogui.click(200, 300)            # 移到 (200, 300) 再点
+pyautogui.rightClick(200, 300)       # 右键
+pyautogui.middleClick()              # 中键
+pyautogui.doubleClick(200, 300)      # 双击
+pyautogui.tripleClick(200, 300)     # 三击（选中一行文本）
+
+# 拖拽
+pyautogui.dragTo(500, 400, duration=0.5)   # 拖到 (500, 400)，0.5 秒内完成
+pyautogui.dragRel(100, 50, duration=0.3)   # 相对位置拖（向右 100，向下 50）
+
+# 滚动
+pyautogui.scroll(-3)                 # 向下滚 3 格
+pyautogui.scroll(5)                  # 向上滚 5 格
+pyautogui.scrollTo(100, 50)         # 滚到绝对位置
+
+# 移动
+pyautogui.moveTo(300, 400)          # 移动鼠标（不点击）
+pyautogui.moveTo(300, 400, duration=1)   # 1 秒内移动（模拟"人"）
+
+# 测试场景：模拟"用户操作"
+# 1. 滚动到页面底部
+pyautogui.scroll(-100)
+time.sleep(0.5)
+
+# 2. 点击"提交"按钮（坐标已提前截图标注）
+pyautogui.click(750, 600)
+
+# 3. 拖拽滑块验证
+pyautogui.moveTo(100, 300)
+pyautogui.dragTo(500, 300, duration=0.8)</code></pre>
+        <div class="callout">
+          <p>pyautogui 的坐标是<strong>屏幕绝对坐标</strong>（左上角 (0, 0)）。测试前必须「截图标注坐标」，脚本里用这些坐标。屏幕分辨率变了坐标就全错，所以 PC 自动化脚本「换机器基本要重新标坐标」。</p>
+        </div>
+
+        <h2>键盘操作：打字、组合键、特殊键</h2>
+        <div class="code-head"><span>python — 键盘操作</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+
+# 打字（英文）
+pyautogui.write("Hello, world!")
+
+# 打字（带间隔，模拟"人打字"）
+pyautogui.typewrite("test data", interval=0.1)   # 每字间隔 0.1s
+
+# 按单键
+pyautogui.press("enter")
+pyautogui.press("tab")
+pyautogui.press("esc")
+pyautogui.press("backspace")
+pyautogui.press("f5")            # 功能键
+pyautogui.press("home")
+pyautogui.press("end")
+pyautogui.press("pagedown")
+
+# 组合键
+pyautogui.hotkey("ctrl", "c")        # 复制
+pyautogui.hotkey("ctrl", "v")        # 粘贴
+pyautogui.hotkey("ctrl", "z")        # 撤销
+pyautogui.hotkey("ctrl", "shift", "t")   # 多键组合
+pyautogui.hotkey("alt", "f4")        # 关闭窗口
+pyautogui.hotkey("cmd", "tab")      # Mac 切换窗口
+pyautogui.hotkey("win", "d")        # Windows 显示桌面
+
+# 特殊键
+pyautogui.keyDown("shift")          # 按下 Shift（不弹起）
+pyautogui.press("a")                # 输入 A（大写）
+pyautogui.keyUp("shift")           # 弹起 Shift
+
+# 测试场景：模拟"填写表单"
+pyautogui.hotkey("tab")            # 切到下一个输入框
+pyautogui.write("test_user")       # 输入用户名
+pyautogui.press("tab")
+pyautogui.write("password123")
+pyautogui.press("enter")           # 提交
+
+# 中文输入（pyautogui 不支持直接写中文）
+# 方法一：复制粘贴
+import pyperclip
+pyperclip.copy("你好，中文测试")   # 写入剪贴板
+pyautogui.hotkey("ctrl", "v")     # 粘贴
+
+# 方法二：用 input 模块（pynput）
+from pynput.keyboard import Controller
+kb = Controller()
+# 用系统 IME 输入（需要预先设置好输入法）</code></pre>
+
+        <h2>截图：验证和取证</h2>
+        <div class="code-head"><span>python — 截图</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+from PIL import Image   # pip install Pillow
+
+# 截全屏幕
+screenshot = pyautogui.screenshot()
+screenshot.save("full_screen.png")
+
+# 截指定区域（左上角 + 宽高）
+region = (100, 100, 400, 300)   # x=100, y=100, width=400, height=300
+region_screenshot = pyautogui.screenshot(region=region)
+region_screenshot.save("region.png")
+
+# 截取窗口（Windows）
+import win32gui
+hwnd = win32gui.FindWindow(None, "无标题 - 记事本")
+if hwnd:
+    left, top, right, bottom = win32gui.GetWindowRect(hwnd)
+    window_region = (left, top, right - left, bottom - top)
+    pyautogui.screenshot(region=window_region).save("window.png")
+
+# 像素检查（验证某个位置的颜色）
+screenshot = pyautogui.screenshot()
+pixel_color = screenshot.getpixel((500, 300))   # 取 (500, 300) 的 RGB
+print(f"(500, 300) 颜色：{pixel_color}")
+
+# 断言：某个区域是"绿色"（通过标志）
+if pixel_color[1] > 200 and pixel_color[0] < 100:
+    print("✅ 绿色区域检测通过")
+else:
+    print(f"❌ 区域颜色异常：{pixel_color}")</code></pre>
+
+        <h2>图像识别：找图 + 点击</h2>
+        <p>PC 自动化最常用的「找图」操作：截一个「按钮图片」，在屏幕上找它，找到了就点。</p>
+        <div class="code-head"><span>python — 图像识别</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import time
+
+# 1. 先截"目标图片"保存为文件
+# （比如截一个"保存"按钮，保存为 save_btn.png）
+
+# 2. 在屏幕上找这个图片
+location = pyautogui.locateOnScreen("save_btn.png", confidence=0.9)
+if location:
+    center = pyautogui.center(location)
+    print(f"找到图片：{center}")
+    pyautogui.click(center)
+    print("已点击")
+else:
+    print("没找到图片（可能界面变了）")
+
+# 3. 找多张图片（哪个先找到用哪个）
+for image_name in ["save_btn_v2.png", "save_btn.png"]:
+    location = pyautogui.locateOnScreen(image_name, confidence=0.85)
+    if location:
+        pyautogui.click(pyautogui.center(location))
+        break
+
+# 4. 等待图片出现（带超时）
+import time
+
+def wait_for_image(image_path, timeout=10, interval=0.5):
+    """等待图片出现，最多等 timeout 秒。"""
+    start = time.time()
+    while time.time() - start < timeout:
+        location = pyautogui.locateOnScreen(image_path, confidence=0.85)
+        if location:
+            return pyautogui.center(location)
+        time.sleep(interval)
+    return None   # 超时没找到
+
+location = wait_for_image("success_popup.png", timeout=15)
+if location:
+    print("成功弹窗已出现")
+    pyautogui.click(location)
+else:
+    print("❌ 成功弹窗没出现（15 秒超时）")
+
+# 5. 灰度匹配（黑白对比更快更稳）
+import cv2
+import numpy as np
+
+def find_image_gray(screen_path, target_path):
+    """灰度图像识别（比彩色快 3 倍）"""
+    screen = cv2.imread(screen_path)
+    target = cv2.imread(target_path)
+
+    # 转灰度
+    screen_gray = cv2.cvtColor(screen, cv2.COLOR_BGR2GRAY)
+    target_gray = cv2.cvtColor(target, cv2.COLOR_BGR2GRAY)
+
+    # 模板匹配
+    result = cv2.matchTemplate(screen_gray, target_gray, cv2.TM_CCOEFF_NORMED)
+    _, max_value, _, max_loc = cv2.minMaxLoc(result)
+
+    if max_value > 0.8:   # 置信度 > 80%
+        x, y = max_loc
+        return (x + target_gray.shape[1] // 2, y + target_gray.shape[0] // 2)
+    return None</code></pre>
+
+        <h2>安全机制：别让脚本「失控」</h2>
+        <div class="code-head"><span>python — 安全机制</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+
+# 1. Failsafe（紧急停止）
+# 鼠标移到屏幕左上角 (0, 0) 立即抛出异常
+pyautogui.FAILSAFE = True
+try:
+    pyautogui.moveTo(500, 300)
+except pyautogui.FailSafeException:
+    print("用户紧急停止了脚本（鼠标移到左上角）")
+
+# 2. Pause（操作间隔）
+# 每次操作后自动等 0.5s（给界面反应时间）
+pyautogui.PAUSE = 0.5
+pyautogui.press("enter")    # 自动等 0.5s
+pyautogui.press("enter")    # 自动等 0.5s
+
+# 3. Speed（移动速度）
+# duration 参数控制移动速度（模拟"人"）
+pyautogui.moveTo(500, 300, duration=1.0)   # 1 秒内移动
+
+# 4. 屏幕分辨率检测（换机器前检查）
+screen_width, screen_height = pyautogui.size()
+print(f"屏幕：{screen_width}x{screen_height}")
+if screen_width < 1920:
+    print("⚠️ 屏幕分辨率低于 1920，坐标可能偏移")</code></pre>
+
+        <h2>案例：自动操作 Excel + 截图验证</h2>
+        <p>把 pyautogui 串起来，写一个「打开 Excel → 填写数据 → 保存 → 截图验证」的完整案例：</p>
+        <div class="code-head"><span>python — 完整案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import pyperclip
+import subprocess
+import time
+import os
+from datetime import datetime
+
+pyautogui.PAUSE = 0.3   # 每次操作后等 0.3s
+pyautogui.FAILSAFE = True
+
+# 1. 打开 Excel（假设已安装）
+subprocess.Popen(["excel.exe"])
+time.sleep(3)   # 等 Excel 启动
+
+# 2. 新建工作簿（Ctrl+N）
+pyautogui.hotkey("ctrl", "n")
+time.sleep(1)
+
+# 3. 填写数据（A1 → B1 → C1）
+# 数据（用剪贴板输入，支持中文）
+data = [
+    ("用户", "订单号", "金额"),
+    ("张三", "ORD-001", "99.99"),
+    ("李四", "ORD-002", "199.98"),
+]
+
+row = 0
+for values in data:
+    for col, value in enumerate(values):
+        # 移到 A1 + 偏移
+        x = 150 + col * 200   # 列坐标（假设每列 200px）
+        y = 250 + row * 30     # 行坐标（假设每行 30px）
+        pyautogui.click(x, y)
+        time.sleep(0.2)
+
+        # 写入剪贴板 + 粘贴（支持中文）
+        pyperclip.copy(str(value))
+        pyautogui.hotkey("ctrl", "v")
+        time.sleep(0.2)
+
+    row += 1
+
+# 4. 保存（Ctrl+S）
+pyautogui.hotkey("ctrl", "s")
+time.sleep(1)
+
+# 5. 输入文件名
+pyperclip.copy("test_data.xlsx")
+pyautogui.hotkey("ctrl", "v")
+pyautogui.press("enter")
+time.sleep(1)
+
+# 6. 截图验证
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+screenshot_path = f"excel_test_{timestamp}.png"
+pyautogui.screenshot(screenshot_path)
+print(f"截图已保存：{screenshot_path}")
+
+# 7. 验证文件存在
+desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+saved_files = [f for f in os.listdir(desktop) if f == "test_data.xlsx"]
+if saved_files:
+    print("✅ Excel 保存成功")
+else:
+    print("⚠️ 文件可能保存在其他位置")
+
+# 8. 关闭 Excel
+pyautogui.hotkey("ctrl", "w")   # 关闭当前工作簿
+time.sleep(0.5)</code></pre>
+        <div class="callout">
+          <p>PC 自动化「五步法」：<strong>截图标注坐标 → pyautogui 模拟操作 → 等待界面响应 → 截图验证 → 安全机制（Failsafe + Pause）</strong>。pyautogui 的最大优势是「简单」（一行代码模拟点击/输入），最大劣势是「脆弱」（分辨率变了、界面改一点就失效）。适合「界面稳定、操作固定」的场景。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://pyautogui.readthedocs.io/" target="_blank" rel="noopener">pyautogui 官方文档</a></li>
+            <li><a href="https://pillow.readthedocs.io/" target="_blank" rel="noopener">Pillow（Python 图像库）官方文档</a></li>
+            <li><a href="https://opencv-python-tutroals.readthedocs.io/" target="_blank" rel="noopener">OpenCV 官方教程（图像识别）</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#pc-automation</span>
+          <span class="tag">#pyautogui</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

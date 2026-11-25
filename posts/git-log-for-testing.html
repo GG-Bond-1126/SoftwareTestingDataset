@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git 日志阅读：用 log 快速定位改动 · 软件测试资料集</title>
+<meta name="description" content="Git 日志阅读：用 log 快速定位改动">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-log-for-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Git 日志阅读：用 log 快速定位改动">
+<meta property="og:description" content="Git 日志阅读：用 log 快速定位改动">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-log-for-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Git 日志阅读：用 log 快速定位改动">
+<meta name="twitter:description" content="Git 日志阅读：用 log 快速定位改动">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Git 日志阅读：用 log 快速定位改动","description":"Git 日志阅读：用 log 快速定位改动","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-log-for-testing.html","articleSection":"Git 版本控制","keywords":"git, log, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>8 min read</span>
+        </div>
+        <h1>Git 日志阅读：用 log 快速定位改动</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="git-log-for-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Git
+# 配置用户
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+# 验证
+git --version</code></pre>
+<div class="code-head"><span>terminal — 初始化仓库</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>mkdir my-project && cd my-project
+git init
+echo "hello" > test.py
+git add .
+git commit -m "初始提交"</code></pre>
+
+<h2>基础应用：分支操作</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 创建 + 切换分支
+git checkout -b dev
+git commit -m "dev 修改" --allow-empty
+git checkout main
+git merge dev
+
+# 查看日志
+git log --oneline --graph</code></pre>
+
+<h2>项目进阶：Feature 分支 + MR 流程</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># Feature 分支
+git checkout -b feature/login
+git commit -m "feat: 用户登录" --allow-empty
+
+# 提 MR（在 GitHub/GitLab 上）
+# 评审通过后合并
+git checkout main
+git pull origin main
+git merge --squash feature/login
+git commit -m "feat: 用户登录"
+git push origin main
+git branch -d feature/login</code></pre>
+
+        <h2>log 的 8 种常用「问法」</h2>
+
+        <h3>问法一：最近 10 条提交是什么？</h3>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git log --oneline -10
+# 输出示例：
+# abc1234 fix: 登录超时从 5s 改为 10s
+# def5678 feat: 新增支付模块
+# 890a1b2 refactor: 抽出公共登录方法
+# ...</code></pre>
+        <p><code>--oneline</code> 把每条提交压缩成一行（短 ID + 标题），最常用。不加 <code>--oneline</code> 会展开完整信息（作者、日期、正文），输出太长。</p>
+
+        <h3>问法二：谁改了某个文件？</h3>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 看某个文件的提交历史
+git log --oneline -- tests/test_login.py
+
+# 只看某人在某文件上的提交
+git log --oneline --author="张三" -- tests/test_login.py
+
+# 看某文件某次提交改了什么
+git log -p -1 -- tests/test_login.py</code></pre>
+
+        <h3>问法三：某段时间内有哪些改动？</h3>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 最近 7 天的提交
+git log --oneline --since="7 days ago"
+
+# 最近 1 个月
+git log --oneline --since="1 month ago"
+
+# 指定日期范围
+git log --oneline --after="2026-11-01" --before="2026-11-15"
+
+# 配合 --stat 看每个提交改了多少行
+git log --oneline --stat --since="7 days ago"</code></pre>
+        <p>测试场景：发版前看「最近 7 天改了哪些文件」，决定<a class="ilink" href="ai-regression-scope.html">回归范围</a>。</p>
+
+        <h3>问法四：某条提交的完整 diff</h3>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 用短 ID 看某条提交的改动
+git show abc1234
+
+# 只看改了哪些文件（不看 diff 内容）
+git show --stat abc1234
+
+# 看某条提交改了某个文件
+git show abc1234 -- tests/test_login.py</code></pre>
+
+        <h3>问法五：某个词出现在哪些提交信息里？</h3>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 搜索提交信息里的关键词
+git log --oneline --grep="登录"
+git log --oneline --grep="payment"
+git log --oneline --grep="refactor" -i   # 忽略大小写
+
+# 搜索改动了某个文件的提交
+git log --oneline -S "send_keys" -- "tests/*.py"
+# -S 搜索代码内容（不是提交信息），找"哪次提交引入了这个函数"</code></pre>
+
+        <h3>问法六：看某个提交改了哪些文件</h3>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 只看文件清单（不看 diff 内容）
+git show --name-only abc1234
+
+# 看文件清单 + 改动统计
+git show --stat abc1234
+
+# 看完整 diff
+git show abc1234</code></pre>
+
+        <h3>问法七：两个提交之间的差异</h3>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 从提交 A 到提交 B 之间有哪些改动
+git log --oneline A..B
+
+# 看两个提交之间的文件差异
+git diff --stat A B
+
+# 看两个分支之间的提交
+git log --oneline main..feature/login-fix</code></pre>
+
+        <h3>问法八：blame（这一行是谁哪次改的）</h3>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 看每行代码是谁哪次提交改的
+git blame tests/test_login.py
+
+# 只看某几行（第 40~50 行）
+git blame -L 40,50 tests/test_login.py
+
+# 配合 log 看某次提交的完整信息
+# blame 输出里的 commit ID，用 git show 查详情
+git show 8f3a2c1</code></pre>
+        <div class="callout">
+          <p><code>git blame</code> 是测试工程师的瑞士军刀。「这条断言是谁改的？」→ <code>blame -L 行号,行号 文件</code>。「为什么这里写的是 10s 不是 5s？」→ 找到 commit ID，<code>git show</code> 看提交信息里的原因。</p>
+        </div>
+
+        <h2>组合用法：解决实际问题</h2>
+
+        <h3>问题一：「这条用例上周还好的，这周挂了，谁改的？」</h3>
+        <div class="code-head"><span>terminal — 快速定位</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 看这条用例文件最近 10 条提交
+git log --oneline -10 -- tests/test_login.py
+
+# 2. 找到可疑提交，看改了什么
+git show 可疑提交ID
+
+# 3. 如果提交信息模糊，用 blame 看具体行
+git blame -L 40,50 tests/test_login.py</code></pre>
+
+        <h3>问题二：「最近一周配置文件改了什么？」</h3>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 看 config/ 目录最近 7 天的提交
+git log --oneline --since="7 days ago" -- config/
+
+# 看某条提交改了配置什么
+git show 提交ID -- config/settings.yaml</code></pre>
+
+        <h3>问题三：「发版前该跑哪些回归？」</h3>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 看上次发布（tag）到现在的改动
+git log --oneline v1.1.0..HEAD
+
+# 看改动的文件清单
+git diff --stat v1.1.0
+
+# 根据改动文件确定回归范围
+# app/controllers/payment.py 改了 → 跑 tests/payment/
+# app/services/user.py 改了 → 跑 tests/user/</code></pre>
+
+        <h3>问题四：「这个 Bug 是哪次提交引入的？」</h3>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 用 bisect 定位（见上一篇）
+git bisect start
+git bisect bad HEAD
+git bisect good v1.2.0
+git bisect run python -m pytest tests/test_login.py -x
+
+# 或者手动：看最近 20 条，找可疑的
+git log --oneline -20 -- tests/test_login.py</code></pre>
+
+        <h2>log 输出的「行号」和「短 ID」</h2>
+        <p>理解 log 输出的格式，读起来不费劲：</p>
+        <div class="code-head"><span>输出格式说明</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>abc1234 fix: 登录超时从 5s 改为 10s（#1234）
+# ├───┬────┘
+# │   └── 提交标题（一般写"类型: 描述"）
+# └──── 短 commit ID（4~7 位，够用）
+
+# 完整 ID（40 位 hex）：
+# 用 git log 不加 --oneline 看
+# 或者 git show 看完整信息</code></pre>
+        <div class="callout">
+          <p>短 ID 4~7 位就够用了。如果提示「ambiguous」（多个提交前缀相同），多写几位。实际操作中，把短 ID 复制进 <code>git show</code> 或 <code>git bisect</code> 就行。</p>
+        </div>
+
+        <h2>把 log 变成测试工作流</h2>
+        <p>测试工程师把「看 log」变成日常习惯：</p>
+        <ul>
+          <li><strong>每天开工：</strong><code>git log --oneline -10</code> 看昨天到现在有什么改动，心里有数再跑回归；</li>
+          <li><strong>用例挂了：</strong><code>git log --oneline -10 -- 文件</code> 看谁改了这条用例；</li>
+          <li><strong>发版前：</strong><code>git log v1.1.0..HEAD --oneline</code> 看两个版本间改了什么，确定回归范围；</li>
+          <li><strong>线上 Bug：</strong><code>git bisect</code> 定位引入 Bug 的提交，直接给开发看 diff。</li>
+        </ul>
+        <div class="callout">
+          <p>log 是「代码的体检报告」。测试工程师每天花 2 分钟读一遍 log，比出 Bug 后花 2 小时查「谁改的」便宜得多。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://git-scm.com/book/zh-cn/v2" target="_blank" rel="noopener">Pro Git 中文版 - Simple Git Tools - Looking at the Commit History</a></li>
+            <li><a href="https://git-scm.com/docs/git-log" target="_blank" rel="noopener">Git Log 官方文档</a></li>
+            <li><a href="https://git-scm.com/docs/git-blame" target="_blank" rel="noopener">Git Blame 官方文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#git</span>
+          <span class="tag">#log</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

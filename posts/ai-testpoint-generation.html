@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 生成测试点：从需求到可评审检查项 · 软件测试资料集</title>
+<meta name="description" content="用七类方法把需求点转成可评审检查项，含历史用例去重、覆盖度自查与输出规范。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-testpoint-generation.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="AI 生成测试点：从需求到可评审检查项">
+<meta property="og:description" content="用七类方法把需求点转成可评审检查项，含历史用例去重、覆盖度自查与输出规范。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-testpoint-generation.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AI 生成测试点：从需求到可评审检查项">
+<meta name="twitter:description" content="用七类方法把需求点转成可评审检查项，含历史用例去重、覆盖度自查与输出规范。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"AI 生成测试点：从需求到可评审检查项","description":"用七类方法把需求点转成可评审检查项，含历史用例去重、覆盖度自查与输出规范。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-testpoint-generation.html","articleSection":"落地实践","keywords":"测试点, 测试设计, llm","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>12 min read</span>
+        </div>
+        <h1>AI 生成测试点：从需求到可评审检查项</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="ai-testpoint-generation">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <figure class="article-figure">
+          <svg viewBox="0 0 720 360" width="100%" role="img" aria-labelledby="fig-tp-1-title" xmlns="http://www.w3.org/2000/svg">
+            <title id="fig-tp-1-title">测试点分层：业务流程拆成功能点，功能点拆成可评审的测试点，测试点再落成可执行用例；一条测试点由前置条件、操作、预期三个要素构成，三项都相同才判为重复</title>
+            <defs>
+              <marker id="fig-tp-1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--text-faint)"/>
+              </marker>
+            </defs>
+
+            <rect x="40" y="40" width="340" height="52" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="58" y="63" font-family="inherit" font-size="15" fill="var(--text)">业务流程</text>
+            <text x="58" y="82" font-family="inherit" font-size="12.5" fill="var(--text-dim)">下单主链路</text>
+
+            <line x1="210" y1="94" x2="210" y2="113" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-tp-1-arrow)"/>
+
+            <rect x="70" y="118" width="280" height="52" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="88" y="141" font-family="inherit" font-size="15" fill="var(--text)">功能点</text>
+            <text x="88" y="160" font-family="inherit" font-size="12.5" fill="var(--text-dim)">F-01 领券规则</text>
+
+            <line x1="210" y1="172" x2="210" y2="191" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-tp-1-arrow)"/>
+
+            <rect x="100" y="196" width="220" height="52" rx="10" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.4"/>
+            <text x="118" y="219" font-family="inherit" font-size="15" fill="var(--text)">测试点</text>
+            <text x="118" y="238" font-family="inherit" font-size="12.5" fill="var(--text-dim)">库存不足无法领取</text>
+
+            <line x1="210" y1="250" x2="210" y2="269" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-tp-1-arrow)"/>
+
+            <rect x="130" y="274" width="160" height="52" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="148" y="297" font-family="inherit" font-size="15" fill="var(--text)">用例</text>
+            <text x="148" y="316" font-family="inherit" font-size="12.5" fill="var(--text-dim)">TC-118 执行步骤</text>
+
+            <line x1="324" y1="222" x2="424" y2="222" stroke="var(--text-faint)" stroke-width="1.2" stroke-dasharray="4 4" marker-end="url(#fig-tp-1-arrow)"/>
+
+            <rect x="430" y="170" width="258" height="158" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="446" y="196" font-family="inherit" font-size="15" fill="var(--text)">一条测试点的要素</text>
+            <line x1="446" y1="208" x2="672" y2="208" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="446" y="232" font-family="inherit" font-size="12.5" fill="var(--text)">前置：登录态与库存</text>
+            <text x="446" y="258" font-family="inherit" font-size="12.5" fill="var(--text)">操作：第 3 次领取</text>
+            <text x="446" y="284" font-family="inherit" font-size="12.5" fill="var(--text)">预期：提示已达上限</text>
+            <line x1="446" y1="298" x2="672" y2="298" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="446" y="318" font-family="inherit" font-size="11.5" fill="var(--text-dim)">三项相同才判为重复</text>
+
+            <text x="360" y="350" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-faint)">向下是拆分，每条测试点挂需求编号与版本</text>
+          </svg>
+          <figcaption>图 1 · 测试点从业务流程逐层拆到用例，每条测试点写清前置、操作、预期</figcaption>
+        </figure>
+        <h2>测试点和用例到底差在哪</h2>
+        <p>很多团队把这两个词混着用，评审时就会吵起来：有人嫌测试点不够细，有人嫌用例太长没法扫。我的区分只有一句话：测试点是可评审的最小检查项，说清验什么；用例是可执行的步骤，说清怎么验、用什么数据、看什么结果。前者用于评审覆盖，后者用于执行和回归。</p>
+        <p>分开之后有个实际好处：质量可以量化。你不需要判断一段脚本写得对不对，只需要判断这条检查项该不该有。前者要跑起来才知道，后者评审时一眼就能看出来。这也是我先让 AI 做测试点、暂时不碰用例的原因。</p>
+        <p>给一组我们组的数据。一个中型迭代，涉及优惠券、订单、库存三个模块，手工写测试点大约 2 天，产出 120 条上下。走这套流程，首轮生成 8 分钟，得到 186 条，人工评审 40 分钟，去重后保留 141 条。时间压到半天以内，条数多 17%，多出来的部分主要在异常、权限和并发，恰好是手工最容易漏的。评审后的返工率 11%，规则覆盖率从 82% 提到 94%。</p>
+
+        <h2>这个 skill 只做一件事：把检查项列全</h2>
+        <p>skill 名叫 testpoint-generation，输入是评审通过的需求点清单，输出是一张固定列的表格。它不管执行步骤，不管测试数据，也不写预期结果的具体文案，那些都属于用例阶段。它更不负责性能、安全这类专项，遇到专项应当换对应的 skill，硬套只会得到一堆泛泛的检查项。</p>
+        <p>它唯一的目标是把检查项列全，并且每条都能追到需求编号。所以输出的评价标准不是条数多，而是三件事：七类方法有没有缺席、每个功能点有没有分到检查项、每条有没有关联需求。三条都过，才有资格进评审。</p>
+        <p>有一条前置条件必须守住：输入的需求点得先评审通过。需求点本身还挂着「待确认」，生成出来的测试点会把不确定性放大成一批互相矛盾的检查项，评审时反而更难收敛。这种情况先回到需求拆解，不要跳过。</p>
+
+        <h2>上下文怎么给：需求点是骨架，历史缺陷是重点</h2>
+        <p>只给需求点，模型生成的测试点一定浮在正向流程上，因为需求点本身只描述了正常路径。要让它往下挖，必须补两类材料：能判定真假的业务规则，以及历史上真实出过的问题。前者决定边界在哪，后者决定重点在哪。</p>
+        <table>
+          <thead><tr><th>材料</th><th>截取哪一部分</th><th>贴入格式</th><th>全文还是摘要</th></tr></thead>
+          <tbody>
+            <tr><td>需求点清单</td><td>本次模块的功能点、规则、约束、数据字典</td><td>按功能点分组，保留 F- / R- / C- 编号</td><td>全文</td></tr>
+            <tr><td>业务规则表</td><td>规则编号、触发条件、结果</td><td>原表粘贴，不改写措辞</td><td>全文</td></tr>
+            <tr><td>历史缺陷</td><td>近半年同模块缺陷的根因分类与次数</td><td>一行一条，附严重级别</td><td>摘要</td></tr>
+            <tr><td>历史用例库</td><td>同模块用例的编号、标题、前置条件</td><td>只要这三列，用于去重</td><td>摘要</td></tr>
+            <tr><td>线上流量占比</td><td>各功能点的访问占比与失败率</td><td>给百分比，不给明细日志</td><td>摘要</td></tr>
+            <tr><td>接口错误码</td><td>与本次规则相关的错误码及含义</td><td>按接口逐个贴相关条目</td><td>只贴相关段落</td></tr>
+          </tbody>
+        </table>
+        <p>粒度上有个硬规矩：一次只喂一个功能点，或者一个模块里 20 到 30 条需求点。我试过把整份 PRD 拆出的上百条一次塞进去，结果是编号错乱、规则跨模块污染，改起来比自己写还慢。分片之后每片都能单独重跑，失败成本也就是二三十条。</p>
+        <p>历史缺陷给<a class="ilink" href="ai-defect-rootcause.html">根因</a>分类，不给完整描述。完整描述会让模型去复述那个具体 bug，写出一条只对旧版本有效的检查项；根因分类会让它抽象出同类风险。比如「并发未加锁导致超发」出现 4 次，它自然会给库存和限额都补上并发检查项，还会把优先级提到 P0。这比在提示词里写「请重视并发」有效得多。</p>
+        <p>线上流量占比只用来排优先级，给三个数就够：访问占比、失败率、峰值时段。它的作用是让高频功能点的检查项排在前面，评审时先看要紧的，而不是按模块顺序从头看。缺失时不许自己编比例，写进待确认清单。</p>
+
+        <h2>历史用例库怎么用：先去重，再谈覆盖</h2>
+        <p>历史用例库最大的用处不是让模型学习，而是防止重复产出。186 条里有 45 条和已有用例重复，重复率 24%。如果不做这一步，测试点表会一年比一年厚，最后没人看。</p>
+        <p>做法是先把用例库压成索引，只保留三列：编号、标题、前置条件。超过 300 条时先按模块和标题关键词粗筛，只把筛后的 50 条贴进对话，剩下的用编号范围说明「其余为无关模块」。索引不做全文检索，因为判断重复只需要这三列。</p>
+        <p>去重标准必须在提示词里写死：同一前置条件、同一操作、同一预期，三者都相同才算重复。只按文本相似度合并会误伤，比如「库存不足无法领取」和「库存为 0 时领取失败」，字面很像，但前者是服务返回值，后者是前端拦截，验证路径不同，不能合。</p>
+        <p>还有一条是跨模块一律不合并。库存在优惠券模块的「不足无法领取」和库存模块的同名检查项，看起来一样，实际调用链路和失败表现完全不同。我们第三个迭代为了压条数合过一次，结果库存模块漏了两条，线上补了个小故障。从那以后这条写进了约束。</p>
+        <p>被合并的条目要留记录，写清合并了哪些编号、依据哪条已有用例。评审时如果对某个合并有疑问，直接翻这条记录。没有记录的去重，等于在悄悄删检查项。</p>
+
+        <h2>历史文档怎么挂：目录、引用与新旧取舍</h2>
+        <p>测试点必须能追溯，追溯的落点是需求版本和用例编号。我们的目录按模块和版本展开：用例索引在 <code>qa/testcases/{模块}/v{版本}/case-index.md</code>，测试点表在 <code>qa/testpoints/{模块}/v{版本}/tp.md</code>，版本号与需求点文件一致；停止维护的用例库移进 <code>legacy/</code>。</p>
+        <div class="code-head"><span>目录结构</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>qa/
+  testcases/
+    coupon/
+      v2.3/
+        case-index.md
+      legacy/
+        [已废止]-case-2025.md
+  testpoints/
+    coupon/
+      v2.3/
+        tp.md
+  defects/
+    2026H1/
+      coupon.md</code></pre>
+        <p>引用格式有两种，都要求带版本。关联需求写成需求编号加版本，例如 F-01@v2.3；引用历史用例写《用例索引》v2.3 #TC-118。不带版本的引用在下一个迭代就会失效，因为编号可能被复用，章节可能被重排。</p>
+        <p>新旧版本冲突时，以最新评审版为准，旧版不删，而是写进合并记录的合并来源，保留它是为了回答「这条检查项以前是怎么写的」。如果两版描述不同又判断不出哪版有效，两条都保留，一起进待确认清单，由需求方裁定。自行删一条是最差的选择，因为删掉的往往是没人记得的那条。</p>
+        <p>标注 <code>[已废止]</code> 的用例库不参与去重。原因很直接：它里面的检查项可能对应已经下线的规则，一旦参与去重，会把废弃检查项重新拉回正式产出，评审时很难发现。</p>
+
+        <h2>七类方法怎么讲给模型听</h2>
+        <p>方法的本质是穷举的角度。模型不缺测试设计知识，缺的是被要求从哪个角度看。所以提示词里每类方法都要给判定标准和一条正例，否则它会全标成等价类，覆盖度看着很高，实际只有一层。</p>
+        <table>
+          <thead><tr><th>方法</th><th>什么时候用</th><th>优惠券场景的例子</th></tr></thead>
+          <tbody>
+            <tr><td>等价类</td><td>输入有明确的合法与非法集合</td><td>新用户、老用户、非会员各领一次</td></tr>
+            <tr><td>边界值</td><td>有数量、金额、长度的上下限</td><td>领第 1 张、第 2 张、第 3 张</td></tr>
+            <tr><td>判定表</td><td>多个条件组合决定结果</td><td>会员等级、是否首单、库存状态三条件组合</td></tr>
+            <tr><td>状态迁移</td><td>对象有明确状态机</td><td>未使用迁到已使用、已过期、已冻结</td></tr>
+            <tr><td>异常</td><td>任何有外部依赖的路径</td><td>库存服务超时后领券</td></tr>
+            <tr><td>权限</td><td>存在角色或多租户</td><td>运营后台给非活动用户发券</td></tr>
+            <tr><td>并发</td><td>有库存、余额、次数限制</td><td>50 并发抢 1 张限额券，只允许成功 1 次</td></tr>
+          </tbody>
+        </table>
+        <div class="code-head"><span>提示词 — 测试点生成</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>按七类方法生成测试点，每条只属于一类。
+
+1. 等价类：把输入划分为结果相同的集合，每个集合至少一条。
+2. 边界值：给出具体取数，必须包含上界、上界加一、下界、下界减一。
+3. 判定表：条件不超过 4 个时做全组合，超过 4 个时说明取舍理由。
+4. 状态迁移：覆盖合法迁移、非法迁移、重复迁移三种。
+5. 异常：覆盖空值、超时、下游报错、数据不存在。
+6. 权限：区分普通用户、运营、管理员，必须有一条越权。
+7. 并发：写明并发量与判定标准，例如 50 并发只允许成功 1 次。
+
+输出一张表格，列固定为：编号 | 模块 | 测试点 | 方法 | 优先级 | 关联需求。
+
+约束：
+- 测试点不超过 40 个字，只写检查项，不写操作步骤。
+- 优先级只能是 P0 / P1 / P2，涉及金额、权限、库存的一律 P0。
+- 每条测试点必须写关联需求编号，例如 F-01@v2.3。
+- 方法只能取上面七类名称之一，不允许写「其他」。
+- 表格之后给覆盖度自查与去重记录，不要解释生成过程。</code></pre>
+        <p>三条约束背后都有代价。测试点限 40 字，是因为早期版本动辄两三百字，评审没人看得完，还把用例的边界彻底糊掉了。优先级限三档，是因为出现过全表 P1，等于没有优先级。方法不允许写「其他」，是因为一旦放开，模型会把拿不准的全丢进去，覆盖度统计就失真了。</p>
+
+        <h2>输出表格字段与覆盖度自查</h2>
+        <p>字段设计的原则是：评审者只看前四列就能判断该不该有，后两列留给执行和溯源。列多了没人看，列少了落不了地。</p>
+        <table>
+          <thead><tr><th>字段</th><th>说明</th><th>示例</th></tr></thead>
+          <tbody>
+            <tr><td>编号</td><td>TP-功能点序号-两位序号</td><td>TP-01-03</td></tr>
+            <tr><td>模块</td><td>与代码模块名一致</td><td>coupon</td></tr>
+            <tr><td>测试点</td><td>一句话检查项，不超过 40 字</td><td>第 3 次领取时提示已达上限</td></tr>
+            <tr><td>方法</td><td>七类之一</td><td>边界值</td></tr>
+            <tr><td>优先级</td><td>P0 / P1 / P2</td><td>P0</td></tr>
+            <tr><td>关联需求</td><td>需求编号加版本</td><td>F-01@v2.3</td></tr>
+          </tbody>
+        </table>
+        <p>优先级规则写死在提示词里，不让模型自由发挥：涉及资金、权限、库存的一律 P0；主流程但没有异常处理路径的 P1；纯展示、文案、排序的 P2。审核时只查 P0 名单，如果 P0 超过总数 30%，说明规则被忽略，整批打回重生成。</p>
+        <p>覆盖度看两个维度。方法分布看有没有整类缺席，我们定的线是异常、权限、并发三类合计不低于 15%；需求对照看有没有功能点一条都没分到，这项必须是 0。两个维度都过，才敢拿去评审。第一版跑出来异常类只有 6%，原因是提示词里异常排在第五位，模型写了三十条就停了；把它提到第二位，比例立刻回到 14%。这种调整听起来很笨，但确实有效。</p>
+
+        <h2>踩坑与边界</h2>
+        <ul>
+          <li><strong>测试点写成用例步骤</strong>：出现打开页面、点击领取、输入手机号这类四步动作。原因是没限字数。处理是限 40 字并说明只写检查项。</li>
+          <li><strong>方法标签乱标</strong>：全部标成等价类。处理是每类给判定标准和例子，并在自查里统计分布，缺席就重跑。</li>
+          <li><strong>去重误伤</strong>：只按文本相似度合并，把不同前置条件的检查项合掉。处理是同模块内按前置条件、操作、预期三项精确匹配，跨模块不合。</li>
+          <li><strong>优先级全 P1</strong>：模型倾向中庸。处理是写死规则并检查 P0 占比，超过 30% 打回。</li>
+          <li><strong>复述历史缺陷</strong>：给完整缺陷描述，它把旧 bug 原样写成一条测试点。处理是只给根因分类和次数。</li>
+          <li><strong>覆盖度虚高</strong>：只按功能点统计会掩盖规则未覆盖。处理是规则覆盖率单独算，我们的线是 90%。</li>
+        </ul>
+        <p>边界也要说清楚：需求点还挂着待确认时不要生成，先做需求拆解；只需要补执行步骤时不要用，检查项已经确定，再用一遍只是重复劳动；性能和安全专项也不要用它，专项测试有独立的分析方法，硬套七类方法会得到一堆看起来正确、实际测不出问题的条目。</p>
+
+        <div class="callout warn">
+          <p>这个 skill 的第一条硬性约束是：只依据引用文档与当前上下文输出，不许按想法自由发挥；信息不足的部分必须进入「待确认清单」，不许编造。</p>
+        </div>
+        <h2>Skill 完整展示</h2>
+        <p>这套流程对应的 skill 放在 Claude Code 的用户目录 <code>~/.claude/skills/skill-testpoint-generation/SKILL.md</code>；Trae 放在 <code>C:\Users\你的用户名\.trae\skills\skill-testpoint-generation\SKILL.md</code>，项目内则放 <code>.trae/skills/</code>。目录名与 front matter 的 name 保持一致，重启后加载。</p>
+        <div class="code-head"><span>markdown — SKILL.md</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>---
+name: testpoint-generation
+description: 从结构化需求点生成可评审的测试点，覆盖等价类、边界值、判定表、状态迁移、异常、权限与并发七类方法，输出带编号、方法、优先级与关联需求的标准表格，并做去重与覆盖度自查。
+---
+
+# 测试点生成：从需求点到测试场景
+
+## 硬性约束（优先级最高，与其他章节冲突时以本节为准）
+
+1. 只能依据三类信息输出：用户提供的需求文档 / 接口文档 / 代码 / 日志原文、当前会话上下文、本 skill「输入」一节所列的文件。禁止凭想象补充业务规则、字段名、接口地址、阈值、状态码、版本号或历史数据。
+2. 每条产出都要可回溯，必须标注来源：文档章节或条款、文件路径与行号、日志片段、接口字段。标不出来源的条目不得进入正式产出。
+3. 信息不足时不许编造填补。缺失项一律进入「待确认清单」，逐条写清：缺什么、影响哪条结论、需要谁提供。
+4. 凡是基于经验补出的内容，必须以「推断：」开头，并写明依据与置信度（高 / 中 / 低）。置信度为低的推断不能当结论用。
+5. 禁止虚构引用：不编造文档条款号、版本号、链接、指标数值、报错原文。引用原文时逐字摘录并注明位置。
+6. 资料互相矛盾时（文档与代码不一致、两处规则冲突）不要自行取舍，把两种说法并列，标明冲突点和需要确认的问题。
+7. 输出前逐条自检：这条有来源吗？没有就移到「待确认清单」。自检不通过不许输出。
+
+## 待确认清单（输出必带）
+
+无论信息是否充足，输出末尾都保留这一节；没有待确认项时写「无」，不许省略该节。每行格式：
+
+| 序号 | 缺失或不确定的内容 | 影响 | 需要谁提供 |
+
+## 适用场景
+
+- 需求点清单已经评审通过，需要转成可评审的测试点，而不是直接写用例。
+- 老模块补测试，只有零散用例，需要先补齐检查项。
+- 用例评审前，需要一张能快速扫完的测试点总表。
+- 回归范围分析完成后，需要针对受影响的模块补充测试点。
+
+以下情况不要用：
+
+- 需求点本身还没评审，输入里还写着「待确认」，此时应先做需求拆解。
+- 只需要补执行步骤，检查项已经确定。
+- 性能、安全等专项测试，应使用对应专项 skill。
+
+## 输入
+
+必需：
+
+1. 需求点清单，包含功能点、规则、约束、数据字典，字段与需求拆解输出一致。
+2. 业务规则表，至少包含规则编号、触发条件、结果。
+3. 目标模块所属业务域，例如交易、营销、会员。
+
+建议补充：
+
+4. 近半年该模块的历史缺陷，含缺陷描述与严重级别。
+5. 现有测试点或用例编号，用于去重与关联。
+6. 线上流量占比，用于排优先级。
+
+输入缺失时：在输出末尾单独列出「输入不足导致覆盖不全的部分」，不要跳过方法不写。
+
+## 上下文与历史文档规范
+
+### 本次任务需要的材料
+
+| 材料 | 截取哪一部分 | 贴入方式 | 全文还是摘要 |
+| --- | --- | --- | --- |
+| 需求点清单 | 本次模块的功能点、规则、约束、数据字典 | 按功能点分组粘贴，保留 F- / R- / C- 编号 | 全文 |
+| 业务规则表 | 规则编号、触发条件、结果 | 原表粘贴，不改写措辞 | 全文 |
+| 历史缺陷 | 近半年同模块缺陷的根因分类与次数 | 一行一条，附严重级别 | 摘要 |
+| 历史用例库 | 同模块的编号、标题、前置条件 | 只要这三列，用于去重 | 摘要 |
+| 线上流量占比 | 各功能点访问占比与失败率 | 给百分比，不给明细日志 | 摘要 |
+| 接口错误码 | 与本次规则相关的错误码及含义 | 只贴相关错误码 | 只贴相关段落 |
+
+执行要求：
+
+1. 一次只喂一个功能点或一个模块的 20 到 30 条，禁止把整份 PRD 一次性贴入。
+2. 历史用例超过 300 条时先按标题关键词粗筛，只贴筛后的 50 条，避免上下文被稀释。
+3. 缺陷描述只保留根因与次数，去掉复现步骤，防止模型复述单个缺陷。
+4. 线上流量占比用于排优先级，缺失时不得自行假设占比，写入待确认清单。
+
+### 历史文档目录约定
+
+```text
+qa/
+  testcases/
+    coupon/
+      v2.3/
+        case-index.md
+      legacy/
+        [已废止]-case-2025.md
+  testpoints/
+    coupon/
+      v2.3/
+        tp.md
+  defects/
+    2026H1/
+      coupon.md
+```
+
+1. 用例索引路径为 `qa/testcases/{模块}/v{版本}/case-index.md`，只保留编号、标题、前置条件三列。
+2. 测试点表路径为 `qa/testpoints/{模块}/v{版本}/tp.md`，版本号与需求点文件保持一致。
+3. 停止维护的用例库移入 `legacy/`，文件名前加 `[已废止]`，不参与去重。
+
+### 引用与冲突
+
+1. 测试点必须写关联需求，引用格式为需求编号加版本，例如 F-01@v2.3。
+2. 历史用例只用于去重和回归范围参考，引用时写《用例索引》v2.3 #TC-118。
+3. 同一检查项在两个版本中描述不同时，以最新评审版为准，旧版写进去重记录的合并来源。
+4. 无法判断哪一版有效时，两条都保留并写入待确认清单，不自行删除。
+5. 标注 `[已废止]` 的用例库不参与去重，避免把废弃检查项重新拉回正式产出。
+
+## 执行步骤
+
+1. 按功能点分组，一组内先写主流程测试点，再写规则与约束测试点。
+2. 对每个有取值范围的字段套等价类与边界值，边界取最小、最小减一、最大、最大加一。
+3. 对多条件组合的规则画判定表，条件数不超过 4 个时做全组合，超过 4 个时用正交表并说明取舍。
+4. 对有状态字段的场景画状态迁移图，列出合法迁移、非法迁移、重复迁移。
+5. 每条规则补异常分支：空值、超长、类型不符、越权、重复提交、并发。
+6. 用历史缺陷做反向检查，同一个原因导致的缺陷必须至少对应一条测试点。
+7. 生成编号后去重，判定标准是「同一前置条件 + 同一操作 + 同一预期」视为重复。
+8. 按模块统计方法分布，任一方法为 0 时说明覆盖有缺口，回到第 2 步补。
+
+## 输出格式
+
+输出一张 Markdown 表格，列固定为：
+
+| 编号 | 模块 | 测试点 | 方法 | 优先级 | 关联需求 |
+
+编号规则：TP-功能点序号-两位序号，例如 TP-01-03。
+
+表格之后输出两段：
+
+1. 覆盖度自查：按方法统计条数，列出缺失的方法。
+2. 去重记录：合并了哪些编号，合并原因。
+
+不要输出执行步骤、测试数据、预期结果的详细描述，这些属于用例阶段。
+
+## 质量检查清单
+
+- 每个功能点至少 3 条测试点，其中至少 1 条异常。
+- 每个有范围的字段都有边界值测试点，且明确写了边界取值。
+- 判定表条件覆盖率不低于 90%，未覆盖的组合写明原因。
+- 有状态字段必须覆盖非法迁移，例如已过期券再次使用。
+- 权限相关功能必须有越权测试点，且区分不同角色。
+- 并发测试点写明并发量与判定标准，例如 50 并发只允许成功 1 次。
+- 每条测试点都能对应到一个需求编号，没有孤立测试点。
+- 去重后编号连续，无跳号。
+
+## 反例
+
+- 测试点写成「测试优惠券功能正常」，没有前置条件和预期，无法评审。
+- 只写正向流程，异常分支全部靠执行时临场想。
+- 边界值只写「最小值」，不写最小减一。
+- 把用例步骤塞进测试点，例如「打开页面，点击领取，输入手机号」，粒度过细。
+- 为了凑数量把同一检查项换个说法写三遍，去重时全部被合并。
+- 优先级全填 P1，等于没有优先级。
+</code></pre>
+        <div class="callout">
+          <p>下载完整 skill 文件：<a href="../assets/downloads/skill-testpoint-generation.md" download>skill-testpoint-generation.md</a>。放到 <code>~/.claude/skills/skill-testpoint-generation/SKILL.md</code> 即可被自动加载。</p>
+        </div>
+
+        <p>最后给一个判断标准：如果一张测试点表，你能在 15 分钟内指出哪几条不该有、哪几条缺了，说明粒度是对的。如果看完只能说感觉差不多，那它大概率太粗，或者根本没覆盖到规则。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://www.istqb.org/certifications/certified-tester-foundation-level" target="_blank" rel="noopener">ISTQB Certified Tester Foundation Level — ISTQB</a></li>
+            <li><a href="https://martinfowler.com/articles/practical-test-pyramid.html" target="_blank" rel="noopener">The Practical Test Pyramid — Martin Fowler</a></li>
+            <li><a href="https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview" target="_blank" rel="noopener">Prompt engineering overview — Anthropic</a></li>
+            <li><a href="https://help.aliyun.com/zh/model-studio/getting-started/models" target="_blank" rel="noopener">模型列表与计费 — 阿里云百炼</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#测试点</span>
+          <span class="tag">#测试设计</span>
+          <span class="tag">#llm</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

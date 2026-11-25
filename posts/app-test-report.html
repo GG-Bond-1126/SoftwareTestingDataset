@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>App 自动化报告：Allure、截图与录屏取证 · 软件测试资料集</title>
+<meta name="description" content="失败必带截图、录屏与 logcat，用 Allure 聚合设备信息、flaky 率与历史趋势，报告可归档可追溯。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-test-report.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="App 自动化报告：Allure、截图与录屏取证">
+<meta property="og:description" content="失败必带截图、录屏与 logcat，用 Allure 聚合设备信息、flaky 率与历史趋势，报告可归档可追溯。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-test-report.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="App 自动化报告：Allure、截图与录屏取证">
+<meta name="twitter:description" content="失败必带截图、录屏与 logcat，用 Allure 聚合设备信息、flaky 率与历史趋势，报告可归档可追溯。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"App 自动化报告：Allure、截图与录屏取证","description":"失败必带截图、录屏与 logcat，用 Allure 聚合设备信息、flaky 率与历史趋势，报告可归档可追溯。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-test-report.html","articleSection":"APP 自动化","keywords":"allure, appium, test-report","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>13 min read</span>
+        </div>
+        <h1>App 自动化报告：Allure、截图与录屏取证</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="app-test-report">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <h2>默认报告为什么不够用</h2>
+        <p>我们那套 App 自动化当时有 312 条用例，一次全量跑完大约 48 分钟。失败的数量长期在 40 条上下浮动，但真正让人崩溃的是定位过程：CI 的控制台只留下一行 <code>NoSuchElementException</code>，加一串毫无信息量的堆栈。要复现，就得翻出构建号、找到对应机型、手动安装同一个包、按用例描述把操作重走一遍，平均耗时 35 分钟。</p>
+        <p>更麻烦的是那些并不稳定复现的失败。同一条用例今天挂明天过，没人说得清是产品 bug 还是脚本问题，于是大家默认把它标成已知问题，慢慢地 15% 的用例都带着这个标签，整套回归的可信度就没了。</p>
+        <p>默认报告解决不了这两个问题，因为它只回答「哪条挂了」，不回答「挂的时候长什么样」。我们需要的是一份能自证的报告：失败那一秒的屏幕、当时的 UI 层级、设备上的日志、整个操作过程的录屏，以及这条用例过去十次运行的通过情况。下面这套组合拳，把平均定位时间从 35 分钟压到了 8 分钟。</p>
+
+        <h2>方案总览</h2>
+        <table>
+          <thead>
+            <tr><th>环节</th><th>工具与版本</th><th>输入</th><th>输出</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>用例执行</td><td>pytest 8.3.2 + Appium 2.11.3</td><td>测试代码、设备池</td><td>allure-results 下的原始 JSON</td></tr>
+            <tr><td>失败取证</td><td>conftest 钩子 + adb</td><td>driver 会话、udid</td><td>PNG 截图、XML 层级、logcat 文本、MP4 录屏</td></tr>
+            <tr><td>报告渲染</td><td>Allure 2.30.0</td><td>results 目录</td><td>可离线打开的单页报告</td></tr>
+            <tr><td>趋势统计</td><td>自研 Python 脚本</td><td>多次运行的 results</td><td>flaky 率、用例稳定性排行</td></tr>
+            <tr><td>归档与分发</td><td>GitHub Actions artifact</td><td>报告目录</td><td>保留 30 天的下载链接</td></tr>
+          </tbody>
+        </table>
+        <p>这套方案的关键取舍是：取证全部在客户端做，不依赖任何云测平台。好处是私有化设备也能用，坏处是录屏和 logcat 会给每次运行增加 10% 到 15% 的耗时，所以我们只在失败时才保留视频，成功用例的录屏文件直接删掉。</p>
+
+        <h2>环境搭建</h2>
+        <p>依赖版本要锁死，Allure 的命令行与 Python 适配器之间有兼容性问题，尤其是 2.13 之前的 allure-pytest 在 pytest 8 上会出现附件丢失。我们固定这一组版本，跑了一年多没有再动。</p>
+
+        <div class="code-head"><span>terminal — 安装依赖</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>python -m venv .venv
+.venv\Scripts\activate
+
+pip install pytest==8.3.2 allure-pytest==2.13.5 Appium-Python-Client==4.1.0
+npm install -g allure-commandline
+allure --version    # 2.30.0
+
+# 录屏依赖设备自带的 screenrecord，本机只需要 adb 与 ffmpeg
+ffmpeg -version | Select-Object -First 1</code></pre>
+
+        <h2>失败现场：一个钩子收齐三样证据</h2>
+        <p>pytest 的 <code>pytest_runtest_makereport</code> 是取证的唯一入口。它会在 setup、call、teardown 三个阶段各触发一次，只在 call 阶段失败时取证，才能拿到真正的业务失败现场，而不是 fixture 初始化失败的空页面。</p>
+        <p>注意两个细节。第一，钩子必须用 <code>hookwrapper=True</code>，否则拿不到最终的 report 对象。第二，通过 <code>item.funcargs.get</code> 取 driver 而不是依赖全局变量，这样并行执行时不会串到别的设备上。截图存二进制，UI 层级存 XML，logcat 存文本，三者用同一个附件名前缀，报告里会按顺序排在一起。</p>
+
+        <div class="code-head"><span>python — conftest.py 失败取证钩子</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import subprocess
+
+import allure
+import pytest
+from allure_commons.types import AttachmentType
+
+
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+    if report.when != "call" or not report.failed:
+        return
+
+    driver = item.funcargs.get("driver")
+    if driver is None:
+        return
+
+    allure.attach(
+        driver.get_screenshot_as_png(),
+        name="01-失败截图",
+        attachment_type=AttachmentType.PNG,
+    )
+    allure.attach(
+        driver.page_source,
+        name="02-UI 层级",
+        attachment_type=AttachmentType.XML,
+    )
+
+    udid = driver.capabilities.get("udid")
+    logcat = subprocess.run(
+        ["adb", "-s", udid, "logcat", "-d", "-t", "3000",
+         "AndroidRuntime:E", "ActivityManager:I", "*:S"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    ).stdout
+    allure.attach(logcat, name="03-logcat", attachment_type=AttachmentType.TEXT)</code></pre>
+
+        <p>logcat 用 <code>-d</code> 导出后立即清空缓冲区，避免下一条用例的日志里混进上一条的崩溃信息。过滤条件建议至少保留 <code>AndroidRuntime</code> 的 E 级别，很多闪退在 UI 上只会表现为页面没跳过去，真正的异常信息只在这里。</p>
+
+        <h2>录屏：让失败过程可以回放</h2>
+        <p>截图只能看到最后一帧，而 App 的很多问题是过程性的：点了没反应、弹窗一闪而过、列表回弹。这类问题必须靠录屏。Android 自带的 <code>screenrecord</code> 足够用，限制是单个文件最长 180 秒、默认分辨率会被压缩，对定位已经足够。</p>
+        <p>写法上在用例开始前启动后台录制，结束后发送 SIGINT 让文件正常收尾，再拉回本地。这里有个必须记住的坑：直接 kill 进程会导致 MP4 没有写入索引，播放器打不开，一定要用 <code>pkill -INT</code>。</p>
+
+        <div class="code-head"><span>python — 录制与附件写入</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+import shutil
+import subprocess
+
+import allure
+import pytest
+from allure_commons.types import AttachmentType
+
+ARTIFACTS = pathlib.Path("artifacts")
+
+
+@pytest.fixture
+def driver(device, build_driver):
+    ARTIFACTS.mkdir(exist_ok=True)
+    remote = f"/sdcard/{device.udid}.mp4"
+    recorder = subprocess.Popen([
+        "adb", "-s", device.udid, "shell", "screenrecord",
+        "--time-limit", "180",
+        "--bit-rate", "4000000",
+        remote,
+    ])
+
+    drv = build_driver(device)
+    yield drv
+    drv.quit()
+
+    subprocess.run(
+        ["adb", "-s", device.udid, "shell", "pkill", "-INT", "screenrecord"],
+        check=False,
+    )
+    recorder.wait(timeout=10)
+
+    local = ARTIFACTS / f"{device.udid}.mp4"
+    subprocess.run(
+        ["adb", "-s", device.udid, "pull", remote, str(local)],
+        check=False,
+        capture_output=True,
+    )
+    if local.exists() and local.stat().st_size &gt; 1024:
+        allure.attach.file(
+            str(local),
+            name="04-执行录屏",
+            attachment_type=AttachmentType.MP4,
+        )
+    shutil.rmtree(ARTIFACTS, ignore_errors=True)</code></pre>
+
+        <p>成功用例的视频同样会生成，只是不挂到报告上，跑完统一删掉。如果磁盘紧张，可以在 fixture 里读取当前用例的 report 状态再决定是否 pull，代价是钩子与 fixture 的耦合会变复杂，我们选择了简单方案。</p>
+
+        <h2>报告里的环境与设备信息</h2>
+        <p>一份报告如果不知道跑在什么环境上，三个月后回看就等于废纸。Allure 支持在 results 目录放一个 <code>environment.properties</code>，渲染后会出现在报告首页的 Environment 区块。我们固定写六项：操作系统、Python 版本、Appium 版本、设备型号与 API、被测包版本、环境标识。</p>
+        <p>包版本一定要写构建号而不是版本名。很多问题只在某个具体构建上出现，只写 5.8.2 无法区分是同版本的第三次构建还是第一次。</p>
+
+        <div class="code-head"><span>python — 生成 environment.properties</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+import platform
+import subprocess
+
+
+def write_environment(results_dir: str = "allure-results",
+                      app_version: str = "5.8.2 (build 20261112)") -&gt; None:
+    appium = subprocess.run(
+        ["appium", "--version"], capture_output=True, text=True,
+    ).stdout.strip()
+    info = {
+        "os": platform.platform(),
+        "python": platform.python_version(),
+        "appium": appium or "unknown",
+        "device": "Pixel 7 (API 34)",
+        "app_version": app_version,
+        "test_env": "staging",
+    }
+    lines = [f"{key}={value}" for key, value in info.items()]
+    target = pathlib.Path(results_dir, "environment.properties")
+    target.write_text("\n".join(lines), encoding="utf-8")</code></pre>
+
+        <h2>让报告可读：分层标记与步骤</h2>
+        <p>Allure 的默认视图按文件平铺，三百多条用例挤在一页，没人愿意逐个翻。真正提升阅读效率的是三层标记：epic 对应业务域，feature 对应模块，story 对应具体场景。管理端、交易、会员三条线各占一个 epic，报告首页就能按业务域折叠，谁负责的部分一目了然。</p>
+        <p>再往下一层是 severity。我们把阻塞级用例标成 blocker，主流程标 critical，异常分支标 normal，边缘场景标 minor。发版评审时只看 blocker 和 critical 的失败数，避免被一堆 minor 的红色淹没真正的风险。</p>
+        <p>另一件常被忽略的事是步骤。失败信息如果只有断言那一行，看报告的人还得回读代码才知道走到了哪一步。用 <code>@allure.step</code> 把登录、加购、提交订单分别包起来，报告里就会显示一棵步骤树，失败节点自动标红，截图也挂在对应步骤下面，读起来像一份操作记录而不是一堆堆栈。</p>
+        <ul>
+          <li><strong>epic / feature / story</strong>：固定三级，不允许自创第四级，否则筛选器会膨胀到无法使用。</li>
+          <li><strong>severity</strong>：五级够用，超过五级团队就会凭感觉乱标。</li>
+          <li><strong>step</strong>：一个步骤只做一件可描述的事，参数里不要塞整段 JSON。</li>
+          <li><strong>link</strong>：把缺陷单号挂进用例，报告与缺陷系统就能互相跳转。</li>
+        </ul>
+
+        <h2>flaky 率与历史趋势</h2>
+        <p>Allure 自带历史趋势，但它要求把上一次的 <code>history.json</code> 拷进新的 results 目录，在 CI 上很容易因为缓存缺失而断档。我们改成自己算：把最近 N 次运行的 results 目录一起解析，按用例名聚合状态，通过率既不是 0 也不是 100% 的，就是 flaky。</p>
+        <p>这个指标比通过率有用得多。通过率 88% 可能意味着 12% 的用例稳定失败，也可能意味着每条用例都有 12% 的概率抖动，两者的处理方式完全不同。下面这段脚本同时给出 flaky 率和最不稳定的前十条用例。</p>
+
+        <div class="code-head"><span>python — 计算 flaky 率</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import collections
+import json
+import pathlib
+
+
+def flaky_rate(run_dirs, min_runs: int = 5):
+    history = collections.defaultdict(list)
+    for run_dir in run_dirs:
+        for result_file in pathlib.Path(run_dir).glob("*-result.json"):
+            data = json.loads(result_file.read_text(encoding="utf-8"))
+            history[data["name"]].append(data["status"])
+
+    checked = {name: states for name, states in history.items()
+               if len(states) &gt;= min_runs}
+    flaky = [name for name, states in checked.items() if len(set(states)) &gt; 1]
+    flaky.sort(key=lambda name: history[name].count("passed"))
+    rate = round(len(flaky) / max(len(checked), 1) * 100, 1)
+    return rate, flaky[:10]
+
+
+if __name__ == "__main__":
+    runs = [f"archive/run-{i}" for i in range(41, 51)]
+    rate, top = flaky_rate(runs)
+    print(f"flaky 率 {rate}%")
+    for name in top:
+        print(" -", name)</code></pre>
+
+        <h2>归档与 CI 集成</h2>
+        <p>报告要能被人拿到，而不是躺在某个构建机的临时目录里。我们把 <code>allure generate</code> 放在流水线最后一步，无论测试是否通过都执行，然后把整个报告目录作为 artifact 上传，保留 30 天。这样失败构建也能点进去看现场，而不是只有一条红色叉。</p>
+
+        <div class="code-head"><span>yaml — GitHub Actions 片段</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>name: app-e2e
+on: [push]
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - run: pip install -r requirements.txt
+      - run: pytest -m p0 --alluredir=allure-results
+        continue-on-error: true
+      - run: npx allure-commandline generate allure-results -o allure-report --clean
+        if: always()
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: allure-report-${{ github.run_number }}
+          path: allure-report
+          retention-days: 30</code></pre>
+
+        <p>失败时再补一步通知：把报告链接、失败用例数、flaky 率一起推到群里，比只发一句构建失败有用得多。有人打开链接就能看到截图和录屏，沟通成本直接降下来。</p>
+        <p>还有一个容易忽略的点是报告的可访问性。内网 Jenkins 构建出来的报告只有内网能打开，外网同事或外包团队打不开；云上流水线的 artifact 又需要登录，还有固定保留期。我们的做法是把每个迭代最后一个构建的报告另存一份到对象存储，按日期建固定路径，同时在用例管理平台里挂上链接。半年后追查某个线上问题是什么时候引入的，还能翻到当时的截图与录屏，而不是只记得大概在哪次发版。</p>
+
+        <h2>踩坑与边界</h2>
+        <p><strong>症状</strong>：报告里附件数量对不上，有的失败用例只有截图没有 logcat。<strong>原因</strong>：钩子里用 <code>driver.capabilities.get</code> 取 udid，但 iOS 的 XCUITest 驱动返回的字段名不一致，取到 None 后 adb 命令直接抛异常，后面的附件全部中断。<strong>处理</strong>：把每个附件写入包在独立的 try 里，任何一个取证失败都不能影响其余附件与用例结果。</p>
+        <p><strong>症状</strong>：中文日志在报告里显示成乱码。<strong>原因</strong>：Windows 上 subprocess 默认按 GBK 解码，而 logcat 输出是 UTF-8。<strong>处理</strong>：显式指定 UTF-8 解码，并对非法字节做替换处理，宁可丢几个字符也不要整段报错。</p>
+        <p><strong>症状</strong>：报告文件几百 MB，打开要等十几秒。<strong>原因</strong>：每条用例都挂了全屏 PNG，300 多条用例加起来超过 1GB。<strong>处理</strong>：截图先按 50% 质量转 JPEG，宽度压到 720px，录屏只在失败时保留，报告体积能降到 60MB 以内。</p>
+        <p><strong>症状</strong>：并行跑四台设备时，报告里有些用例的截图是别人的页面。<strong>原因</strong>：所有进程写同一个 allure-results 目录，文件名基于用例名生成，同名用例互相覆盖。<strong>处理</strong>：每台设备用独立的 results 子目录，最后合并；或者给 allure-results 加进程号后缀。</p>
+
+        <h2>效果度量</h2>
+        <table>
+          <thead>
+            <tr><th>指标</th><th>改造前</th><th>改造后</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>失败用例平均定位耗时</td><td>35 分钟</td><td>8 分钟</td></tr>
+            <tr><td>失败可复现率（有现场证据）</td><td>约 40%</td><td>96%</td></tr>
+            <tr><td>flaky 率</td><td>15%，无人跟踪</td><td>4%，每周公示 Top 10</td></tr>
+            <tr><td>回归报告人工整理时间</td><td>每次 1.5 小时</td><td>0</td></tr>
+            <tr><td>单次运行额外耗时</td><td>0</td><td>约 4 分钟</td></tr>
+          </tbody>
+        </table>
+        <p>结尾给一个判断标准：如果一份失败的自动化报告，需要写这条用例的人亲自解释才能看懂，那它就还不是一份合格的报告。合格的报告应该让一个不熟悉该项目的人，三分钟内说清楚失败发生在哪一步、当时界面是什么、设备上有没有异常。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://allurereport.org/docs/pytest/" target="_blank" rel="noopener">Allure Report 与 pytest 集成文档 — Allure</a></li>
+            <li><a href="https://github.com/allure-framework/allure-python" target="_blank" rel="noopener">allure-python：附件类型与钩子用法 — GitHub</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/reference/reference.html#hook-reference" target="_blank" rel="noopener">pytest 钩子参考：pytest_runtest_makereport — pytest Docs</a></li>
+            <li><a href="https://developer.android.com/tools/adb#screenrecord" target="_blank" rel="noopener">adb shell screenrecord 使用说明 — Android Developers</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#allure</span>
+          <span class="tag">#appium</span>
+          <span class="tag">#test-report</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

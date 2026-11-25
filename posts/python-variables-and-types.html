@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>测试工程师的 Python 第一课：变量与类型 · 软件测试资料集</title>
+<meta name="description" content="从Python 变量不用声明到None 不是 0，配测试数据准备案例，小白也能看懂的 Python 基础。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-variables-and-types.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="测试工程师的 Python 第一课：变量与类型">
+<meta property="og:description" content="从Python 变量不用声明到None 不是 0，配测试数据准备案例，小白也能看懂的 Python 基础。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-variables-and-types.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="测试工程师的 Python 第一课：变量与类型">
+<meta name="twitter:description" content="从Python 变量不用声明到None 不是 0，配测试数据准备案例，小白也能看懂的 Python 基础。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"测试工程师的 Python 第一课：变量与类型","description":"从Python 变量不用声明到None 不是 0，配测试数据准备案例，小白也能看懂的 Python 基础。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-variables-and-types.html","articleSection":"Python 编程入门","keywords":"python, variables, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>测试工程师的 Python 第一课：变量与类型</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-variables-and-types">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Python 3.10+
+# 创建虚拟环境
+python -m venv venv
+venv\Scripts\activate   # Windows
+
+# 安装核心库
+pip install pytest requests pandas
+# 验证
+pytest --version</code></pre>
+<div class="code-head"><span>python — 验证</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+resp = requests.get("https://httpbin.org/get", timeout=5)
+assert resp.status_code == 200
+print("Python 环境就绪 ✓")</code></pre>
+
+<h2>基础应用：第一个测试用例</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+
+def test_api():
+    resp = requests.get("https://httpbin.org/get", params={"name": "test"}, timeout=10)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["args"]["name"] == "test"
+    print("基础接口测试通过 ✓")</code></pre>
+
+<h2>项目进阶：pytest + fixture + 参数化 + 报告</h2>
+<div class="code-head"><span>python — conftest.py</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest, requests
+
+@pytest.fixture
+def api():
+    return requests.Session()
+
+@pytest.fixture
+def user():
+    return {"username": "test@example.com"}</code></pre>
+<div class="code-head"><span>python — 参数化测试</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest
+
+@pytest.mark.parametrize("code", [200, 301, 404, 500])
+def test_status(api, code):
+    resp = api.get(f"https://httpbin.org/status/{code}", timeout=5)
+    assert resp.status_code == code</code></pre>
+
+        <h2>Python 里的变量：不用声明，直接赋值</h2>
+        <p>在 Java 里，你得写 <code>int x = 10;</code>，先声明类型再赋值。在 Python 里，直接写 <code>x = 10</code> 就行了。Python 的变量是「标签」，贴到值上，不占内存。同一个变量名可以贴到不同类型的值上：</p>
+        <div class="code-head"><span>python — 变量赋值</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 同一变量，不同类型，完全合法
+x = 10          # x 是 int（整数）
+x = "hello"     # x 现在是 str（字符串），int 被丢掉了
+x = [1, 2, 3]   # x 现在是 list（列表）
+
+# 查看变量的类型
+print(type(x))   # &lt;class 'list'&gt;
+
+# 同时赋值（解包）
+a, b, c = 1, 2, 3
+print(a, b, c)    # 1 2 3
+
+# 变量交换（不用临时变量）
+a, b = b, a      # a 和 b 的值交换了
+print(a, b)      # 2 1</code></pre>
+        <div class="callout">
+          <p>Python 变量没有「类型」，只有「值」有类型。变量只是贴在值上的「标签」，你随时可以把标签撕下来贴到别的值上。这和 Java/C 的「变量有类型」完全不同。</p>
+        </div>
+
+        <h2>六大基本类型：测试数据的主力</h2>
+        <div class="code-head"><span>python — 基本类型一览</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. int（整数）—— 订单号、数量、状态码
+order_id = 100234
+status_code = 200
+
+# 2. float（浮点数）—— 金额、比例、响应时间
+price = 99.99
+response_time_ms = 156.3
+
+# 3. str（字符串）—— 用户名、邮箱、URL
+username = "test_user"
+email = "test@example.com"
+url = "https://api.example.com/orders/100234"
+
+# 4. bool（布尔）—— 判断条件
+is_valid = True
+has_permission = False
+
+# 5. None —— 表示"空"、"没有值"
+result = None  # 还没有结果
+error_message = None  # 没有错误
+
+# 6. 容器类型 —— list / dict / tuple / set
+users = ["alice", "bob", "charlie"]     # list（有序、可改）
+config = {"env": "test", "timeout": 10}  # dict（键值对）
+coordinates = (10.5, 20.3)               # tuple（有序、不可改）
+unique_ids = {101, 102, 103}            # set（无序、去重）</code></pre>
+
+        <h3>None 不是 0，也不是空字符串</h3>
+        <p>这是测试工程师最容易踩的坑：</p>
+        <div class="code-head"><span>python — None 的陷阱</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>print(None == 0)          # False！None 不等于 0
+print(None == "")         # False！None 不等于空字符串
+print(None is None)       # True（用 is 判断 None，不用 ==）
+print(None == None)       # True（但推荐用 is）
+
+# 接口返回"没有数据"时，通常返回 None，不是 0 也不是 ""
+result = call_api("/api/data")
+if result is None:
+    print("接口没返回数据")
+else:
+    print(f"数据：{result}")</code></pre>
+        <div class="callout warn">
+          <p>测试断言时，判断「没有值」用 <code>is None</code>，不要用 <code>== 0</code> 或 <code>== ""</code>。接口返回 <code>null</code> 在 Python 里是 <code>None</code>，不是 0。</p>
+        </div>
+
+        <h2>字符串格式化：f-string 最常用</h2>
+        <p>测试脚本里要打印日志、拼 URL、构造请求头，字符串格式化是基本功。Python 3.6+ 推荐用 f-string（最简洁）：</p>
+        <div class="code-head"><span>python — 字符串格式化</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># f-string（最推荐，直接写变量名）
+user_name = "张三"
+order_id = 100234
+price = 99.99
+
+# 拼 URL
+url = f"https://api.example.com/orders/{order_id}"
+print(url)   # https://api.example.com/orders/100234
+
+# 拼日志
+print(f"[测试] 用户 {user_name} 的订单 {order_id} 金额 {price:.2f}")
+# [测试] 用户 张三 的订单 100234 金额 99.99
+
+# f-string 里还能写表达式
+count = 5
+print(f"共 {count * 2} 条用例" + " 执行完毕")  # 共 10 条用例 执行完毕
+
+# 传统格式（老代码里常见，认识一下）
+print("订单 %d 金额 %.2f" % (order_id, price))
+print("订单 {} 金额 {:.2f}".format(order_id, price))</code></pre>
+
+        <h2>常见类型错误：TypeError 和 ValueError</h2>
+        <p>写测试脚本时，最常遇到的两个类型错误：</p>
+        <div class="code-head"><span>python — 类型错误示例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. TypeError：类型不匹配（"字符串 + 整数"）
+try:
+    result = "订单号：" + 100234   # str + int，报错
+except TypeError as e:
+    print(f"类型错误：{e}")
+    # 类型错误：can only concatenate str (not "int") to str
+    # 修正：result = f"订单号：{100234}"
+
+# 2. ValueError：值不合法（"把'abc'转成整数"）
+try:
+    number = int("abc")   # 字符串 "abc" 不是合法数字，报错
+except ValueError as e:
+    print(f"值错误：{e}")
+    # 值错误：invalid literal for int() with base 10: 'abc'
+    # 修正：先判断再转换
+    user_input = "abc"
+    if user_input.isdigit():
+        number = int(user_input)
+    else:
+        print("输入不是数字")</code></pre>
+        <div class="callout">
+          <p>测试脚本里，接口返回的数据「看起来像数字」但其实是字符串（<code>"100"</code> 而不是 <code>100</code>），直接当数字用会报 <code>TypeError</code>。写断言前先确认类型：<code>print(type(data))</code>。</p>
+        </div>
+
+        <h2>案例：测试数据准备</h2>
+        <p>把上面学到的变量、类型、f-string 串起来，写一段「测试数据准备」代码：</p>
+        <div class="code-head"><span>python — 测试数据准备</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import random
+import string
+
+def generate_test_user():
+    """生成一个测试用户数据（模拟接口返回）"""
+    # 生成随机用户名（6 位字母）
+    username = ''.join(random.choices(string.ascii_lowercase, k=6))
+
+    # 生成随机邮箱
+    email = f"{username}@test.example.com"
+
+    # 生成随机手机号（11 位）
+    phone = "1" + str(random.randint(1000000000, 9999999999))
+
+    # 生成随机年龄（18~60）
+    age = random.randint(18, 60)
+
+    # 组装成字典（模拟接口 JSON 响应）
+    user_data = {
+        "username": username,
+        "email": email,
+        "phone": phone,
+        "age": age,
+        "is_active": True,
+        "avatar": None,  # 没有头像，用 None 表示
+    }
+    return user_data
+
+# 生成 5 个测试用户
+test_users = [generate_test_user() for _ in range(5)]
+
+# 打印结果
+for user in test_users:
+    print(f"用户：{user['username']}  邮箱：{user['email']}  年龄：{user['age']}")
+
+# 检查数据类型
+assert all(isinstance(u["age"], int) for u in test_users)   # 年龄必须是 int
+assert all(u["avatar"] is None for u in test_users)          # 头像都是 None</code></pre>
+        <p>这段代码用到了：随机数据生成（<code>random</code>）、f-string 拼接邮箱、字典构造测试数据、列表推导式批量生成、断言检查数据类型。这就是测试工程师写「测试数据准备」代码的日常。</p>
+        <div class="callout">
+          <p>记住三条：① 变量不用声明，直接赋值；② 判断「没有值」用 <code>is None</code>；③ 打印/拼接字符串用 f-string，最简洁。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/tutorial/introduction.html" target="_blank" rel="noopener">Python 官方教程 - 简单解释 Python</a></li>
+            <li><a href="https://docs.python.org/3/library/stdtypes.html" target="_blank" rel="noopener">Python 内置类型官方文档</a></li>
+            <li><a href="https://realpython.com/python-string-formatting/" target="_blank" rel="noopener">Real Python - String Formatting 完全指南</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#python</span>
+          <span class="tag">#variables</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

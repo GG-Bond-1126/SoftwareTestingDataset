@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Playwright 进阶：Page Object + 数据驱动 · 软件测试资料集</title>
+<meta name="description" content="拆解 Playwright 下 PO 的惰性定位、组件拆分、fixture 注入登录态与数据驱动，附登录加下单完整示范">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-playwright-pagemodel.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Playwright 进阶：Page Object + 数据驱动">
+<meta property="og:description" content="拆解 Playwright 下 PO 的惰性定位、组件拆分、fixture 注入登录态与数据驱动，附登录加下单完整示范">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-playwright-pagemodel.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Playwright 进阶：Page Object + 数据驱动">
+<meta name="twitter:description" content="拆解 Playwright 下 PO 的惰性定位、组件拆分、fixture 注入登录态与数据驱动，附登录加下单完整示范">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Playwright 进阶：Page Object + 数据驱动","description":"拆解 Playwright 下 PO 的惰性定位、组件拆分、fixture 注入登录态与数据驱动，附登录加下单完整示范","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-playwright-pagemodel.html","articleSection":"Web 自动化","keywords":"playwright, page-object, data-driven","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>22 min read</span>
+        </div>
+        <h1>Playwright 进阶：Page Object + 数据驱动</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-playwright-pagemodel">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <figure class="article-figure">
+          <svg viewBox="0 0 720 360" width="100%" role="img" aria-labelledby="fig-web-playwright-pagemodel-1-title" xmlns="http://www.w3.org/2000/svg">
+            <title id="fig-web-playwright-pagemodel-1-title">页面对象结构：测试用例调用页面对象，页面对象组合组件对象，组件对象持有 locator；右侧标出断言只写在用例层、locator 只留在页面对象的边界</title>
+            <defs>
+              <marker id="fig-po-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--text-faint)"/>
+              </marker>
+            </defs>
+            <rect x="100" y="28" width="320" height="56" rx="10" fill="var(--panel-2)" stroke="var(--border)"/>
+            <text x="124" y="52" fill="var(--accent)" font-size="15" font-weight="600" font-family="inherit">测试用例 tests</text>
+            <text x="124" y="71" fill="var(--text-dim)" font-size="12.5" font-family="inherit">组织场景，断言在这里</text>
+            <path d="M 260 84 L 260 108" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-po-arrow)"/>
+            <text x="272" y="100" fill="var(--text-faint)" font-size="11.5" font-family="inherit">调用</text>
+            <rect x="100" y="108" width="320" height="56" rx="10" fill="var(--panel-2)" stroke="var(--border)"/>
+            <text x="124" y="132" fill="var(--cyan)" font-size="15" font-weight="600" font-family="inherit">页面对象 pages</text>
+            <text x="124" y="151" fill="var(--text-dim)" font-size="12.5" font-family="inherit">单页动作，保存 locator</text>
+            <path d="M 260 164 L 260 188" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-po-arrow)"/>
+            <text x="272" y="180" fill="var(--text-faint)" font-size="11.5" font-family="inherit">组合</text>
+            <rect x="100" y="188" width="320" height="56" rx="10" fill="var(--panel-2)" stroke="var(--border)"/>
+            <text x="124" y="212" fill="var(--cyan)" font-size="15" font-weight="600" font-family="inherit">组件对象 components</text>
+            <text x="124" y="231" fill="var(--text-dim)" font-size="12.5" font-family="inherit">持有 root，内部相对定位</text>
+            <path d="M 260 244 L 260 268" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-po-arrow)"/>
+            <text x="272" y="260" fill="var(--text-faint)" font-size="11.5" font-family="inherit">持有</text>
+            <rect x="100" y="268" width="320" height="56" rx="10" fill="var(--panel-2)" stroke="var(--border)"/>
+            <text x="124" y="292" fill="var(--text)" font-size="15" font-weight="600" font-family="inherit">locator（惰性描述）</text>
+            <text x="124" y="311" fill="var(--text-dim)" font-size="12.5" font-family="inherit">动作时才解析 DOM</text>
+            <path d="M 460 56 H 420" fill="none" stroke="var(--border-strong)" stroke-width="1.2" stroke-dasharray="4 4"/>
+            <rect x="460" y="34" width="240" height="44" rx="10" fill="rgba(61,220,132,0.12)" stroke="var(--accent)" stroke-width="1.2"/>
+            <text x="580" y="61" fill="var(--accent)" font-size="12.5" font-family="inherit" text-anchor="middle">断言只写在用例层</text>
+            <path d="M 460 136 H 420" fill="none" stroke="var(--border-strong)" stroke-width="1.2" stroke-dasharray="4 4"/>
+            <rect x="460" y="114" width="240" height="44" rx="10" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.2"/>
+            <text x="580" y="141" fill="var(--cyan)" font-size="12.5" font-family="inherit" text-anchor="middle">locator 只留在页面对象</text>
+            <path d="M 460 216 H 420" fill="none" stroke="var(--border-strong)" stroke-width="1.2" stroke-dasharray="4 4"/>
+            <rect x="460" y="194" width="240" height="44" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="580" y="221" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">root.locator 相对定位</text>
+          </svg>
+          <figcaption>图 1 · 断言往上收、定位往下沉：用例只调用业务动作，结构细节止步于页面对象与组件</figcaption>
+        </figure>
+        <h2>先说清楚：Playwright 里 PO 还剩下什么</h2>
+        <p>把 Selenium 时代的页面对象原样搬进 Playwright，是团队迁移时最常见的动作，结果通常是两层冗余：页面对象里塞满 WebDriverWait 和 try/except，测试里又到处补 wait_for_timeout。Playwright 的自动等待让「怎么等」这一层失去了意义，继续保留只会增加噪音。</p>
+        <p>剥掉等待和重试之后，页面对象只该负责三件事：描述页面结构与定位器、暴露业务动作（登录、加购、提交订单）、在跨页面动作后返回下一个页面对象。它不该负责断言、测试数据准备和浏览器生命周期，这些分别属于测试层、数据层和 fixture。</p>
+        <p>一个简单的越界判断：把方法名念出来，如果听起来像用户动作就留下，如果像框架动作就该搬走。提交订单、填写收货地址属于前者；等待元素出现、轮询接口返回、校验提示文案属于后者。这条标准比任何分层图都好用，评审代码时直接逐行念。</p>
+
+        <h2>三处本质差异：惰性 locator、无需显式等待、strict 模式</h2>
+        <p>第一处是惰性 locator。page.locator 只生成一个描述，不立刻查询 DOM；每次动作时才重新解析，因此不会出现 Selenium 里那种 stale element 引用失效。这带来一个与旧习惯相反的好处：在页面对象的构造函数里保存 locator 是安全的。但如果你在构造函数里调用取值方法，比如读文本、读数量，就把描述变成了读取，重试能力随之丢失。</p>
+        <p>第二处是自动等待。click、fill 这类动作执行前会做可操作性检查：元素可见、位置稳定、能接收事件、处于可用状态，任何一项不满足就轮询到超时。所以页面对象里写 sleep 是纯浪费，正确的做法是让动作自己等。反过来说，超时也不再意味着「页面慢」，而是「条件永远不满足」，排查方向要换。</p>
+        <p>第三处是 strict 模式。一个定位器匹配到多个元素时，Playwright 直接报错，而不是默默取第一个。这在页面对象里是优点，它逼你把定位写准；列表和卡片场景必须显式用 first、nth 或 filter 收窄。报错信息会告诉你匹配到几个元素，照着改通常一次就能修好。</p>
+        <div class="code-head"><span>python — 惰性定位与 strict 报错</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>class InventoryPage:
+    def __init__(self, page):
+        self.page = page
+        # 构造时只是描述，不查询 DOM
+        self.items = page.locator("[data-test=inventory-item]")
+
+    def add_first(self):
+        # 六个商品都会匹配 self.items，必须显式收窄
+        self.items.first.get_by_role("button", name="Add to cart").click()
+
+# 漏掉 first 时的报错：
+# playwright._impl._errors.StrictModeViolation:
+#   locator resolved to 6 elements
+</code></pre>
+        <p>把这三条记成一句话：定位器是描述，动作会自己等，歧义必须显式消除。理解了这一点，页面对象里九成的手写等待和 try/except 都可以删掉，代码量通常能少三分之一。</p>
+
+        <h2>页面对象该返回什么：locator、数据还是下一个页面</h2>
+        <p>返回值决定了调用方能不能保持稳定。跨页面的动作返回下一个页面对象，这是最没有争议的一种，调用方拿到就能继续链式操作。读取类的动作返回数据，比如字符串、数字、列表，调用方不需要知道页面长什么样。只用于断言的区域返回 locator，让测试层自己决定断言什么。</p>
+        <p>最常见的坏味道是返回整块容器，让测试自己往下钻。比如把表格的 locator 抛出去，测试里再 nth(2) 加 locator(td) 加 nth(1)，选择器结构就泄漏到了用例层。改一次表格列顺序要改十几个用例，而页面对象本该是唯一需要跟着改的地方。</p>
+        <p>这里有一个真实取舍：返回数据解耦最彻底，但丢掉了自动等待，可能读到渲染中间态，比如骨架屏期间的零条记录；返回 locator 保留了等待与重试语义，但把结构暴露给了测试。我的建议是按用途分：断言类返回 locator，展示与编排类返回数据，同一个页面对象里两种都允许存在，但方法名要能一眼区分。</p>
+        <div class="code-head"><span>python — 两种返回值各司其职</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>class CartPage:
+    def __init__(self, page):
+        self.page = page
+        self.rows = page.locator(".cart_item")
+
+    def row(self, name: str):
+        # 给测试层断言用，保留自动等待
+        return self.rows.filter(has_text=name)
+
+    def item_names(self) -&gt; list[str]:
+        # 给流程编排用，调用方不关心页面结构
+        return self.rows.locator(".inventory_item_name").all_inner_texts()
+</code></pre>
+
+        <h2>组件对象：什么时候值得拆</h2>
+        <p>组件对象解决的是重复，不是「看起来更面向对象」。触发拆分通常有两种情况：同一结构出现在两个以上页面，比如导航栏、分页器、提示条、日期选择器、上传控件；或者单页内重复三次以上，比如商品卡、订单行、表格行。除此之外都不值得拆。</p>
+        <p>不该拆的情况也要说清楚：只出现一次、只有两三个元素、没有任何行为。硬拆的结果是多一层跳转，读代码时要在三个文件之间来回翻，维护成本高于收益。判断标准是「这段结构会不会单独变化」，会，就拆；不会，就留在页面对象里。</p>
+        <p>实现上有两个必须遵守的点。组件必须持有自己的 root locator，内部一律用 root.locator 相对定位，绝不能用 page 全局查找，否则页面上出现第二个同结构实例时立刻触发 strict 报错。组件方法要么返回自身支持链式调用，要么返回数据，不要返回 page，那会让调用方绕过页面对象。</p>
+        <div class="code-head"><span>python — 组件对象持有 root，内部相对定位</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>class CartRow:
+    def __init__(self, root):
+        self.root = root
+
+    @property
+    def name(self):
+        return self.root.locator(".inventory_item_name")
+
+    def remove(self):
+        self.root.get_by_role("button", name="Remove").click()
+        return self
+
+
+class CartPage:
+    def __init__(self, page):
+        self.page = page
+        self._rows = page.locator(".cart_item")
+
+    def rows(self) -&gt; list[CartRow]:
+        return [CartRow(row) for row in self._rows.all()]
+</code></pre>
+
+        <h2>fixture：页面对象与登录态怎么注入</h2>
+        <p>pytest-playwright 已经提供了 page、context、browser 三个 fixture，其中 page 在每个测试前新建一个 context，Cookie 和 localStorage 天然隔离。页面对象应该由 fixture 装配好再交给用例，这样用例里看不到 page，只看到业务对象，改定位时不需要动测试。</p>
+        <p>登录态是另一件事。每条用例都走一遍登录表单，慢且脆弱；复用登录态要用 storage_state，它保存的是 cookie 与 localStorage，不包含 sessionStorage，也不包含内存里的 token。做法是在一次性的 setup 里登录并保存文件，其余用例创建 context 时传入路径。</p>
+        <p>取舍在于复用还是每次重登。token 有效期长的系统适合 storage_state，能省掉大量时间；token 只有几分钟的系统，复用会让整批用例在某一刻集体失败，而且失败信息全都指向登录，很难定位，这时宁可每次登录。折中方案是启动时先探测登录态是否有效，失效就重新生成一次。</p>
+        <div class="code-head"><span>python — conftest.py 装配页面对象与登录态</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+
+import pytest
+from playwright.sync_api import Page
+
+from pages.login_page import LoginPage
+from pages.inventory_page import InventoryPage
+
+BASE_URL = "https://www.saucedemo.com"
+STATE = pathlib.Path(".auth/state.json")
+
+
+@pytest.fixture
+def login_page(page: Page):
+    page.goto(BASE_URL)
+    return LoginPage(page)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def auth_state(browser):
+    if STATE.exists():
+        return STATE
+    STATE.parent.mkdir(exist_ok=True)
+    context = browser.new_context()
+    page = context.new_page()
+    page.goto(BASE_URL)
+    LoginPage(page).login("standard_user", "secret_sauce")
+    context.storage_state(path=str(STATE))
+    context.close()
+    return STATE
+
+
+@pytest.fixture
+def inventory_page(browser, auth_state):
+    context = browser.new_context(storage_state=str(auth_state))
+    page = context.new_page()
+    page.goto(f"{BASE_URL}/inventory.html")
+    yield InventoryPage(page)
+    context.close()
+</code></pre>
+
+        <h2>数据驱动与 PO 怎么结合</h2>
+        <p>数据驱动是把输入与期望从代码里搬到数据文件，页面对象只接收参数，不负责读文件。参数化发生在测试层，用 pytest.mark.parametrize 或 Playwright 的参数化能力都可以，关键是页面对象对「这组数据来自哪里」一无所知，它只关心收到的用户名和密码。</p>
+        <p>数据文件里放业务语义，比如会员等级、优惠券类型、地址是否偏远、期望的提示文案；不要放选择器和等待时长，那属于页面对象与配置。用例 id 用业务名而不是序号，报告里一眼就能看出挂的是「锁定用户」还是「密码错误」，而不是 case_3。</p>
+        <p>一个常见的失败模式是在模块顶层读取数据文件。模块在收集阶段就被 import，文件不存在或格式错误会让整个文件的用例直接 collection error，一条都不跑，报错还藏在日志深处。正确的做法是放进 session 级 fixture，读取失败只影响依赖它的用例，信息也更清楚。</p>
+        <div class="code-head"><span>python — 参数化在测试层，PO 只收参数</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+from playwright.sync_api import expect
+
+CASES = [
+    ("standard_user", "secret_sauce", None),
+    ("locked_out_user", "secret_sauce", "locked out"),
+    ("standard_user", "wrong_password", "do not match"),
+]
+
+
+@pytest.mark.parametrize("username,password,error", CASES,
+                         ids=["正常", "锁定用户", "密码错误"])
+def test_login_feedback(login_page, username, password, error):
+    login_page.fill(username, password).submit.click()
+    if error is None:
+        expect(login_page.page).to_have_url("**/inventory.html")
+    else:
+        expect(login_page.error).to_contain_text(error)
+</code></pre>
+
+        <h2>断言为什么不能住进页面对象</h2>
+        <p>在页面对象里写 assert 会带来四个问题。失败信息缺少业务上下文，报告里只有一行断言失败；无法被重试、软断言等机制接管；同一个动作在不同用例里期望不同，比如登录成功和登录失败调用的是同一个方法；堆栈指向 pages 目录，读报告的人要先跳进实现才能明白发生了什么。</p>
+        <p>更重要的是时机。expect 会轮询到超时，而 assert 是立即求值，在异步渲染的页面上，assert 天然容易 flaky：元素已经出现在 DOM，但文案还没渲染完，断言就失败了。很多人以为是页面不稳定，实际是断言写法用错了工具。</p>
+        <p>如果确实需要封装检查逻辑，就封装成查询方法，返回布尔值或数据，命名用 is_ 或 has_ 前缀，让调用方自己决定断言什么。这样既复用了定位知识，又把判断权留在测试层，报告里的失败位置也正确。</p>
+        <div class="code-head"><span>python — 反模式与正确写法</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 反模式：断言写进页面对象
+class LoginPage:
+    def assert_login_failed(self):
+        assert "do not match" in self.error.inner_text()
+
+
+# 正确：页面对象只提供查询入口
+def test_login_failed(login_page):
+    login_page.fill("standard_user", "wrong").submit.click()
+    expect(login_page.error).to_contain_text("do not match")
+</code></pre>
+
+        <h2>多标签、新窗口、弹窗怎么建模</h2>
+        <p>新标签的触发要包在 context.expect_page 里，否则弹窗可能在监听注册之前就打开，事件被漏掉。拿到新页面后再做等待和断言。window.open 的行为类似，区别是有些实现会先停在 about:blank 再跳转，直接断言标题会失败，需要先等加载状态。</p>
+        <p>弹窗要分三类建模。原生 dialog 由浏览器渲染，必须用事件处理器接受或拒绝，否则页面会一直阻塞；DOM 弹层就是页面的一部分，按普通元素处理即可；iframe 里的内容要用 frame_locator，页面对象里把 root 换成它，后面的相对定位照旧。</p>
+        <p>建模原则是一个标签一个页面对象，由一个流程对象把它们的生命周期串起来，不要把 tab 的打开和关闭塞进页面对象内部。常见失败是 Target page, context or browser has been closed，原因通常是弹窗在断言前被业务代码关掉，或者 context 提前关闭。</p>
+        <div class="code-head"><span>python — 新标签与原生弹窗</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import re
+
+
+def test_help_opens_new_tab(page):
+    with page.context.expect_page() as new_page_info:
+        page.get_by_role("link", name="Help").click()
+    help_page = new_page_info.value
+    help_page.wait_for_load_state()
+    expect(help_page).to_have_title(re.compile("Help"))
+
+
+def test_confirm_dialog(page):
+    page.on("dialog", lambda dialog: dialog.accept())
+    page.get_by_role("button", name="Delete").click()
+    expect(page.locator(".toast")).to_have_text("已删除")
+</code></pre>
+
+        <h2>PO 层数膨胀怎么治</h2>
+        <p>膨胀有几个可观测的信号：单个页面对象超过三百行、方法超过二十五个、出现 do_everything 这类命名、页面对象之间互相 import 成环。出现任意两个，说明分层已经失控，继续加方法只会让下一个人更难改。</p>
+        <p>治理手段有四个。按区域拆组件，把重复结构下沉；把跨多个页面的流程抽成 Flow 或 Service 层，比如结算流程，页面对象只描述单页能力；基类只放导航和通用组件，不放业务方法；删掉只包一行的 getter，比如返回页面标题的方法没有任何封装价值，直接暴露 locator 更诚实。</p>
+        <p>继承还是组合是另一个取舍。继承共享导航栏很省事，但多个页面对象容易演化成菱形继承；组合更显式，代价是样板代码变多。我的选择是组合加一个很薄的基类，只放打开页面和通用组件。层数上限定在页面到组件到元素三层，超过三层通常说明在模拟 UI，而不是描述业务。</p>
+
+        <h2>完整示范：登录 + 下单</h2>
+        <p>目录按职责分：pages 放页面与组件，components 放可复用的区域，tests 放用例，conftest 只做装配。页面对象之间通过返回值连接，测试里读起来应该像一句业务描述，而不是一串定位操作。</p>
+        <p>下面三个文件覆盖一条完整链路：登录后进入商品列表，加入一件商品，进购物车结算，填写收货信息并完成下单。注意每个动作的返回值都是下一个页面对象或自身，断言全部留在用例里。</p>
+        <div class="code-head"><span>python — pages/login_page.py 与 inventory_page.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from playwright.sync_api import Page
+
+from pages.cart_page import CartPage
+from pages.inventory_page import InventoryPage
+
+
+class LoginPage:
+    def __init__(self, page: Page):
+        self.page = page
+        self.username = page.get_by_placeholder("Username")
+        self.password = page.get_by_placeholder("Password")
+        self.submit = page.get_by_role("button", name="Login")
+        self.error = page.locator("[data-test=error]")
+
+    def fill(self, username: str, password: str):
+        self.username.fill(username)
+        self.password.fill(password)
+        return self
+
+    def login(self, username: str, password: str) -&gt; InventoryPage:
+        self.fill(username, password)
+        self.submit.click()
+        self.page.wait_for_url("**/inventory.html")
+        return InventoryPage(self.page)
+
+
+class InventoryPage:
+    def __init__(self, page: Page):
+        self.page = page
+        self.items = page.locator("[data-test=inventory-item]")
+
+    def add_to_cart(self, name: str):
+        self.items.filter(has_text=name).get_by_role(
+            "button", name="Add to cart"
+        ).click()
+        return self
+
+    def open_cart(self) -&gt; CartPage:
+        self.page.locator("[data-test=shopping-cart-link]").click()
+        return CartPage(self.page)
+</code></pre>
+        <div class="code-head"><span>python — pages/cart_page.py、checkout_page.py 与用例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from playwright.sync_api import Page, expect
+
+
+class CheckoutPage:
+    def __init__(self, page: Page):
+        self.page = page
+        self.first = page.get_by_placeholder("First Name")
+        self.last = page.get_by_placeholder("Last Name")
+        self.zip_code = page.get_by_placeholder("Zip/Postal Code")
+        self.continue_btn = page.get_by_role("button", name="Continue")
+        self.finish = page.get_by_role("button", name="Finish")
+        self.complete = page.locator("[data-test=complete-header]")
+
+    def fill_info(self, first: str, last: str, zip_code: str):
+        self.first.fill(first)
+        self.last.fill(last)
+        self.zip_code.fill(zip_code)
+        self.continue_btn.click()
+        return self
+
+    def finish_order(self):
+        self.finish.click()
+        return self
+
+
+class CartPage:
+    def __init__(self, page: Page):
+        self.page = page
+
+    def checkout(self) -&gt; CheckoutPage:
+        self.page.get_by_role("button", name="Checkout").click()
+        return CheckoutPage(self.page)
+
+
+def test_checkout_single_item(inventory_page):
+    cart = inventory_page.add_to_cart("Sauce Labs Backpack").open_cart()
+    checkout = cart.checkout().fill_info("张", "三", "100000")
+    checkout.finish_order()
+    expect(checkout.complete).to_have_text("Thank you for your order!")
+</code></pre>
+        <p>这段示范里刻意没有出现 sleep、没有 try/except、没有在页面对象里写断言。如果把它交给一个没写过 Playwright 的同事，他应该能在五分钟内看懂整条链路，这就是分层是否成立的最终检验。</p>
+
+        <h2>落地顺序与检查清单</h2>
+        <p>迁移不要一次改完。先建三个页面对象的骨架，把 fixture 装配跑通；再把最简单的一条主流程改造成新结构，确认报告、截图、trace 都正常；然后按页面逐个迁移，每迁完一个删掉对应的旧方法；最后才处理数据驱动和组件拆分。顺序反了，会在中间态停留很久，谁都不敢合并。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>判据</th><th>常见错误</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>页面对象职责</td><td>只含定位器、业务动作、页面跳转</td><td>把断言和等待写进方法</td></tr>
+            <tr><td>返回值</td><td>跳转返回下一页，读取返回数据</td><td>把整块容器抛给测试层</td></tr>
+            <tr><td>组件拆分</td><td>出现两次以上且有独立变化</td><td>为单次结构硬拆一层</td></tr>
+            <tr><td>登录态</td><td>storage_state 或每次登录，策略写明</td><td>复用过期 token 导致批量失败</td></tr>
+            <tr><td>数据驱动</td><td>数据在文件，参数化在测试层</td><td>模块顶层读文件导致收集失败</td></tr>
+            <tr><td>断言位置</td><td>只在测试层用 expect</td><td>页面对象内 assert 立即求值</td></tr>
+            <tr><td>多标签</td><td>expect_page 包住触发动作</td><td>先点击后监听，事件漏掉</td></tr>
+            <tr><td>分层深度</td><td>页面到组件到元素，不超过三层</td><td>为每个 div 建一个类</td></tr>
+          </tbody>
+        </table>
+        <p>最后给一条判断标准：如果一个新同事能在十分钟内只读 tests 目录就说清这条用例在验什么，而改一次页面结构只需要动 pages 里的一个文件，那这套页面对象就是合格的。反过来，如果测试里还在写 nth 和 CSS，页面对象里还在 assert，那只是把 Selenium 的旧习惯换了个框架重新写了一遍。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://playwright.dev/python/docs/pom" target="_blank" rel="noopener">Playwright — Page object models</a></li>
+            <li><a href="https://playwright.dev/python/docs/locators" target="_blank" rel="noopener">Playwright — Locators 与 strict 模式</a></li>
+            <li><a href="https://playwright.dev/python/docs/auth" target="_blank" rel="noopener">Playwright — 认证与 storageState</a></li>
+            <li><a href="https://playwright.dev/python/docs/test-runners" target="_blank" rel="noopener">Playwright — 测试运行器与 fixtures</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/fixtures.html" target="_blank" rel="noopener">pytest — fixture 使用说明</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#playwright</span>
+          <span class="tag">#page-object</span>
+          <span class="tag">#data-driven</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

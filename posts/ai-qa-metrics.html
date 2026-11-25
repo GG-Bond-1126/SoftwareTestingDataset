@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 提效度量：别只看生成了多少条用例 · 软件测试资料集</title>
+<meta name="description" content="用采纳率、前移率、回归时长、漏测率与返工率度量 AI 提效，围绕 skill 用法与口径展开，不写脚本。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-qa-metrics.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="AI 提效度量：别只看生成了多少条用例">
+<meta property="og:description" content="用采纳率、前移率、回归时长、漏测率与返工率度量 AI 提效，围绕 skill 用法与口径展开，不写脚本。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-qa-metrics.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AI 提效度量：别只看生成了多少条用例">
+<meta name="twitter:description" content="用采纳率、前移率、回归时长、漏测率与返工率度量 AI 提效，围绕 skill 用法与口径展开，不写脚本。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"AI 提效度量：别只看生成了多少条用例","description":"用采纳率、前移率、回归时长、漏测率与返工率度量 AI 提效，围绕 skill 用法与口径展开，不写脚本。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-qa-metrics.html","articleSection":"落地实践","keywords":"效能度量, 指标设计, llm","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>14 min read</span>
+        </div>
+        <h1>AI 提效度量：别只看生成了多少条用例</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="ai-qa-metrics">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <h2>为什么「生成条数」是错误指标</h2>
+        <p>去年四季度汇报，我们做了一页挺漂亮的 PPT，写着「本季度 AI 生成用例 8600 条，设计效率提升 300%」。老板看完只问了一句：这 8600 条里能用的有多少。会议室安静了十几秒，然后有人开始解释「生成速度确实很快」。</p>
+        <p>这个数字没用，因为它既没有分母，也没有后续。真实情况是：8600 条里进入用例库的 2100 条，采纳率 24%；这 2100 条里又有 38% 在两周内被改过断言。也就是说，真正不需要返工的不到 1300 条。把这条链算完，效率提升从 300% 变成了 1.6 倍。数字难看，但它是真的。</p>
+        <p>类似的错误指标还有：AI 使用次数、使用人数、平均生成耗时、平均 token 消耗。这些只能证明工具被打开了，不能证明测试变好了。更麻烦的是，一旦把它们写进 OKR，团队会开始刷次数，生成一堆没人看的用例。度量之前先回答一个问题：你想证明什么。是省钱、省时间，还是质量变好。这三个答案对应不同的指标，混在一起讲，听众只会觉得你在凑数。</p>
+        <p>所以这篇文章不讲脚本。拉数可以用任何方式，真正的难点不在这里。难点在于口径定不准、数据挂不全、归因讲不清。这三件事，正好是一个 skill 能帮你盯住的地方：你把它挂上去的历史数据喂进来，它按你写死的口径算，算不出的东西不猜，进待确认清单。</p>
+
+        <h2>这个 skill 管什么、不管什么</h2>
+        <p>qa-metrics 这个 skill 只做一件事：依据你挂载进来的历史数据，按固定口径计算测试效能指标，并给出一段能直接上汇报台的结论。它不写拉数脚本，不调接口，也不替你到 CI 或缺陷系统里去抓数。数据得你准备好，放进约定目录，它来算。</p>
+        <p>它管的范围是六个指标：用例采纳率、缺陷发现前移率、回归时长、漏测率、维护成本、AI 产出返工率。再加上一层成本核算和一层归因说明。它不管的是：脚本怎么写、看板怎么搭、接口字段怎么拉。这三件事和「怎么度量」是两码事，混在一起反而会让你以为写好了脚本就等于度量做对了。</p>
+        <table>
+          <thead><tr><th>环节</th><th>谁来做</th><th>skill 管不管</th></tr></thead>
+          <tbody>
+            <tr><td>从 CI、缺陷系统、工具埋点拿原始数据</td><td>你（脚本或人工导出）</td><td>不管，只接收</td></tr>
+            <tr><td>把数据按约定目录和口径整理好</td><td>你</td><td>核对，缺了标不可计算</td></tr>
+            <tr><td>按口径计算六个指标</td><td>skill</td><td>管，只按写死的公式算</td></tr>
+            <tr><td>成本核算与归因说明</td><td>skill</td><td>管，token 之外必须算人工</td></tr>
+            <tr><td>汇报话术与边界</td><td>skill 给结论，你讲</td><td>管，给区间不给点值</td></tr>
+          </tbody>
+        </table>
+        <div class="callout">
+          <p>一个实用判断标准：如果你让 skill 去「拉数据」，它只能凭想象编接口地址和字段名，产出的全是<a class="ilink" href="ai-hallucination-testing.html">幻觉</a>。skill 的价值在口径和归因，不在搬数。数据搬运交给脚本，度量交给 skill，这是本文全部的前提。</p>
+        </div>
+
+        <h2>上下文怎么给：CI 记录、缺陷单、用例库、工时</h2>
+        <p>六类历史数据，缺一类就会有一个指标算不出来。给的时候粒度比数量重要：把一整年原始日志倒进去，模型抓不住重点；只给一个汇总数，它又没法做归因。下面是实际使用的给法。</p>
+        <table>
+          <thead><tr><th>材料</th><th>给什么</th><th>粒度</th><th>缺失后果</th></tr></thead>
+          <tbody>
+            <tr><td>埋点数据</td><td>生成、采纳、修改、删除四类动作的条数与时间</td><td>一行一条，保留 request_id</td><td>采纳率和返工率算不出</td></tr>
+            <tr><td>CI 记录</td><td>流水线名称、时长、用例数与通过率</td><td>按流水线分组，标并发数</td><td>回归时长不可比</td></tr>
+            <tr><td>缺陷单</td><td>发现阶段、关联需求、关闭时间</td><td>只给阶段枚举与计数</td><td>前移率和漏测率算不出</td></tr>
+            <tr><td>用例库变更</td><td>本月新增、修改、删除条数</td><td>按月汇总总数</td><td>维护成本算不出</td></tr>
+            <tr><td>工时</td><td>人工复核与返工小时数</td><td>按周或按月汇总</td><td>真实成本被低估</td></tr>
+            <tr><td>token 账单</td><td>输入输出 token 量与单价</td><td>只贴合计</td><td>只能估，不能算</td></tr>
+          </tbody>
+        </table>
+        <p>缺陷的发现阶段必须是固定枚举，这是最容易翻车的一项。我们用五个值：需求评审、开发自测、测试执行、预发验收、线上。曾经允许自由填写，出现了「联调」「冒烟」「验收中」等二十多种写法，一年后数据完全没法统计，只能人工重标 400 多条。所以现在喂给 skill 之前，先确认阶段字段是这五个枚举之一，出现别的值就退回重标，不让 skill 自己猜。</p>
+        <p>采纳数有个 30 天观察期的讲究。生成后点开过不算采纳，入库 30 天后仍未被删除才算。如果不写这条，采纳率会虚高到 90% 以上，因为「生成了就算采纳」这件事太容易发生。这条口径要在数据里体现，而不是在汇报时口头解释。</p>
+
+        <h2>历史数据怎么挂：目录 + 口径统一</h2>
+        <p>历史数据不是越多越好。把上上季度、去年、甚至三年前的数据一股脑塞给 skill，它会认真地把已经改了的口径和旧枚举混进来算，而且算得很顺。要做的是两件事：固定目录、统一口径。</p>
+        <h3>目录约定</h3>
+        <p>每个统计周期一个目录，目录名带周期。口径定义单独一份文件，跨周期对比前先核对两期口径是否一致。</p>
+        <div class="code-head"><span>text — 历史数据目录</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>metrics/
+├─ CALIBRATION.md                口径定义：枚举、公式、30 天观察期
+├─ q2-2026/
+│  ├─ events.csv                 埋点四类动作
+│  ├─ ci.csv                     流水线时长与用例数
+│  ├─ bugs.csv                   缺陷阶段枚举
+│  ├─ case-changes.csv           用例库变更
+│  ├─ effort.csv                 人工复核与返工工时
+│  └─ tokens.csv                 token 账单
+└─ q3-2026/
+   ├─ events.csv
+   ├─ ci.csv
+   ├─ bugs.csv
+   ├─ case-changes.csv
+   ├─ effort.csv
+   └─ tokens.csv</code></pre>
+        <h3>口径统一：写在文件里，不靠脑子</h3>
+        <p>CALIBRATION.md 里至少写死四样东西：缺陷阶段枚举的五取值、采纳率的 30 天观察期定义、回归时长的并发数前提、漏测率的公式分母。换人接手时，照着这份文件喂数据，口径不会漂。早期我们把口径记在汇报人的脑子里，换一个人接手，回归时长从 71 分钟变成 52 分钟，查了半天发现是并发数改了没写下来。</p>
+        <p>跨季度对比前，先让 skill 核对两期 CALIBRATION.md 是否一致。不一致的指标不下结论，标「不可比」。这不是偷懒，是诚实。口径改过一版之后，之前的数据和之后的就不可比了，硬比出来的结论全是假的。</p>
+        <div class="callout warn">
+          <p>不要跳过口径核对直接让 skill 出结论。口径不一致时，skill 会拿两套不同定义的数据算出「趋势」，这个趋势看起来合理，实际上什么都不是。先核口径，再算数。</p>
+        </div>
+
+        <h2>正确指标清单与每条的口径</h2>
+        <p>我们最终留了六个，分成产出质量、发现能力、成本三类。每个都有明确定义，季度内不改口径。下面这张表就是 skill 用来算数的口径来源，公式写在 CALIBRATION.md 里。</p>
+        <table>
+          <thead><tr><th>指标</th><th>定义与公式</th><th>我们的值</th></tr></thead>
+          <tbody>
+            <tr><td>用例采纳率</td><td>入库且 30 天未被删除的条数除以生成条数</td><td>58%</td></tr>
+            <tr><td>缺陷发现前移率</td><td>需求与开发自测阶段发现的缺陷数除以总缺陷数</td><td>30% → 44%</td></tr>
+            <tr><td>回归时长</td><td>固定并发下全量回归的中位数耗时</td><td>96 → 71 分钟</td></tr>
+            <tr><td>漏测率</td><td>线上缺陷数除以线上加测试阶段缺陷数</td><td>4.2% → 3.1%</td></tr>
+            <tr><td>维护成本</td><td>每千条用例的月度维护人时</td><td>12 → 7 小时</td></tr>
+            <tr><td>AI 产出返工率</td><td>被修改或删除的 AI 产出除以 AI 产出总数</td><td>34% → 17%</td></tr>
+          </tbody>
+        </table>
+        <p>六个里我最看重前移率和漏测率。前者说明测试介入更早，需求阶段就能拦住歧义；后者说明质量真的变了。这两个都不容易被刷，因为它们需要开发和测试一起动。采纳率和返工率必须成对看：只报采纳率 58% 显得不错，配上 17% 的返工率，才知道真实可用率大概在 48%。只报一个的行为，在我们内部会被直接问「另一个呢」。</p>
+        <p>回归时长有个前提：并发度必须一致。我们第一次统计时，Q3 把 runner 从 4 个加到 8 个，时长从 96 分钟降到 52 分钟，差点写成 AI 的功劳。后来固定 4 个 runner 重跑，真实数字是 71 分钟。这条前提写进口径里，skill 每次算之前都会提醒你核对并发数。</p>
+
+        <h2>提示词怎么设计：按口径算、算不出就进待确认清单</h2>
+        <p>给 qa-metrics 的提示词不追求让模型更聪明，只做三件事：固定输入槽位、固定口径、固定算不出来时的出口。槽位对应上一节的六类数据，出口对应待确认清单。下面是实际使用的骨架。</p>
+        <div class="code-head"><span>prompt — 效能指标计算</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>角色：你是一名有 8 年经验的测试效能分析师，负责给团队计算测试效能指标。
+
+任务：依据下方挂载的历史数据，按 CALIBRATION.md 的口径计算六个指标，并给出可上汇报台的结论。不写脚本，不调用接口，不估算数据。
+
+一、输入（只允许使用以下内容，缺哪类就标不可计算）
+1. 统计周期：{{period}}
+2. 埋点数据：{{events}}
+3. CI 记录：{{ci}}
+4. 缺陷数据：{{bugs}}
+5. 用例库变更：{{case_changes}}
+6. 工时：{{effort}}
+7. token 账单：{{tokens}}
+8. 口径定义：{{calibration}}
+9. 上期对照数据：{{baseline}}
+
+二、口径（必须严格遵守，与本清单冲突时以本清单为准）
+1. 缺陷阶段枚举固定五值：需求评审、开发自测、测试执行、预发验收、线上。
+2. 采纳率 = 入库且 30 天未被删除的条数 / 生成条数；生成即算采纳不算数。
+3. 回归时长只在 runner 并发数一致时比较，不一致标「不可比」。
+4. 漏测率 = 线上缺陷数 / (线上缺陷数 + 测试执行缺陷数)。
+5. 返工率与采纳率必须成对报告，不许只报一个。
+6. 样本量少于 30 个缺陷的指标不下结论，只写趋势观察。
+
+三、输出格式
+1. 先给一段不超过 120 字的结论，含主要收益指标与最需要关注的风险指标。
+2. 再给指标表：指标 | 定义 | 本期 | 上期 | 变化 | 样本量。
+3. 后附三段：成本核算、归因说明、下季度建议（最多三条，各带负责人）。
+
+四、不知道怎么办
+1. 缺哪类数据，对应指标标「不可计算」，不用估算值填充。
+2. 口径冲突、样本不足、阶段字段出现枚举之外的值，全部进入「待确认清单」。
+3. 无法判断某个变化来自 AI 还是流程，写明「拆分不开」，不硬归因。
+
+五、输出结尾必须包含
+## 待确认清单
+| 序号 | 缺失或不确定的内容 | 影响 | 需要谁提供 |
+没有待确认项时写「无」，不许省略这一节。</code></pre>
+        <p>这套骨架里真正起作用的是第四节。模型在缺数据时的默认行为是补一个看起来合理的数，补得越顺越难发现。给它一个明确出口，它才会把算不出的部分留下来，而不是替你决定。比如上一季度缺陷单没按枚举标阶段，它就不该硬把「联调」归到「测试执行」，而应该写进待确认清单，让你先回去重标。</p>
+
+        <h2>怎么向老板讲清 AI 提效边界</h2>
+        <p>我的汇报固定三段，每段不超过两句话。第一段讲在哪个环节提升了多少，必须带数字和样本量。第二段讲提升来自什么，把 AI 和流程各占多少说清楚，说不清就写拆分不开。第三段讲没有提升的部分，主动说。</p>
+        <p>不要承诺缺陷数量下降。需求本身变化、发布节奏、线上流量都会影响缺陷数，把这件事归因到 AI 上，下个季度就会被反噬。能承诺的是过程指标：设计阶段覆盖了哪些以前没覆盖的异常场景，评审时能提前发现多少歧义。</p>
+        <p>给区间，不给点值。「回归时长下降 20% 到 28%」比「下降 26%」更可信，因为后者会让人以为是精确测量。区间怎么来：用三个月的数据算最小值和最大值，不要拍脑袋加个正负 5%。</p>
+        <p>同样的数据，对直属主管和技术负责人要讲得不一样。主管关心下周排期有没有变松、返工谁来兜；技术负责人关心阈值、样本和失败案例。用同一套话术讲给所有人，通常两边都不满意。最后要主动讲风险，至少三条：模型对多条件组合的判断仍然不稳，返工主要集中在判定表类用例；生成质量依赖输入的需求结构化程度；外部模型的数据合规需要单独评估。讲清楚这些不会削弱汇报，反而会让人觉得你懂这套东西的边界。</p>
+        <p>这些话说起来像软技能，但它们都依赖同一个基础：数据本身是可信的。数据可信的前提有四个——口径季度内不改、样本量够、有对照组、原始数据可回溯。skill 在算的时候会逐条核对这四个前提，缺一条就在结论里标出来。</p>
+
+        <h2>踩坑与边界</h2>
+        <ul>
+          <li><strong>采纳率按打开计算</strong>：生成后点开过就算采纳，数字能到 92%。处理：口径写成入库 30 天且未被删除，采纳率立刻回到 58%。</li>
+          <li><strong>埋点重复上报</strong>：网络重试导致同一次生成记了三条。处理：喂给 skill 前按 request_id 去重，口径里写死这条。</li>
+          <li><strong>CI 并发度变化</strong>：runner 从 4 个加到 8 个，时长腰斩，被算成 AI 功劳。处理：对比前固定并发，或在指标里记录并发数，不一致标不可比。</li>
+          <li><strong>缺陷阶段被随手改</strong>：开发把线上问题改成测试发现，漏测率瞬间变好。处理：阶段字段加变更审计，喂数据前抽查 10%。</li>
+          <li><strong>只报好指标</strong>：只说生成量和采纳率，不说返工率。处理：输出格式里返工率是必填项，空着不让出结论。</li>
+          <li><strong>让 skill 去拉数</strong>：在提示词里写「从 Jira 拉缺陷」，skill 会编接口地址和字段名。处理：数据你先准备好，skill 只算数，这条是硬边界。</li>
+        </ul>
+        <p>这六条里，前两条是数据质量问题，中间两条是流程问题，最后两条是使用方式问题。前四条靠口径和审计能解决，后两条只能靠提示词和模板约束，而且一旦放松就会反弹。所以我们现在每季度复核一次 CALIBRATION.md，把口径漂移挡在数据入口。</p>
+        <div class="callout warn">
+          <p>这个 skill 的第一条硬性约束是：只依据引用文档与当前上下文输出，不许按想法自由发挥；信息不足的部分必须进入「待确认清单」，不许编造。</p>
+        </div>
+
+        <h2>Skill 完整展示</h2>
+        <p>这套流程对应的 skill 放在 Claude Code 的用户目录 <code>~/.claude/skills/qa-metrics/SKILL.md</code>；Trae 放在 <code>C:\Users\你的用户名\.trae\skills\qa-metrics\SKILL.md</code>，项目内则放 <code>.trae/skills/</code>。目录名与 front matter 的 name 保持一致，重启后加载。</p>
+        <div class="code-head"><span>markdown — SKILL.md</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>---
+name: qa-metrics
+description: 定义测试效能指标口径，覆盖用例采纳率、缺陷发现前移率、回归时长、漏测率、维护成本与 AI 产出返工率，依据挂载的 CI 记录、缺陷单、用例库与工时数据按口径计算，并核算 token 成本与人工节省，不写拉数脚本。
+---
+
+# AI 提效度量：别只看生成了多少条用例
+
+## 硬性约束（优先级最高，与其他章节冲突时以本节为准）
+
+1. 只能依据三类信息输出：用户提供的需求文档 / 接口文档 / 代码 / 日志原文、当前会话上下文、本 skill「输入」一节所列的文件。禁止凭想象补充业务规则、字段名、接口地址、阈值、状态码、版本号或历史数据。
+2. 每条产出都要可回溯，必须标注来源：文档章节或条款、文件路径与行号、日志片段、接口字段。标不出来源的条目不得进入正式产出。
+3. 信息不足时不许编造填补。缺失项一律进入「待确认清单」，逐条写清：缺什么、影响哪条结论、需要谁提供。
+4. 凡是基于经验补出的内容，必须以「推断：」开头，并写明依据与置信度（高 / 中 / 低）。置信度为低的推断不能当结论用。
+5. 禁止虚构引用：不编造文档条款号、版本号、链接、指标数值、报错原文。引用原文时逐字摘录并注明位置。
+6. 资料互相矛盾时（文档与代码不一致、两处规则冲突）不要自行取舍，把两种说法并列，标明冲突点和需要确认的问题。
+7. 输出前逐条自检：这条有来源吗？没有就移到「待确认清单」。自检不通过不许输出。
+
+## 待确认清单（输出必带）
+
+无论信息是否充足，输出末尾都保留这一节；没有待确认项时写「无」，不许省略该节。每行格式：
+
+| 序号 | 缺失或不确定的内容 | 影响 | 需要谁提供 |
+
+## 适用场景
+
+- 团队引入 AI 生成用例或测试点，需要向管理层汇报效果。
+- 已有指标只看产出数量，无法说明质量与成本。
+- 需要判断 AI 提效到底发生在哪个环节，是否值得继续投入。
+- 季度复盘需要一份可回溯的数据说明。
+
+以下情况不要用：
+
+- 还没有统一的缺陷阶段字段，先去补数据口径。
+- 样本量少于 30 个缺陷，结论不可靠，只能看趋势。
+- 用指标做个人绩效考核，指标会立刻失真。
+
+## 输入
+
+本 skill 不写任何拉数脚本，也不调用外部接口。它只做一件事：依据你挂载进来的历史数据，按固定口径计算指标并给出结论。缺哪一类数据，对应指标就标「不可计算」，不用估算值填充。
+
+必需：
+
+1. AI 生成工具的埋点数据：生成条数、采纳条数、修改条数、删除条数。
+2. CI 记录：流水线名称、开始与结束时间、执行用例数、通过数、失败数。
+3. 缺陷数据：提出时间、发现阶段、关联需求编号、关闭时间、是否线上。
+
+建议补充：
+
+4. 用例库变更记录，用于计算维护成本。
+5. token 用量与单价、人工复核工时，用于成本核算。
+6. 上一季度或对照组数据，用于对比。
+
+## 上下文与历史数据规范
+
+### 本次任务需要的材料
+
+| 材料 | 截取哪一部分 | 贴入方式 | 全文还是摘要 |
+| --- | --- | --- | --- |
+| 埋点数据 | 生成、采纳、修改、删除四类动作的条数与时间 | 一行一条，保留 request_id | 全文 |
+| CI 记录 | 流水线名称、时长、用例数与通过率 | 按流水线类型分组，标 runner 并发数 | 摘要 |
+| 缺陷单 | 发现阶段、关联需求、关闭时间 | 只贴阶段枚举与计数，去掉复述 | 摘要 |
+| 用例库变更 | 本月新增、修改、删除的用例条数 | 按月汇总，给总数即可 | 摘要 |
+| 工时 | 人工复核与返工的小时数 | 按周或按月汇总 | 摘要 |
+| token 账单 | 输入输出 token 量与单价 | 只贴合计，不贴逐次明细 | 摘要 |
+
+执行要求：
+
+1. 一次只贴一个统计周期的数据，例如一个季度，不要跨周期混喂。
+2. 缺陷阶段必须是固定枚举，出现自由文本时先让用户映射回枚举，不要自己猜。
+3. 采纳数必须带 30 天观察期，即入库 30 天后仍未被删除才算采纳，生成即算采纳会让采纳率虚高。
+4. CI 时长对比前先确认 runner 并发数一致，并发数不同则不直接比时长，标「不可比」。
+
+### 历史数据目录约定
+
+```text
+metrics/
+  q2-2026/
+    events.csv           埋点四类动作
+    ci.csv               流水线时长与用例数
+    bugs.csv             缺陷阶段枚举
+    case-changes.csv     用例库变更
+    effort.csv           人工复核与返工工时
+    tokens.csv           token 账单
+  q3-2026/
+    ...                  同上，口径保持一致
+  CALIBRATION.md         口径定义：枚举、公式、30 天观察期
+```
+
+1. 每个统计周期一个目录，目录名带周期，例如 q2-2026、q3-2026。
+2. 口径统一写在 CALIBRATION.md，跨周期对比前先核对两期口径是否一致，不一致的指标不下结论。
+3. 缺陷阶段枚举固定为：需求评审、开发自测、测试执行、预发验收、线上，共五值。
+
+## 执行步骤
+
+1. 先核对挂载数据是否齐全，缺哪一类，对应指标就标「不可计算」，不猜不补。
+2. 固定指标口径，写进 CALIBRATION.md，本季度内不允许修改。
+3. 对埋点数据按 request_id 去重，避免重试导致同一次生成被记多次。
+4. 对 CI 记录按流水线类型分组，确认对比期间 runner 并发数一致后再比时长。
+5. 对缺陷单按发现阶段分桶，先确认阶段字段是固定枚举，再计数。
+6. 按口径计算六个指标，给出公式、本期、上期、变化与样本量。
+7. 核算成本：token 费用、工具维护、人工复核工时，与节省工时并列。
+8. 与上季度或对照组做同口径对比，给出差值而不是只给现值。
+9. 在结论里写清归因边界，区分 AI 带来的变化与流程带来的变化。
+10. 算不出的指标、口径冲突、样本不足的结论，逐条写进「待确认清单」。
+
+## 输出格式
+
+先给一段不超过 120 字的结论，包含两个数字：本季度主要收益指标，以及最需要关注的风险指标。
+
+然后输出指标表：
+
+| 指标 | 定义 | 本期 | 上期 | 变化 | 样本量 |
+
+指标表后附三段：
+
+1. 成本核算：token 费用、人工复核工时、净收益。
+2. 归因说明：哪些变化可以归因于 AI，哪些不能。
+3. 下季度建议：最多三条，每条带负责人。
+
+## 质量检查清单
+
+- 每个指标都有明确定义与计算公式。
+- 埋点数据按 request_id 或唯一键去重。
+- CI 时长对比时并发度一致，不一致已标「不可比」。
+- 缺陷发现阶段使用的是固定枚举，没有自由文本。
+- 样本量已标注，少于 30 的不下结论。
+- 采纳率的定义包含 30 天观察期，不是生成即算采纳。
+- 返工率与采纳率同时报告，不只报好的。
+- 成本核算包含人工复核时间，不只算 token。
+- 结论里写清了不能归因于 AI 的部分。
+- 所有算不出的指标都进了「待确认清单」，没有用估算值填充。
+
+## 反例
+
+- 只报「本季度生成 8600 条用例」，不说采纳多少。
+- 把 AI 使用次数当成产能指标。
+- 采纳率按「生成后被打开过」计算，虚高且无意义。
+- 回归时长下降其实是因为并行度提高，却算成 AI 功劳。
+- 漏测率只算线上缺陷数，不除以总缺陷数，无法比较。
+- 用指标给个人排名，导致大家只挑容易的用例生成。</code></pre>
+        <div class="callout">
+          <p>下载完整 skill 文件：<a href="../assets/downloads/skill-qa-metrics.md" download>skill-qa-metrics.md</a>。放到 <code>~/.claude/skills/qa-metrics/SKILL.md</code> 即可被自动加载。</p>
+        </div>
+
+        <p>最后一句话：如果一个指标无法指导下周做哪件事，它就不该出现在周报首页。生成条数属于这一类，采纳率和返工率不属于。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.gitlab.com/ee/api/pipelines.html" target="_blank" rel="noopener">Pipelines API — GitLab Docs</a></li>
+            <li><a href="https://developer.atlassian.com/cloud/jira/platform/rest/v3/intro/" target="_blank" rel="noopener">Jira REST API v3 — Atlassian Developer</a></li>
+            <li><a href="https://dora.dev/guides/dora-metrics-four-keys/" target="_blank" rel="noopener">DORA Metrics: The Four Keys — Google Cloud</a></li>
+            <li><a href="https://help.aliyun.com/zh/model-studio/getting-started/models" target="_blank" rel="noopener">模型列表与计费 — 阿里云百炼</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#效能度量</span>
+          <span class="tag">#指标设计</span>
+          <span class="tag">#llm</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

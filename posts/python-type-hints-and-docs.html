@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 类型注解与文档：让代码「自带说明书」 · 软件测试资料集</title>
+<meta name="description" content="类型注解基础、dataclass、Google 风格 docstring、mypy 静态检查…">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-type-hints-and-docs.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Python 类型注解与文档：让代码「自带说明书」">
+<meta property="og:description" content="类型注解基础、dataclass、Google 风格 docstring、mypy 静态检查…">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-type-hints-and-docs.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Python 类型注解与文档：让代码「自带说明书」">
+<meta name="twitter:description" content="类型注解基础、dataclass、Google 风格 docstring、mypy 静态检查…">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Python 类型注解与文档：让代码「自带说明书」","description":"类型注解基础、dataclass、Google 风格 docstring、mypy 静态检查…","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-type-hints-and-docs.html","articleSection":"Python 进阶","keywords":"python, type-hints, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Python 进阶</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>9 min read</span>
+        </div>
+        <h1>Python 类型注解与文档：让代码「自带说明书」</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-type-hints-and-docs">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Python 3.10+
+# 创建虚拟环境
+python -m venv venv
+venv\Scripts\activate   # Windows
+
+# 安装核心库
+pip install pytest requests pandas
+# 验证
+pytest --version</code></pre>
+<div class="code-head"><span>python — 验证</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+resp = requests.get("https://httpbin.org/get", timeout=5)
+assert resp.status_code == 200
+print("Python 环境就绪 ✓")</code></pre>
+
+<h2>基础应用：第一个测试用例</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+
+def test_api():
+    resp = requests.get("https://httpbin.org/get", params={"name": "test"}, timeout=10)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["args"]["name"] == "test"
+    print("基础接口测试通过 ✓")</code></pre>
+
+<h2>项目进阶：pytest + fixture + 参数化 + 报告</h2>
+<div class="code-head"><span>python — conftest.py</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest, requests
+
+@pytest.fixture
+def api():
+    return requests.Session()
+
+@pytest.fixture
+def user():
+    return {"username": "test@example.com"}</code></pre>
+<div class="code-head"><span>python — 参数化测试</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest
+
+@pytest.mark.parametrize("code", [200, 301, 404, 500])
+def test_status(api, code):
+    resp = api.get(f"https://httpbin.org/status/{code}", timeout=5)
+    assert resp.status_code == code</code></pre>
+
+        <h2>类型注解基础：变量和函数</h2>
+        <p>Python 是动态类型（变量不用声明），但类型注解让「读者一眼看懂」。不影响运行，但 IDE 提示和静态检查（mypy）都靠它。</p>
+        <div class="code-head"><span>python — 变量注解</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 变量注解（= 赋值时声明类型）
+order_id: int = 1001
+user_name: str = "张三"
+price: float = 99.99
+is_valid: bool = True
+result: str = None          # 错！None 不是 str
+result: Optional[str] = None  # 对：可能是 str，也可能是 None
+
+# 容器类型（从 typing 导入）
+from typing import List, Dict, Optional
+
+test_users: List[str] = ["alice", "bob"]
+config: Dict[str, int] = {"timeout": 10, "retries": 3}
+response: Optional[Dict[str, int]] = None   # 可能是 dict，也可能是 None
+
+# Python 3.9+ 可以直接用小写（不用 import）
+test_users: list[str] = ["alice", "bob"]
+config: dict[str, int] = {"timeout": 10}</code></pre>
+
+        <div class="code-head"><span>python — 函数注解</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from typing import Optional, Dict, List
+
+def login(username: str, password: str, timeout: int = 10) -> Optional[Dict[str, str]]:
+    """
+    登录接口。
+
+    Args:
+        username: 用户名
+        password: 密码
+        timeout: 超时秒数（默认 10）
+
+    Returns:
+        成功返回 {"token": "..."}，失败返回 None
+
+    Raises:
+        ConnectionError: 网络不通
+        TimeoutError: 请求超时
+    """
+    # 实现...
+    return {"token": "xxx"}
+
+# 调用方一眼看懂：
+# - 要传什么参数、什么类型
+# - 返回什么（dict 还是 None）
+# - 可能抛什么异常</code></pre>
+        <div class="callout">
+          <p>类型注解<strong>不影响运行</strong>（写了不写都不报错），但 IDE 能「智能提示」、mypy 能「静态检查」。测试脚本里「给别人看的代码」必须加注解，「自己写的脚本」可以省略。</p>
+        </div>
+
+        <h2>泛型和 Union</h2>
+        <div class="code-head"><span>python — 泛型</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from typing import Dict, List, Optional, Union
+
+# Dict 泛型（键值类型）
+response: Dict[str, int] = {"code": 200, "count": 5}
+nested: Dict[str, List[str]] = {"tags": ["VIP", "新用户"]}
+
+# Optional = Union[T, None]
+token: Optional[str] = None   # 可能是 str，也可能是 None
+if token is not None:
+    print(f"Token：{token}")
+
+# Union（多种类型）
+value: Union[str, int] = "hello"
+value = 123   # 也合法
+
+# Python 3.10+ 简写（不用 import）
+value: str | int = "hello"
+token: str | None = None</code></pre>
+
+        <h2>dataclass：简化数据类</h2>
+        <p>测试数据经常是「几个字段的集合」（订单、用户、配置）。dataclass 让「定义数据类」从 20 行缩到 5 行：</p>
+        <div class="code-head"><span>python — dataclass</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from dataclasses import dataclass, field
+from typing import List, Optional
+
+@dataclass
+class TestUser:
+    """测试用户"""
+    user_id: int
+    name: str
+    email: str
+    age: int = 18            # 默认值
+    is_vip: bool = False     # 默认值
+    tags: List[str] = field(default_factory=list)   # 可变默认值用 field
+
+    # 自动生成的方法
+    # __init__（构造）
+    # __repr__（打印）
+    # __eq__（比较）
+
+# 使用（不用手写 __init__）
+user1 = TestUser(user_id=1001, name="张三", email="zhangsan@example.com")
+print(user1)
+# TestUser(user_id=1001, name='张三', email='zhangsan@example.com', age=18, is_vip=False, tags=[])
+
+user2 = TestUser(user_id=1002, name="李四", email="lisi@example.com", age=30, is_vip=True, tags=["VIP"])
+print(user2)
+
+# 比较（自动）
+print(user1 == user2)   # False（字段不同）
+user1.name = "王五"
+print(user1)            # 更新后的 repr
+
+# 从 dict 构造（接口响应 → 数据类）
+import json
+response_dict = {"user_id": 1001, "name": "张三", "email": "test@example.com"}
+user = TestUser(**response_dict)   # 解包 dict 构造
+print(user.name)   # 张三
+
+# 转 dict
+from dataclasses import asdict
+user_dict = asdict(user)
+print(user_dict)   # {'user_id': 1001, 'name': '张三', ...}</code></pre>
+        <div class="callout">
+          <p><strong>dataclass 是测试数据类的首选</strong>。「接口响应 → 数据类 → 断言字段」比「dict 逐字段取值」清晰 10 倍。可变默认值（list/dict）必须用 <code>field(default_factory=list)</code>，不然所有实例共享同一个对象。</p>
+        </div>
+
+        <h2>docstring：Google 风格</h2>
+        <div class="code-head"><span>python — Google 风格 docstring</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>def create_order(
+    user_id: int,
+    items: List[Dict[str, Union[str, int, float]]],
+    coupon_code: Optional[str] = None,
+    timeout: int = 10,
+) -> Dict[str, str]:
+    """
+    创建订单接口。
+
+    调用 POST /api/orders 创建订单，返回订单 ID 和状态。
+
+    Args:
+        user_id: 用户 ID（正整数）
+        items: 商品列表，每项包含 name（str）、qty（int）、price（float）
+        coupon_code: 优惠券码（可选，None 表示不用）
+        timeout: 请求超时秒数（默认 10）
+
+    Returns:
+        成功：{"order_id": "ORD-1001", "status": "pending"}
+        失败：{"error": "库存不足", "code": 4001}
+
+    Raises:
+        requests.exceptions.Timeout: 请求超时
+        requests.exceptions.ConnectionError: 连接失败
+
+    Example:
+        >>> result = create_order(1001, [{"name": "手机壳", "qty": 2, "price": 49.99}])
+        >>> print(result)
+        {'order_id': 'ORD-1001', 'status': 'pending'}
+    """
+    # 实现...
+
+# docstring 的好处：
+# 1. IDE 悬浮提示（鼠标放函数上显示 docstring）
+# 2. 生成文档（pydoc / Sphinx / mkdocs）
+# 3. 新人接手时"看函数名 + docstring"就懂怎么用</code></pre>
+
+        <h2>mypy：静态类型检查</h2>
+        <div class="code-head"><span>terminal — 安装和运行</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 安装
+pip install mypy
+
+# 检查单个文件
+mypy test_user_flow.py
+
+# 检查整个目录
+mypy .
+
+# 严格模式（全量检查）
+mypy --strict test_user_flow.py
+
+# 输出示例：
+# test_user_flow.py:45: error: Incompatible types in assignment (got "int", expected "str")
+# test_user_flow.py:60: note: Use of "Optional" is deprecated</code></pre>
+        <div class="callout">
+          <p>mypy 在「代码没运行」时就发现类型错误。测试脚本里「接口响应字段是 int 但断言当 str 用」这种错误，mypy 能提前拦住。CI 里加 <code>mypy --strict</code> 做静态检查，省 80% 的「运行时报错」。</p>
+        </div>
+
+        <h2>案例：测试数据类 + 接口客户端</h2>
+        <p>把类型注解 + dataclass + docstring + mypy 串起来，写一套「自带说明书」的测试代码：</p>
+        <div class="code-head"><span>python — 完整案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from dataclasses import dataclass, asdict
+from typing import Optional, Dict, List
+import requests
+
+# 1. 数据类（类型注解 + docstring）
+@dataclass
+class Order:
+    """订单数据类"""
+    order_id: str
+    user_id: int
+    status: str
+    amount: float
+    items: List[Dict[str, float]]
+
+    @classmethod
+    def from_response(cls, data: Dict) -> "Order":
+        """从接口响应构造 Order。
+
+        Args:
+            data: 接口返回的 JSON dict
+
+        Returns:
+            Order 实例
+
+        Raises:
+            KeyError: 响应缺少必填字段
+        """
+        return cls(
+            order_id=data["order_id"],
+            user_id=data["user_id"],
+            status=data["status"],
+            amount=data["amount"],
+            items=data.get("items", []),
+        )
+
+    def total_check(self) -> bool:
+        """校验金额一致性。
+
+        Returns:
+            金额一致返回 True，不一致返回 False
+        """
+        calculated = sum(item.get("price", 0) * item.get("qty", 0) for item in self.items)
+        return abs(calculated - self.amount) < 0.01
+
+
+# 2. 接口客户端（类型注解 + docstring）
+class OrderClient:
+    """订单接口客户端。
+
+    封装订单相关的所有接口调用。
+
+    Attributes:
+        base_url: 接口基础 URL
+        timeout: 默认超时（秒）
+    """
+
+    def __init__(self, base_url: str, timeout: int = 10):
+        """初始化客户端。
+
+        Args:
+            base_url: 接口基础 URL（如 https://api.example.com）
+            timeout: 默认超时秒数（默认 10）
+        """
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
+        self.session = requests.Session()
+        self.session.headers["Content-Type"] = "application/json"
+
+    def get_order(self, order_id: str) -> Order:
+        """获取订单详情。
+
+        Args:
+            order_id: 订单 ID（如 ORD-1001）
+
+        Returns:
+            Order 数据类实例
+
+        Raises:
+            requests.exceptions.HTTPError: 接口 4xx/5xx
+            requests.exceptions.Timeout: 请求超时
+        """
+        resp = self.session.get(
+            f"{self.base_url}/api/orders/{order_id}",
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return Order.from_response(resp.json())
+
+    def pay_order(self, order_id: str, amount: float) -> Dict[str, str]:
+        """支付订单。
+
+        Args:
+            order_id: 订单 ID
+            amount: 支付金额（必须 > 0）
+
+        Returns:
+            支付结果 dict（status、message）
+
+        Raises:
+            ValueError: 金额 <= 0
+        """
+        if amount <= 0:
+            raise ValueError(f"金额必须 > 0，当前：{amount}")
+
+        resp = self.session.post(
+            f"{self.base_url}/api/orders/{order_id}/pay",
+            json={"amount": amount},
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+# 3. 测试用例（用数据类 + 类型注解）
+def test_order_flow(client: OrderClient) -> None:
+    """测试订单流程：查订单 → 校验金额 → 支付。
+
+    Args:
+        client: 已初始化的 OrderClient
+    """
+    order = client.get_order("ORD-1001")
+
+    # 断言（数据类字段直接访问）
+    assert order.order_id == "ORD-1001"
+    assert order.status in ["pending", "paid", "shipped"]
+    assert order.total_check(), "订单金额不一致"
+
+    # 支付
+    result = client.pay_order(order.order_id, order.amount)
+    assert result.get("status") == "paid", f"支付失败：{result}"
+
+    print(f"订单 {order.order_id} 流程测试通过")
+
+# 4. 运行 + mypy 检查
+if __name__ == "__main__":
+    client = OrderClient("https://api.example.com")
+    test_order_flow(client)
+
+# terminal
+# mypy test_order_flow.py
+# Success: no issues found in 1 source file</code></pre>
+        <div class="callout">
+          <p>测试工程师记住四条：① 数据类用 <strong>@dataclass</strong>（自动 __init__/__repr__/__eq__）；② 接口响应用 <strong>from_response</strong> 方法构造（dict → 数据类）；③ 函数加 <strong>类型注解 + docstring</strong>（IDE 提示 + 新人接手快）；④ CI 里跑 <strong>mypy</strong> 静态检查（提前发现类型错误）。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/library/typing.html" target="_blank" rel="noopener">Python typing 官方文档</a></li>
+            <li><a href="https://docs.python.org/3/library/dataclasses.html" target="_blank" rel="noopener">Python dataclasses 官方文档</a></li>
+            <li><a href="https://mypy.readthedocs.io/" target="_blank" rel="noopener">mypy 官方文档</a></li>
+            <li><a href="https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings" target="_blank" rel="noopener">Google Python Style Guide（docstring 规范）</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#python</span>
+          <span class="tag">#type-hints</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

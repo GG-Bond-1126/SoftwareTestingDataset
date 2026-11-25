@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>写给测试工程师的 SQL 入门：别只会 SELECT 表名 · 软件测试资料集</title>
+<meta name="description" content="从最基础的建库到查数，用 6 个高频测试场景带你跑通第一套 SQL。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/sql-basics-for-testers.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="写给测试工程师的 SQL 入门：别只会 SELECT 表名">
+<meta property="og:description" content="从最基础的建库到查数，用 6 个高频测试场景带你跑通第一套 SQL。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/sql-basics-for-testers.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="写给测试工程师的 SQL 入门：别只会 SELECT 表名">
+<meta name="twitter:description" content="从最基础的建库到查数，用 6 个高频测试场景带你跑通第一套 SQL。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"写给测试工程师的 SQL 入门：别只会 SELECT 表名","description":"从最基础的建库到查数，用 6 个高频测试场景带你跑通第一套 SQL。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/sql-basics-for-testers.html","articleSection":"数据库测试","keywords":"sql, mysql, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>写给测试工程师的 SQL 入门：别只会 SELECT 表名</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="sql-basics-for-testers">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 启动 MySQL（Docker）
+docker run -d --name test-mysql -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=test123 -e MYSQL_DATABASE=testdb mysql:8.0
+
+# 连接验证
+mysql -h localhost -u root -ptest123 testdb
+
+# 创建测试表
+CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(100), email VARCHAR(200) UNIQUE);</code></pre>
+
+<h2>基础应用：第一个 SQL 验证</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector
+
+conn = mysql.connector.connect(host="localhost", port=3306, user="root", password="test123", database="testdb")
+cur = conn.cursor()
+cur.execute("INSERT INTO users (name, email) VALUES (%s, %s)", ("测试", "t@e.com"))
+conn.commit()
+cur.execute("SELECT * FROM users WHERE name = %s", ("测试",))
+assert cur.fetchone() is not None
+print("基础验证通过 ✓")
+cur.close(); conn.close()</code></pre>
+
+<h2>项目进阶：并发测试 + 数据一致性</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector, threading
+
+def deduct(uid, qty):
+    c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+    cur = c.cursor()
+    cur.execute("UPDATE products SET stock=stock-%s WHERE product_id=1 AND stock>=%s", (qty, qty))
+    c.commit(); cur.close(); c.close()
+
+threads = [threading.Thread(target=deduct, args=(i, 2)) for i in range(10)]
+[t.start() for t in threads]
+[t.join() for t in threads]
+
+# 验证库存非负
+c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+cur = c.cursor()
+cur.execute("SELECT stock FROM products WHERE product_id=1")
+assert cur.fetchone()[0] >= 0
+print("并发测试通过 ✓")</code></pre>
+
+        <h2>什么是 SQL，为什么测试工程师必须懂</h2>
+        <p>SQL（Structured Query Language，结构化查询语言）是跟数据库打交道的「普通话」。你在页面上点「提交订单」，后台大概率会发生这样一串事：先查用户表确认身份，再写订单表、扣库存表、更新余额表。测试时你要回答「数据到底写没写对、写对了几条」，绕不开 SQL。</p>
+        <p>一个常见的误区是：会写 <code>SELECT * FROM orders</code> 就算会 SQL 了。实际上，<strong>会查只是入门，会按条件查、会对比、会统计，才是测试真正需要的能力</strong>。下面所有场景都假设你已经连上了一个 MySQL 实例，并且建好了一张用户表、一张订单表：</p>
+        <div class="code-head"><span>setup.sql — 建库建表造数</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 创建数据库并切换
+CREATE DATABASE IF NOT EXISTS shop DEFAULT CHARACTER SET utf8mb4;
+USE shop;
+
+-- 用户表：id 主键，balance 余额
+CREATE TABLE users (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  username VARCHAR(64) NOT NULL,
+  balance DECIMAL(10,2) NOT NULL DEFAULT 0,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 订单表：user_id 关联 users，amount 金额
+CREATE TABLE orders (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  status TINYINT NOT NULL DEFAULT 0,   -- 0 待支付 1 已支付 2 已退款
+  paid_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 造几条测试数据
+INSERT INTO users (username, balance) VALUES ('alice', 100), ('bob', 50), ('carol', 200);
+INSERT INTO orders (user_id, amount, status, paid_at) VALUES
+ (1, 30, 1, NOW()),
+ (1, 10, 0, NULL),
+ (2, 20, 2, NOW()),
+ (3, 80, 1, NOW());</code></pre>
+        <div class="callout">
+          <p>建议在测试环境里专门建一个空库反复练习，别直接在开发共用的库里折腾。所有练习语句都可以安全地重跑。</p>
+        </div>
+
+        <h2>6 个高频测试场景，逐个拆 SQL</h2>
+        <h3>场景 ①：查某用户的所有订单</h3>
+        <p>需求：「帮我看看用户 alice 名下有几笔订单、什么状态。」 这是最基础的「按条件查」，核心是 <strong>WHERE 等值条件</strong>：</p>
+        <div class="code-head"><span>query1.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 先拿用户的 id（测试里一般先用用户名定位，再按 id 查业务表）
+SELECT id FROM users WHERE username = 'alice';
+-- 结果：1
+
+-- 用这个 id 查所有订单，按时间倒序
+SELECT * FROM orders WHERE user_id = 1 ORDER BY created_at DESC;</code></pre>
+        <h3>场景 ②：验证某笔退款是否到账</h3>
+        <p>用户投诉「退款说成功了但没收到钱」。要验证，需要同时看订单状态和用户余额是否对得上：</p>
+        <div class="code-head"><span>query2.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 查退款订单本身
+SELECT id, user_id, amount, status, paid_at FROM orders WHERE status = 2;
+
+-- 再查这个用户的余额，确认退款金额已加回
+SELECT balance FROM users WHERE id = 2;</code></pre>
+        <p>把两边的数人工核对一遍（或者用下一节的 Python 脚本自动断言），就能判断退款链路是否真的闭环。</p>
+        <h3>场景 ③：统计某天的注册用户数</h3>
+        <p>「今天注册了多少新用户？」 考察点有两个：<strong>时间范围写法</strong> 和 <strong>聚合函数 COUNT</strong>：</p>
+        <div class="code-head"><span>query3.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 统计 2026-11-23 全天（含首尾）注册的账号数
+SELECT COUNT(*) AS cnt
+FROM users
+WHERE created_at BETWEEN '2026-11-23 00:00:00' AND '2026-11-23 23:59:59';</code></pre>
+        <div class="callout warn">
+          <p>时间边界是最容易踩坑的地方。BETWEEN 是「两头都算」，写 00:00:00 到 23:59:59 其实漏掉了 23:59:59 到 24:00:00 之间的那几毫秒。更稳妥的写法是 <code>created_at &gt;= '2026-11-23' AND created_at &lt; '2026-11-24'</code>，左闭右开，天然没有缝隙。</p>
+        </div>
+        <h3>场景 ④：找出重复数据</h3>
+        <p>「同一个邮箱被注册了好几次，帮我列出来。」 用 <strong>GROUP BY + HAVING</strong>，按分组后的统计结果再过滤一次：</p>
+        <div class="code-head"><span>query4.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 假设 users 表有 email 字段，找出出现次数 &gt; 1 的邮箱
+SELECT email, COUNT(*) AS cnt
+FROM users
+GROUP BY email
+HAVING COUNT(*) &gt; 1;</code></pre>
+        <h3>场景 ⑤：检查外键完整性（孤儿记录）</h3>
+        <p>「订单里的 user_id，是不是都能在用户表里找到？」 这就是典型的 LEFT JOIN 找「对不上」的记录，下一篇文章会专门展开，这里先给结论式写法：</p>
+        <div class="code-head"><span>query5.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 订单存在、但用户不存在（users 侧为 NULL），说明是孤儿订单
+SELECT o.id, o.user_id
+FROM orders o
+LEFT JOIN users u ON o.user_id = u.id
+WHERE u.id IS NULL;</code></pre>
+        <h3>场景 ⑥：验证数据迁移后是否丢数据</h3>
+        <p>从老库迁到新库后，最朴素的校验就是「两边行数、两边关键统计值是否一致」：</p>
+        <div class="code-head"><span>query6.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 老库
+SELECT COUNT(*), SUM(amount), MAX(created_at) FROM orders;
+-- 新库（同一句 SQL 再跑一遍）
+SELECT COUNT(*), SUM(amount), MAX(created_at) FROM orders;
+-- 三个值全部相等，才能初步判定没丢数据；进一步可以拿两边的 id 集合做对比</code></pre>
+
+        <h2>常用 WHERE 条件写法速查</h2>
+        <p>测试写 SQL 时反复用到的条件就这几种，记熟基本够用：</p>
+        <table>
+          <thead><tr><th>写法</th><th>含义</th><th>示例</th></tr></thead>
+          <tbody>
+            <tr><td><code>=</code></td><td>精确等值</td><td><code>status = 1</code></td></tr>
+            <tr><td><code>IN (...)</code></td><td>命中列表中的任意一个</td><td><code>status IN (1, 2)</code></td></tr>
+            <tr><td><code>BETWEEN a AND b</code></td><td>闭区间范围内</td><td><code>amount BETWEEN 10 AND 100</code></td></tr>
+            <tr><td><code>LIKE</code></td><td>模糊匹配，<code>%</code> 是任意多字符</td><td><code>username LIKE 'a%'</code></td></tr>
+            <tr><td><code>IS NULL / IS NOT NULL</code></td><td>判空（<strong>不能用 = NULL</strong>）</td><td><code>paid_at IS NULL</code></td></tr>
+            <tr><td><code>AND / OR / NOT</code></td><td>组合条件，注意加括号控制优先级</td><td><code>(status = 1 OR status = 2) AND user_id = 1</code></td></tr>
+          </tbody>
+        </table>
+
+        <h2>完整案例：用 Python 连接 MySQL 跑 SQL 并断言</h2>
+        <p>测试脚本里跑 SQL，标准姿势是：连库 → 执行查询 → 取结果 → 断言 → 清理。下面这段代码可以直接跑，它验证「用户 1 的已支付订单金额合计 = 30」：</p>
+        <div class="code-head"><span>verify_orders.py — 连接 MySQL 执行 SQL 并断言</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pymysql
+import sys
+
+def main():
+    # 连接 MySQL（按自己环境改 host/port/账号）
+    conn = pymysql.connect(
+        host="127.0.0.1",
+        port=3306,
+        user="test_user",
+        password="test_pwd",
+        database="shop",
+        charset="utf8mb4",
+        cursorclass=pymysql.cursors.DictCursor,  # 让查询结果可以直接按字段名取
+    )
+    try:
+        with conn.cursor() as cur:
+            # 先造一条已支付订单，保证测试数据是"自造自清"的
+            cur.execute(
+                "INSERT INTO orders (user_id, amount, status, paid_at) VALUES (1, 15, 1, NOW())"
+            )
+            conn.commit()
+            cur.execute("SELECT LAST_INSERT_ID() AS new_id")
+            new_id = cur.fetchone()["new_id"]
+
+            # 核心断言：用户 1 的已支付订单金额合计应该是 30 + 15 = 45
+            cur.execute(
+                """
+                SELECT SUM(amount) AS total
+                FROM orders
+                WHERE user_id = 1 AND status = 1
+                """
+            )
+            total = cur.fetchone()["total"]
+            print(f"用户 1 已支付订单金额合计 = {total}")
+            assert total == 45, f"断言失败：期望 45，实际 {total}"
+            print("✅ 断言通过")
+
+        # 清理：删掉自己造的数据，别污染别人
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM orders WHERE id = %s", (new_id,))
+            conn.commit()
+    finally:
+        conn.close()
+    return 0
+
+if __name__ == "__main__":
+    sys.exit(main())</code></pre>
+        <p>跑通这一段之后，你已经具备了「自己造数、自己查数、自己下结论」的完整能力。剩下的工作，就是把这套姿势套进你手上的真实表里。</p>
+
+        <div class="callout">
+          <p>把本文 6 个场景当成一张 checklist：新接手一个项目时，先对着真实表把 ①③⑤⑥ 各写一遍，基本就能摸清这张库的数据长什么样、哪些字段是关键字段了。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/select.html" target="_blank" rel="noopener">MySQL 官方文档：SELECT 语法</a></li>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/sql-syntax-data-statements.html" target="_blank" rel="noopener">MySQL 官方文档：数据操作语句（INSERT/UPDATE/DELETE）</a></li>
+            <li><a href="https://pymysql.readthedocs.io/en/latest/" target="_blank" rel="noopener">PyMySQL 官方文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#sql</span>
+          <span class="tag">#mysql</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

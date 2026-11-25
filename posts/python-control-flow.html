@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 控制流：if、for、while 在测试里怎么用 · 软件测试资料集</title>
+<meta name="description" content="用测试脚本的真实场景讲分支、遍历、轮询等待、推导式、match 与映射表重构。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-control-flow.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Python 控制流：if、for、while 在测试里怎么用">
+<meta property="og:description" content="用测试脚本的真实场景讲分支、遍历、轮询等待、推导式、match 与映射表重构。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-control-flow.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Python 控制流：if、for、while 在测试里怎么用">
+<meta name="twitter:description" content="用测试脚本的真实场景讲分支、遍历、轮询等待、推导式、match 与映射表重构。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Python 控制流：if、for、while 在测试里怎么用","description":"用测试脚本的真实场景讲分支、遍历、轮询等待、推导式、match 与映射表重构。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-control-flow.html","articleSection":"Python 编程入门","keywords":"python, control-flow, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>19 min read</span>
+        </div>
+        <h1>Python 控制流：if、for、while 在测试里怎么用</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-control-flow">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+
+        <h2>为什么测试脚本里的控制流要单独讲</h2>
+        <p>if、for、while 是最基础的语法，但测试脚本对它们的用法和业务服务不一样。服务代码追求分支完整、每种情况都有兜底；测试脚本追求的是分支可读、失败可定位、任何情况下都不会卡死。同一段 if，写在服务里是防御性编程，写在用例里可能就变成了掩盖问题的开关。</p>
+        <p>最常见的退化路径是这样的：一开始每条用例都是直线代码，后来要兼容 dev 和 staging 两个环境，加了一层 if；再后来要覆盖三种订单状态，又加了一层 if；某天需要等异步任务完成，写了个 while True；最后这段脚本没人敢改，改一次要重跑两小时。读者画像就是走到第三步、准备把脚本交给团队的一线测试工程师。</p>
+        <p>下面按「场景—写法—边界」组织。每个模式都给一个反例，说明它在线上会以什么形式崩掉；凡是涉及耗时的数字都标为示例值，需要按你们自己的接口实测。</p>
+
+        <h2>前置条件与两条约定</h2>
+        <p>本篇的代码需要 Python 3.10 以上，<code>match</code> 语句从 3.10 才进入语法。如果项目还停在 3.8，看到 match 那一节可以先跳过，用文末的映射表方案替代，两者解决的问题是同一个。依赖只需要 pytest，不需要额外库。</p>
+        <p>第一条约定：控制流只负责选路径，不负责判定通过。用例是否通过由断言决定，失败就让它失败，用 <code>pytest.skip</code> 表达跳过，用 <code>xfail</code> 表达预期失败。把判定写进 if 里再 print 一句，是后面所有假通过问题的源头。</p>
+        <p>第二条约定：每个循环必须有可证明的退出条件。写完一个 while，先不看循环体，只看条件表达式，能不能说出它在什么情况下会停。说不出来就先补上，再往里写逻辑。</p>
+
+        <div class="code-head"><span>terminal — 版本与依赖</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># match 语句需要 3.10 及以上
+python --version
+
+python -m venv .venv
+.venv\Scripts\activate
+pip install "pytest==8.3.2"
+
+# 确认解释器版本，CI 上经常误用系统自带的旧 Python
+python -c "import sys; print(sys.version_info[:3])"</code></pre>
+
+        <h2>if / elif：按环境分支、按数据分类</h2>
+        <p>测试脚本里 if 的合理用途只有两类：按运行环境切换配置，按数据分类切换断言策略。除此之外的分支，大多可以换成表、换成异常，或者干脆删掉。</p>
+        <p>环境分支的关键是「收敛」。dev、staging、prod 的 base_url、超时、是否允许写操作都不同，这类判断应该在建会话的阶段做一次，产出一个配置对象，用例里不再出现 <code>if env == ...</code>。如果一百条用例里各写一遍环境判断，新增一个预发环境就要改一百个文件，而且必然漏改几处。</p>
+        <p>数据分类是真正需要 if 的地方。订单状态 pending 可以取消、paid 不可以，这是业务规则本身，用 if 表达比硬编码更清楚。判断标准是：分支条件来自被测业务，而不是来自你的脚本结构。来自脚本结构的 if，通常意味着职责混在了一起。</p>
+        <p>滥用边界有两条。第一，不要用 if 决定用例是否算通过，那会让失败在报告里消失。第二，嵌套超过两层就该抽函数：两层 if 说明你在同时处理两个维度，把它拆成「选数据」和「做断言」两个函数，可读性会立刻回来。</p>
+
+        <div class="code-head"><span>python — 环境收敛与按状态分支</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import os
+
+# 环境差异收敛成一张表，只在这里出现一次
+ENVIRONMENTS = {
+    "dev":     {"base_url": "https://dev.api.example.com",  "timeout": (2, 5),  "writable": True},
+    "staging": {"base_url": "https://stg.api.example.com",  "timeout": (3, 10), "writable": True},
+    "prod":    {"base_url": "https://api.example.com",      "timeout": (5, 20), "writable": False},
+}
+
+
+def load_env() -&gt; dict:
+    name = os.getenv("TEST_ENV", "staging")
+    if name not in ENVIRONMENTS:
+        raise RuntimeError(f"未知环境 {name}，可选值为 {list(ENVIRONMENTS)}")
+    return {"name": name, **ENVIRONMENTS[name]}
+
+
+def assert_cancel_allowed(status: str, resp):
+    # 这里的 if 来自业务规则：只有待支付订单可以取消
+    if status == "pending":
+        assert resp.status_code == 200
+        assert resp.json()["data"]["status"] == "cancelled"
+    elif status in ("paid", "shipped"):
+        assert resp.status_code == 409
+    else:
+        pytest.skip(f"状态 {status} 不在本用例覆盖范围")</code></pre>
+
+        <div class="callout warn">
+          <p>反例：<code>if resp.status_code == 200: print('通过') else: print('失败')</code>。这段代码永远不会让用例失败，报告里全是绿色，线上问题照旧漏出去。判定必须交给断言，打印只用于附加信息。</p>
+        </div>
+
+        <h2>for 的三类形态</h2>
+        <p>测试里的 for 基本只有三种用途：遍历用例数据、遍历响应或页面里的集合、遍历文件。三种用途的注意点完全不同，混在一起写是复杂度失控的主要原因。</p>
+        <p>第一类遍历用例数据，首选 <code>pytest.mark.parametrize</code>，而不是在函数里手写 for。parametrize 会把每条数据拆成独立的用例，失败互不影响，报告里能看到具体是哪一组挂了；手写 for 则是一整条用例，第一条失败后面全停，还会掩盖后面的问题。只有在「同一条用例内要对多个对象做同一串操作」时，才值得手写循环。</p>
+        <p>第二类遍历集合做聚合断言，最大的陷阱是空集合。<code>for</code> 在空列表上会安静地跳过，<code>all([])</code> 返回 True，<code>any([])</code> 返回 False，这三件事组合起来，一个返回空数组的接口会被判成通过。所以遍历之前先断言集合非空，或者显式检查长度。</p>
+        <p>第三类遍历文件，坑在顺序。<code>os.listdir</code> 的返回顺序由文件系统决定，同一份代码在不同机器上可能不同；用例只要隐含依赖顺序，就会出现「本地过、CI 偶发失败」。统一用 <code>sorted()</code> 排序，或者让文件名带零填充的序号。</p>
+
+        <div class="code-head"><span>python — 三类遍历与空集合保护</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+
+import pytest
+
+# 1) 用例数据：交给 parametrize，每条数据独立成用例
+PAYLOAD_CASES = [
+    {"qty": 1, "price_cents": 4999},
+    {"qty": 2, "price_cents": 4999},
+    {"qty": 100, "price_cents": 1},
+]
+
+
+@pytest.mark.parametrize("payload", PAYLOAD_CASES, ids=lambda p: f"qty{p['qty']}")
+def test_create_order(order_client, payload):
+    resp = order_client.create(**payload)
+    assert resp.status_code == 201
+
+
+# 2) 集合遍历：先确认非空，再逐项断言
+def test_order_items(order_client, order_id):
+    items = order_client.detail(order_id).json()["data"]["items"]
+    assert len(items) &gt;= 1, "订单明细为空，接口可能返回了空集合"
+    for item in items:
+        assert item["qty"] &gt; 0, f"明细 {item['sku']} 数量非法"
+        assert item["price_cents"] &gt;= 0
+
+
+# 3) 文件遍历：排序保证顺序稳定
+def test_import_all_fixtures(import_client):
+    files = sorted(pathlib.Path("fixtures").glob("*.csv"))
+    assert files, "fixtures 目录为空，检查测试数据是否随代码一起提交"
+    for path in files:
+        with path.open("rb") as fh:
+            resp = import_client.upload(path.name, fh)
+        assert resp.json()["code"] == 0, path.name</code></pre>
+
+        <h2>while 轮询：超时、间隔与中止条件</h2>
+        <p>异步接口、消息消费、状态机流转，都需要「等某个条件成立」。这类等待是测试脚本里最容易出事的地方：写对了只是多几秒，写错了就是整条流水线卡死，而且日志断在被强杀的那一行，什么线索都没有。</p>
+        <p>正确写法只有三要素：总超时、轮询间隔、明确的中止条件。总超时用截止时间而不是重试次数，因为按次数算的话，接口变慢时会提前放弃，接口变快时又白等一大截；截止时间则直接表达「最多等多久」，和接口快慢解耦。</p>
+        <p>为什么不用 <code>while True</code>：它把退出的责任分散到了循环体的每个分支里，只要漏掉一个分支就是死循环，而且新增一个状态时极容易忘记加退出。用 <code>while time.monotonic() &lt; deadline</code> 把退出条件写在抬头，任何人读第一行就知道它一定会停。用 <code>monotonic</code> 而不是 <code>time.time</code>，是为了避开系统时间校准导致的时间跳变。</p>
+        <p>轮询间隔不要低于一秒。零点几秒的间隔对缩短等待帮助有限，对被测服务却是实打实的压力，尤其在 CI 上并行跑几十条用例时，轮询本身就能把服务打慢。长任务可以退避：间隔从 1 秒逐步涨到 5 秒，但要有上限。超时之后必须抛异常并带上最后看到的状态，不要 return False 让上层去猜。</p>
+
+        <div class="code-head"><span>python — 带截止时间的轮询等待</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import time
+
+
+class WaitTimeout(AssertionError):
+    pass
+
+
+def wait_until(fetch, predicate, timeout=60.0, interval=1.0, desc="条件"):
+    """轮询直到 predicate 成立，超时抛异常。
+
+    fetch 无参，返回当前状态；predicate 接收状态返回布尔值。
+    """
+    deadline = time.monotonic() + timeout
+    last = None
+    while time.monotonic() &lt; deadline:
+        last = fetch()
+        if predicate(last):
+            return last
+        time.sleep(interval)
+    raise WaitTimeout(f"等待{desc}超过 {timeout} 秒，最后一次状态：{last!r}")
+
+
+def test_order_reaches_paid(order_client, order_id):
+    state = wait_until(
+        fetch=lambda: order_client.detail(order_id).json()["data"]["status"],
+        predicate=lambda s: s in ("paid", "failed"),
+        timeout=30.0,
+        desc="订单进入终态",
+    )
+    assert state == "paid"</code></pre>
+
+        <p>注意 <code>predicate</code> 把失败状态也视为「可以停止」，这样失败会立刻退出而不是傻等三十秒，然后再由断言给出结论。这个细节能把一次失败反馈的时间从半分钟压到一两秒，长跑时非常值得。</p>
+
+        <h2>break、continue 与循环的 else</h2>
+        <p><code>break</code> 用于「找到就停」，<code>continue</code> 用于「跳过这一条」，<code>else</code> 用于「循环正常结束才执行」。三者组合起来，可以把重试、查找这类逻辑写成不需要标志变量的形状，代码短一截，正确性也更好验证。</p>
+        <p><code>for-else</code> 是最被低估的一个语法。它的语义是：循环没有被 break 打断时执行 else。用来做「在列表里找符合条件的元素，找不到就报错」非常自然，省掉了 <code>found = False</code> 这种标志位，也避免了标志位忘记更新导致的假通过。</p>
+        <p>边界要记清：<code>break</code> 只跳出最近的一层循环。嵌套两层想一次跳出，要么把内层抽成函数用 <code>return</code>，要么抛一个自定义异常，不要在里层设标志位再到外层判断，那种写法三周后自己都读不懂。</p>
+        <p><code>continue</code> 最好写在循环开头做过滤，形成「不满足条件就直接下一条」的节奏。写在循环末尾、再套一层 if 的写法，会让主体逻辑缩进两层，评审时最容易看漏。</p>
+
+        <div class="code-head"><span>python — 重试、过滤与 for-else</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import time
+
+# break + else：重试到成功，全部失败才报错
+def call_with_retry(client, path, attempts=3, interval=1.0):
+    last = None
+    for attempt in range(1, attempts + 1):
+        last = client.get(path)
+        if last.status_code == 200:
+            break
+        time.sleep(interval)
+    else:
+        raise AssertionError(f"{path} 连续 {attempts} 次失败，末次状态 {last.status_code}")
+    return last
+
+
+# continue：开头过滤无效数据
+def sum_amounts(rows):
+    total = 0
+    for row in rows:
+        if row.get("amount_cents") is None:
+            continue
+        total += row["amount_cents"]
+    return total
+
+
+# for-else：找元素，找不到就报错
+def find_case(cases, case_id):
+    for case in cases:
+        if case["id"] == case_id:
+            return case
+    else:
+        raise KeyError(f"用例集中不存在 {case_id}")</code></pre>
+
+        <h2>推导式与生成器表达式的取舍</h2>
+        <p>造数时推导式很诱人，一行就能生成一百个用户。取舍标准只有一条：读代码的人能不能在五秒内说出它产出什么。满足就用，不满足就老老实实写 for 循环，循环不丢人，看不懂的推导式才丢人。</p>
+        <p>适合推导式的场景：单层、无副作用、条件简单，比如从响应里取出所有失败的用例名。不适合的场景：嵌套两层以上、带函数调用、带副作用。嵌套推导式的执行顺序是从左到右由外到内，和阅读顺序相反，评审时几乎每写必错一次。</p>
+        <p>生成器表达式适合数据量大或者只需要遍历一次的场景。把它传给批量接口，不会一次性把所有元素堆进内存；但它只能消费一次，调试时 print 一下内容就空了，之后再取长度得到 0。这个特性造成过不少「明明有数据却断言为空」的困惑，遇到就先确认它有没有被提前遍历过。</p>
+        <p>还有一条硬规矩：推导式里不要调用有副作用的函数。写文件、发请求、改全局状态都不行。一旦出错，堆栈只会指向那一行，你分不清是第几个元素出的问题，排查成本远高于循环里的显式下标。</p>
+
+        <div class="code-head"><span>python — 推导式与生成器的边界</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 适合：单层、无副作用
+failed_names = [c["name"] for c in results if c["status"] == "failed"]
+
+# 不适合：嵌套 + 条件 + 函数调用，改成循环更清楚
+user_payloads = []
+for index in range(100):
+    payload = build_user_payload(index)
+    if payload["phone"]:
+        user_payloads.append(payload)
+
+
+# 生成器：大数据量批量提交，内存友好
+def iter_payloads(total: int):
+    for index in range(total):
+        yield build_user_payload(index)
+
+
+def test_bulk_create(bulk_client):
+    payloads = iter_payloads(10_000)
+    # 只能消费一次：这里不再 len()，也不提前 list()
+    resp = bulk_client.create_stream(payloads)
+    assert resp.json()["data"]["accepted"] == 10_000</code></pre>
+
+        <h2>用异常替代大段分支</h2>
+        <p>当分支的判断条件本质是「这一步可能失败」，用 <code>try/except</code> 比写一串 if 更贴近语义，也更容易把错误上下文带出来。典型场景是解析多种格式的响应、可选字段缺失、清理逻辑必须执行。</p>
+        <p>举一个真实例子：接口返回的时间字段，正常情况下是 ISO 字符串，历史数据里可能是秒级时间戳，还可能是空字符串。用 if 判断要写三种类型检查再各自解析；用 <code>try</code> 依次尝试解析，成功后统一返回 <code>datetime</code>，失败时把原值放进异常信息，代码短且错误信息更准。</p>
+        <p>取舍也要说清楚：不要用异常做正常流程控制。比如用 <code>KeyError</code> 判断字段是否存在，用 <code>StopIteration</code> 判断遍历结束，这类判断有更直接的写法 <code>dict.get</code> 和 <code>for</code>。异常应该留给「不该发生但可能发生」的事，用多了会掩盖真正的 bug，还会让性能变差。</p>
+        <p>清理逻辑放 <code>finally</code>，比如关闭临时文件、删除测试账号、还原配置。不要依赖用例末尾的几行代码，因为断言失败时它们根本不会执行，脏数据会留到下一次运行，制造出一批看起来毫不相关的失败。</p>
+
+        <div class="code-head"><span>python — 解析兜底与资源清理</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from datetime import datetime, timezone
+
+
+class FieldParseError(ValueError):
+    """字段格式不符合任何已知形态"""
+
+
+def parse_time(raw):
+    if isinstance(raw, (int, float)):
+        return datetime.fromtimestamp(raw, tz=timezone.utc)
+    if isinstance(raw, str):
+        for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%d %H:%M:%S"):
+            try:
+                return datetime.strptime(raw, fmt)
+            except ValueError:
+                continue
+    raise FieldParseError(f"无法解析时间字段：{raw!r}")
+
+
+def test_cleanup_always_runs(account_client):
+    account_id = account_client.create(name="qa-temp")["id"]
+    try:
+        resp = account_client.freeze(account_id)
+        assert resp.json()["data"]["status"] == "frozen"
+    finally:
+        # 断言失败也要还原，避免脏数据污染下一轮
+        account_client.delete(account_id)</code></pre>
+
+        <h2>match：3.10 之后的状态分发</h2>
+        <p>当你要根据「响应的形状」或者「状态机当前处于哪个状态」决定做什么，而且分支数量有限、每个分支做的事情结构相似，<code>match</code> 比 if 链更紧凑。它的强项是解构：可以直接从字典里匹配某个键的值，并顺手把需要的字段绑成变量。</p>
+        <p>典型用法是对接口返回做分发。支付结果有成功、待确认、失败三种，失败里还带错误码。用 if 要先取字段再逐层判断；用 match 可以一次写清「哪种形状走哪条路」，读起来像一张决策表。</p>
+        <p>必须记住它不是 switch。match 做的是模式匹配，裸变量名在模式里是「捕获」而不是「比较」，写 <code>case status:</code> 会匹配一切并把值绑到 status，而不是比较它等于某个变量。想比较常量要用点号形式（比如 <code>Status.PAID</code>）或者加 guard，这个坑几乎每个人都会踩一次。</p>
+        <p>版本边界也要交代：3.9 及以下没有这个语法，团队里只要有一个环境是 3.8，就不能在公共模块里用。替代方案就是下一节的映射表，表达力差一点，但兼容性和可测试性更好。</p>
+
+        <div class="code-head"><span>python — match 处理三种支付结果</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>def classify_payment(body: dict) -&gt; str:
+    match body:
+        case {"code": 0, "data": {"status": "paid", "paid_at": str}}:
+            return "success"
+        case {"code": 0, "data": {"status": "processing"}}:
+            return "pending"
+        case {"code": 0, "data": {"status": "failed", "error": {"code": err}}}:
+            return f"failed:{err}"
+        case {"code": int(code)} if code != 0:
+            return f"business_error:{code}"
+        case _:
+            raise AssertionError(f"响应形状不在预期内：{body!r}")</code></pre>
+
+        <h2>把 if 链重构成映射表</h2>
+        <p>判断信号很明确：一个 if 链超过四个分支，每个分支做的事情结构相同，只是返回不同的值或者调用不同的函数。这时候它本质上是一张表，只是被写成了分支。</p>
+        <p>重构手法很直接：把「条件值 → 处理函数」写成字典，用一次查表代替整条 if 链。查不到时给默认值或者抛 <code>KeyError</code> 并带上可用键，后者更适合测试脚本，因为拼错状态名会立刻暴露，而不是安静地走到一个兜底分支。</p>
+        <p>收益有两方面。新增一种状态只改表，不动逻辑，评审 diff 只有一行；表本身也容易被测试覆盖，遍历字典的键就能确认每个分支都有用例。代价是函数签名必须统一，如果各分支参数差异很大，硬塞进一张表反而比 if 更绕，这种情况下抽成策略类或者拆函数更合适。</p>
+        <p>还有个工程细节：表放在模块级而不是函数内部。放在函数里每次调用都要重建，而且测试时无法直接读取它来做覆盖率校验；放模块级则可以被导入、被断言，也能在收集阶段做一次完整性检查。</p>
+
+        <div class="code-head"><span>python — 从 if 链到映射表</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 重构前：新增状态必须改这段逻辑
+def describe_before(status):
+    if status == "pending":
+        return "待支付"
+    elif status == "paid":
+        return "已支付"
+    elif status == "shipped":
+        return "已发货"
+    elif status == "refunded":
+        return "已退款"
+    else:
+        return "未知状态"
+
+
+# 重构后：数据与逻辑分离
+STATUS_TEXT = {
+    "pending": "待支付",
+    "paid": "已支付",
+    "shipped": "已发货",
+    "refunded": "已退款",
+    "cancelled": "已取消",
+}
+
+
+def describe(status: str) -&gt; str:
+    try:
+        return STATUS_TEXT[status]
+    except KeyError:
+        raise AssertionError(f"未知订单状态 {status!r}，可用值：{sorted(STATUS_TEXT)}")
+
+
+def test_all_status_documented():
+    # 表本身可测：每个状态都能得到非空描述
+    for status in STATUS_TEXT:
+        assert describe(status)</code></pre>
+
+        <h2>常见坑与排查</h2>
+        <p><strong>现象</strong>：CI 上的用例跑到一半停住，二十分钟后被平台杀掉，日志末尾没有任何报错。<strong>原因</strong>：某处写了 <code>while True</code>，等待一个永远不会出现的状态，退出依赖循环体里的 if，而那个 if 的条件写错了字段名。<strong>处理</strong>：把退出条件提到抬头写成截止时间，等待函数统一封装，禁止在用例里手写无限循环。</p>
+        <p><strong>现象</strong>：遍历删除测试账号时，总有几个账号残留。<strong>原因</strong>：在遍历列表的同时删元素，索引整体前移，相邻元素被跳过。<strong>处理</strong>：改为遍历副本 <code>list(accounts)</code>，或者先收集待删 ID，循环结束后统一删除。</p>
+        <p><strong>现象</strong>：接口返回空数组，用例判为通过。<strong>原因</strong>：<code>for item in items</code> 空转，后面的 <code>all()</code> 又对空集合返回 True。<strong>处理</strong>：遍历前断言 <code>len(items) &gt;= 1</code>，并在断言信息里说明空集合意味着什么。</p>
+        <p><strong>现象</strong>：同一个筛选逻辑在两条用例里结果不同。<strong>原因</strong>：其中一条用了嵌套推导式，内层条件依赖外层变量但顺序写反，边界数据上没有报错，只是结果偏了。<strong>处理</strong>：嵌套超过一层就改成显式循环，边界数据单独写用例。</p>
+        <p><strong>现象</strong>：用例在本地稳定通过，换一台机器必失败。<strong>原因</strong>：遍历目录用了 <code>os.listdir</code>，顺序依赖文件系统，而用例隐式依赖了导入顺序。<strong>处理</strong>：统一 <code>sorted()</code>，或者在文件名里带零填充序号。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>这份清单针对的是「脚本要进 CI 长期跑」这个阶段。每条都对应过真实事故，逐条核对比通读代码更快。</p>
+
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>合格标准</th><th>不做的后果</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>分支判定</td><td>通过与否只由断言决定，if 里不 print 结果</td><td>失败用例显示为通过，缺陷漏出</td></tr>
+            <tr><td>环境分支</td><td>环境差异在会话构建时收敛成一份配置</td><td>新增环境要改几十个文件，必漏改</td></tr>
+            <tr><td>数据遍历</td><td>用例数据交给 parametrize 并带业务 id</td><td>一条失败导致后续数据全不执行</td></tr>
+            <tr><td>集合断言</td><td>遍历前断言非空，不依赖 all/any 的空集合语义</td><td>空响应被判为通过</td></tr>
+            <tr><td>等待逻辑</td><td>截止时间 + 间隔 + 中止状态，超时抛异常</td><td>job 卡死到平台超时，日志无结论</td></tr>
+            <tr><td>分支规模</td><td>if 链超过四个分支就改成映射表</td><td>新增状态靠复制粘贴，重复分支越积越多</td></tr>
+            <tr><td>清理逻辑</td><td>资源回收写在 finally 里</td><td>断言失败后留下脏数据，污染下一轮</td></tr>
+          </tbody>
+        </table>
+        <p>最后给一个判断标准：把这段脚本交给三个月后的自己，能不能只看结构就说出「它在什么条件下会停、失败会以什么形式出现」。如果能，控制流就算写清楚了；如果还要逐行推演，那就还没到可以交给团队的程度。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/tutorial/controlflow.html" target="_blank" rel="noopener">Python 教程：控制流工具与 for-else — Python 官方文档</a></li>
+            <li><a href="https://docs.python.org/3/reference/compound_stmts.html" target="_blank" rel="noopener">复合语句参考：if、for、while、match — Python 官方文档</a></li>
+            <li><a href="https://peps.python.org/pep-0636/" target="_blank" rel="noopener">PEP 636：结构化模式匹配教程 — Python 官方文档</a></li>
+            <li><a href="https://docs.python.org/3/reference/expressions.html#displays-for-lists-sets-and-dictionaries" target="_blank" rel="noopener">推导式与生成器表达式的语义 — Python 官方文档</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/skipping.html" target="_blank" rel="noopener">pytest：skip 与 xfail 的正确用法 — pytest 文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#python</span>
+          <span class="tag">#control-flow</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

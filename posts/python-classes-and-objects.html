@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 类与对象：封装测试逻辑的「工具箱」 · 软件测试资料集</title>
+<meta name="description" content="类是模板、对象是实例，self 是什么、怎么定义方法、继承怎么用，配封装用户操作完整案例。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-classes-and-objects.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Python 类与对象：封装测试逻辑的「工具箱」">
+<meta property="og:description" content="类是模板、对象是实例，self 是什么、怎么定义方法、继承怎么用，配封装用户操作完整案例。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-classes-and-objects.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Python 类与对象：封装测试逻辑的「工具箱」">
+<meta name="twitter:description" content="类是模板、对象是实例，self 是什么、怎么定义方法、继承怎么用，配封装用户操作完整案例。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Python 类与对象：封装测试逻辑的「工具箱」","description":"类是模板、对象是实例，self 是什么、怎么定义方法、继承怎么用，配封装用户操作完整案例。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-classes-and-objects.html","articleSection":"Python 编程入门","keywords":"python, classes, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>11 min read</span>
+        </div>
+        <h1>Python 类与对象：封装测试逻辑的「工具箱」</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-classes-and-objects">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Python 3.10+
+# 创建虚拟环境
+python -m venv venv
+venv\Scripts\activate   # Windows
+
+# 安装核心库
+pip install pytest requests pandas
+# 验证
+pytest --version</code></pre>
+<div class="code-head"><span>python — 验证</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+resp = requests.get("https://httpbin.org/get", timeout=5)
+assert resp.status_code == 200
+print("Python 环境就绪 ✓")</code></pre>
+
+<h2>基础应用：第一个测试用例</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+
+def test_api():
+    resp = requests.get("https://httpbin.org/get", params={"name": "test"}, timeout=10)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["args"]["name"] == "test"
+    print("基础接口测试通过 ✓")</code></pre>
+
+<h2>项目进阶：pytest + fixture + 参数化 + 报告</h2>
+<div class="code-head"><span>python — conftest.py</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest, requests
+
+@pytest.fixture
+def api():
+    return requests.Session()
+
+@pytest.fixture
+def user():
+    return {"username": "test@example.com"}</code></pre>
+<div class="code-head"><span>python — 参数化测试</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest
+
+@pytest.mark.parametrize("code", [200, 301, 404, 500])
+def test_status(api, code):
+    resp = api.get(f"https://httpbin.org/status/{code}", timeout=5)
+    assert resp.status_code == code</code></pre>
+
+        <h2>类是模板，对象是实例</h2>
+        <p>类比：类是「图纸」，对象是「按图纸造出来的东西」。同一个类可以造出无数个对象，每个对象有自己的数据（属性），但共享同一套操作（方法）。</p>
+        <div class="code-head"><span>python — 类的基本结构</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 定义类（模板）
+class TestUser:
+    """测试用户类"""
+
+    # 类变量（所有实例共享）
+    default_env = "test"
+
+    # 构造方法（创建对象时自动调用）
+    def __init__(self, name, email, age=18):
+        # self 代表"当前这个对象"
+        self.name = name        # 实例属性（每个对象独立）
+        self.email = email
+        self.age = age
+
+    # 实例方法（第一个参数必须是 self）
+    def display(self):
+        print(f"用户：{self.name}（{self.age}岁）邮箱：{self.email}")
+
+    # 实例方法（带参数）
+    def change_email(self, new_email):
+        self.email = new_email
+        print(f"{self.name} 邮箱改为：{new_email}")
+
+# 创建对象（按"图纸"造"东西"）
+user1 = TestUser("张三", "zhangsan@example.com")
+user2 = TestUser("李四", "lisi@example.com", age=30)
+
+# 调用方法
+user1.display()   # 用户：张三（18岁）邮箱：zhangsan@example.com
+user2.display()   # 用户：李四（30岁）邮箱：lisi@example.com
+
+# 每个对象的数据独立
+user1.change_email("new@example.com")
+user1.display()   # 张三 邮箱变了
+user2.display()   # 李四 邮箱没变</code></pre>
+        <div class="callout">
+          <p><strong>self 是什么？</strong>self 就是「当前对象自己」。类里定义方法时第一个参数写 <code>self</code>，调用时不用传（Python 自动把「调用者」传进去）。<code>user1.display()</code> 里，self 就是 user1。</p>
+        </div>
+
+        <h2>实例变量 vs 类变量</h2>
+        <div class="code-head"><span>python — 变量作用域</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>class ApiClient:
+    """API 客户端"""
+
+    # 类变量（所有实例共享）
+    max_retries = 3
+    api_version = "v1"
+
+    def __init__(self, base_url):
+        # 实例变量（每个对象独立）
+        self.base_url = base_url
+        self.session = None
+
+    def get(self, endpoint):
+        # 用类变量
+        url = f"{self.base_url}/{self.api_version}{endpoint}"
+        # 用实例变量
+        # self.session.get(url)
+        return url
+
+# 两个实例共享类变量
+client_a = ApiClient("https://api.a.com")
+client_b = ApiClient("https://api.b.com")
+
+# 改类变量（所有实例都变）
+ApiClient.max_retries = 5
+print(client_a.max_retries)   # 5
+print(client_b.max_retries)   # 5
+
+# 实例变量各自独立
+print(client_a.base_url)     # https://api.a.com
+print(client_b.base_url)     # https://api.b.com</code></pre>
+        <div class="callout">
+          <p>类变量适合「配置」（所有实例共享），实例变量适合「状态」（每个对象独立）。测试场景里，<code>base_url</code> 是实例变量（每个客户端不同），<code>timeout</code>、<code>max_retries</code> 可以是类变量（全局统一）。</p>
+        </div>
+
+        <h2>继承：复用父类的「操作」</h2>
+        <p>继承是「站在巨人肩膀上」。测试里最常见的场景：<strong>基类封装通用操作，子类扩展特定逻辑</strong>。</p>
+        <div class="code-head"><span>python — 继承</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 基类：通用接口客户端
+class BaseApiClient:
+    def __init__(self, base_url, timeout=10):
+        self.base_url = base_url
+        self.timeout = timeout
+
+    def request(self, method, endpoint, **kwargs):
+        """通用请求方法（子类不用重写）"""
+        url = f"{self.base_url}{endpoint}"
+        print(f"{method} {url}")
+        return {"status": 200, "data": None}
+
+    def get(self, endpoint, **kwargs):
+        return self.request("GET", endpoint, **kwargs)
+
+    def post(self, endpoint, data=None, **kwargs):
+        return self.request("POST", endpoint, data=data, **kwargs)
+
+
+# 子类：用户接口客户端（继承通用请求方法）
+class UserApiClient(BaseApiClient):
+    """用户相关接口（基类的 get/post 自动继承）"""
+
+    def login(self, username, password):
+        """用户专属方法（基类没有，子类扩展）"""
+        return self.post("/api/login", data={
+            "username": username,
+            "password": password,
+        })
+
+    def get_profile(self, user_id):
+        return self.get(f"/api/users/{user_id}")
+
+
+# 子类：订单接口客户端（同样继承通用方法）
+class OrderApiClient(BaseApiClient):
+    """订单相关接口"""
+
+    def create_order(self, items):
+        return self.post("/api/orders", data={"items": items})
+
+    def get_order(self, order_id):
+        return self.get(f"/api/orders/{order_id}")
+
+# 使用
+user_client = UserApiClient("https://api.example.com")
+order_client = OrderApiClient("https://api.example.com")
+
+# 子类直接用基类的 get/post（继承）
+result = user_client.get("/api/users/1001")
+result = order_client.get("/api/orders/ORD-001")
+
+# 子类自己的方法（扩展）
+login_result = user_client.login("admin", "123456")
+order_result = order_client.create_order([{"name": "手机壳", "qty": 2}])
+
+# 检查继承关系
+print(isinstance(user_client, BaseApiClient))   # True
+print(issubclass(UserApiClient, BaseApiClient)) # True</code></pre>
+
+        <h3>方法覆盖（子类改父类方法）</h3>
+        <div class="code-head"><span>python — 方法覆盖</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>class PaymentClient(BaseApiClient):
+    """支付接口（覆盖基类的 post 方法，加日志）"""
+
+    def post(self, endpoint, data=None, **kwargs):
+        # 覆盖：加自己的逻辑
+        print(f"[支付] POST {endpoint} 数据：{data}")
+        # 调用基类方法（super()）
+        result = super().post(endpoint, data, **kwargs)
+        print(f"[支付] 响应：{result}")
+        return result
+
+client = PaymentClient("https://api.example.com")
+client.post("/api/pay", data={"amount": 99.99})
+# [支付] POST /api/pay 数据：{'amount': 99.99}
+# POST https://api.example.com/api/pay
+# [支付] 响应：{'status': 200, 'data': None}</code></pre>
+
+        <h2>@property：让属性「看起来像变量，实际是方法」</h2>
+        <div class="code-head"><span>python — @property</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>class Order:
+    def __init__(self, items):
+        self._items = items       # 私有属性（前缀下划线，约定"别直接改"）
+
+    # 读属性（像变量一样访问，实际是方法）
+    @property
+    def total(self):
+        """计算总金额（不用调用方法，直接用 order.total）"""
+        return sum(item["price"] * item["qty"] for item in self._items)
+
+    @property
+    def item_count(self):
+        return len(self._items)
+
+# 使用
+order = Order([
+    {"name": "手机壳", "qty": 2, "price": 49.99},
+    {"name": "耳机", "qty": 1, "price": 99.99},
+])
+
+# 像变量一样访问（实际执行了 total 方法）
+print(order.total)        # 199.97
+print(order.item_count)   # 2</code></pre>
+        <div class="callout">
+          <p><code>@property</code> 让「计算属性」用起来像普通变量。测试断言时，<code>assert order.total == 199.97</code> 比 <code>assert order.calculate_total() == 199.97</code> 更简洁。但注意：property 是<strong>只读</strong>的（没定义 setter），不能 <code>order.total = 100</code>。</p>
+        </div>
+
+        <h2>案例：封装用户操作 + 接口客户端</h2>
+        <p>把类、继承、property 串起来，写一套「测试用户操作」的完整封装：</p>
+        <div class="code-head"><span>python — 完整案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import requests
+import json
+
+class BaseClient:
+    """基础客户端（所有客户端的父类）"""
+
+    def __init__(self, base_url, timeout=10):
+        self.base_url = base_url.rstrip("/")
+        self.timeout = timeout
+        self.session = requests.Session()
+
+    def request(self, method, endpoint, **kwargs):
+        url = f"{self.base_url}{endpoint}"
+        response = self.session.request(
+            method, url, timeout=self.timeout, **kwargs
+        )
+        response.raise_for_status()   # 4xx/5xx 抛异常
+        return response
+
+    def get(self, endpoint, **kwargs):
+        return self.request("GET", endpoint, **kwargs)
+
+    def post(self, endpoint, data=None, **kwargs):
+        return self.request("POST", endpoint, json=data, **kwargs)
+
+
+class UserClient(BaseClient):
+    """用户接口客户端"""
+
+    def login(self, username, password):
+        resp = self.post("/api/login", data={
+            "username": username, "password": password
+        })
+        token = resp.json().get("token")
+        # 保存 token 供后续请求用
+        self.session.headers["Authorization"] = f"Bearer {token}"
+        return token
+
+    def get_user(self, user_id):
+        resp = self.get(f"/api/users/{user_id}")
+        return resp.json()
+
+    # property：用户是否在线（不用调用方法）
+    @property
+    def current_user(self):
+        if "user_id" in self._cache:
+            return self._cache.get("user_data")
+        return None
+
+
+class OrderClient(BaseClient):
+    """订单接口客户端"""
+
+    def create_order(self, items, user_id):
+        resp = self.post("/api/orders", data={
+            "user_id": user_id, "items": items
+        })
+        return resp.json()
+
+    def pay_order(self, order_id, amount):
+        resp = self.post(f"/api/orders/{order_id}/pay", data={"amount": amount})
+        return resp.json()
+
+    @property
+    def order_total(self):
+        """订单总金额（计算属性）"""
+        if not hasattr(self, "_order_data"):
+            return 0
+        return sum(item.get("price", 0) * item.get("qty", 0)
+                   for item in self._order_data.get("items", []))
+
+
+# 5 条用例共用一套客户端
+user_client = UserClient("https://api.example.com")
+order_client = OrderClient("https://api.example.com")
+
+# 用例 1：登录
+token = user_client.login("admin", "123456")
+assert token is not None
+
+# 用例 2：创建订单
+order = order_client.create_order(
+    items=[{"name": "手机壳", "qty": 2, "price": 49.99}],
+    user_id=1001
+)
+assert order.get("order_id")
+
+# 用例 3：支付
+pay_result = order_client.pay_order(order["order_id"], 99.99)
+assert pay_result.get("status") == "paid"
+
+# 用例 4：查订单
+order_detail = order_client.get(f"/api/orders/{order['order_id']}").json()
+assert order_detail["status"] == "paid"</code></pre>
+        <div class="callout">
+          <p>测试工程师记住四条：① 类是「图纸」，对象是「按图纸造的东西」；② <strong>self</strong> 是「当前对象」，方法里用它访问自己的数据；③ 继承让子类「站在父类肩膀上」，通用方法写一次所有子类用；④ <strong>@property</strong> 让计算属性用起来像变量，断言更简洁。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/tutorial/classes.html" target="_blank" rel="noopener">Python 官方教程 - 类</a></li>
+            <li><a href="https://realpython.com/python_classes_objects/" target="_blank" rel="noopener">Real Python - 类与对象完全指南</a></li>
+            <li><a href="https://docs.python.org/3/reference/datamodel.html" target="_blank" rel="noopener">Python 数据模型参考</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#python</span>
+          <span class="tag">#classes</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

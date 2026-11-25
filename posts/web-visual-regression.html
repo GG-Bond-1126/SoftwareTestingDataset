@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web UI 自动化进阶：视觉回归 + A/B 测试 · 软件测试资料集</title>
+<meta name="description" content="视觉回归能抓什么、阈值怎么定、动态内容与字体差异怎么处理，附基线流程与 CI 一致性方案。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-visual-regression.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Web UI 自动化进阶：视觉回归 + A/B 测试">
+<meta property="og:description" content="视觉回归能抓什么、阈值怎么定、动态内容与字体差异怎么处理，附基线流程与 CI 一致性方案。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-visual-regression.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Web UI 自动化进阶：视觉回归 + A/B 测试">
+<meta name="twitter:description" content="视觉回归能抓什么、阈值怎么定、动态内容与字体差异怎么处理，附基线流程与 CI 一致性方案。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Web UI 自动化进阶：视觉回归 + A/B 测试","description":"视觉回归能抓什么、阈值怎么定、动态内容与字体差异怎么处理，附基线流程与 CI 一致性方案。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-visual-regression.html","articleSection":"Web 自动化","keywords":"visual-regression, playwright, screenshot","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>20 min read</span>
+        </div>
+        <h1>Web UI 自动化进阶：视觉回归 + A/B 测试</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-visual-regression">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <figure class="article-figure">
+          <svg viewBox="0 0 720 320" width="100%" role="img" aria-labelledby="fig-web-visual-regression-1-title" xmlns="http://www.w3.org/2000/svg">
+            <title id="fig-web-visual-regression-1-title">视觉回归流程：先给动态区域加遮罩再截图，截图与基线比对，按差异阈值判定，人工评审确认是有意变更后更新基线，非预期变化则亮红灯</title>
+            <defs>
+              <marker id="fig-visual-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--text-faint)"/>
+              </marker>
+            </defs>
+            <rect x="24" y="40" width="160" height="54" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)"/>
+            <text x="104" y="66" fill="var(--text)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">页面截图</text>
+            <text x="104" y="84" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">禁动画、隐光标</text>
+            <path d="M 184 67 H 232" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-visual-arrow)"/>
+            <rect x="232" y="40" width="180" height="54" rx="10" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.4"/>
+            <text x="322" y="66" fill="var(--cyan)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">基线比对</text>
+            <text x="322" y="84" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">基线/当前/差异图</text>
+            <path d="M 412 67 H 460" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-visual-arrow)"/>
+            <rect x="460" y="40" width="196" height="54" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)"/>
+            <text x="558" y="66" fill="var(--text)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">差异阈值判定</text>
+            <text x="558" y="84" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">容差 + 像素上限</text>
+            <path d="M 558 94 V 134" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-visual-arrow)"/>
+            <text x="568" y="118" fill="var(--text-dim)" font-size="11.5" font-family="inherit">有差异</text>
+            <rect x="460" y="134" width="196" height="54" rx="10" fill="rgba(61,220,132,0.12)" stroke="var(--accent)" stroke-width="1.4"/>
+            <text x="558" y="160" fill="var(--accent)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">人工评审</text>
+            <text x="558" y="178" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">前端与测试双签</text>
+            <path d="M 460 161 H 412" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-visual-arrow)"/>
+            <text x="436" y="153" fill="var(--text-dim)" font-size="11.5" font-family="inherit" text-anchor="middle">有意</text>
+            <rect x="232" y="134" width="180" height="54" rx="10" fill="rgba(61,220,132,0.12)" stroke="var(--accent)" stroke-width="1.4"/>
+            <text x="322" y="160" fill="var(--accent)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">更新基线</text>
+            <text x="322" y="178" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">人工提交，CI 禁止改写</text>
+            <path d="M 558 188 V 228" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-visual-arrow)"/>
+            <text x="568" y="214" fill="var(--text-dim)" font-size="11.5" font-family="inherit">非预期</text>
+            <rect x="460" y="228" width="196" height="68" rx="10" fill="rgba(230,180,80,0.14)" stroke="var(--amber)" stroke-width="1.4"/>
+            <text x="558" y="250" fill="var(--amber)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">红灯</text>
+            <text x="558" y="268" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">非预期变化</text>
+            <text x="558" y="284" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">回滚或修 bug</text>
+            <rect x="24" y="228" width="196" height="68" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-dasharray="5 4"/>
+            <text x="122" y="250" fill="var(--text)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">动态区域遮罩</text>
+            <text x="122" y="268" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">广告位、时间、轮播</text>
+            <text x="122" y="284" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">遮挡不超过三分之一</text>
+            <path d="M 122 228 V 94" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-visual-arrow)"/>
+            <text x="132" y="180" fill="var(--text-dim)" font-size="11.5" font-family="inherit">先遮动态区</text>
+          </svg>
+          <figcaption>图 1 · 截图前先处理动态内容，比对后用阈值过滤噪声，最后只能由人决定「这张差异算不算数」</figcaption>
+        </figure>
+        <h2>视觉回归到底解决什么问题</h2>
+        <p>一个很典型的场景：设计调整了卡片间距，前端改完自测通过，测试同学手工回归了主要页面，发布后仍有用户截图反馈「按钮压住了金额文案」。这类问题功能断言一个都抓不到——按钮能点、金额正确、接口返回 200，只是视觉上两行字挤到了一起。人工回归又看不准，一像素的位移和二十像素的错位在肉眼看来差不多。</p>
+        <p>视觉回归补的就是这一层：它不判断功能对不对，只回答「这个页面和上次相比，有没有不该发生的变化」。所以先要把定位摆正——它不能替代功能断言。两者混在一起写，得到的结果是一堆无法解释的红：你分不清这次失败是接口数据变了，还是样式真的坏了，最后所有人一起把视觉用例关掉。</p>
+
+        <h2>能抓什么、抓不到什么</h2>
+        <p>它擅长抓三类东西：布局错位，比如元素重叠、容器溢出、文字折行位置变了；样式丢失，比如样式表没加载、主题色被别的规则覆盖、字体回退成默认字体；组件退化，比如按钮高度、圆角、图标对齐在某个分支里被改坏。这三类共同点是「页面结构没变，但长相变了」，正好落在功能断言和个人视线的盲区里。</p>
+        <p>它抓不到的东西同样要说清：文案写错了字，它只会告诉你这一块像素变了，不会告诉你是错别字；数据不对，比如金额显示成别人的订单，像素差异也可能落在阈值内被放过；交互逻辑不对，按钮点了没反应但页面没变化，截图一模一样；可用性问题，比如对比度不够、焦点不可见，它完全无感。</p>
+        <table>
+          <thead>
+            <tr><th>问题类型</th><th>能否发现</th><th>原因</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>布局错位、元素重叠</td><td>能</td><td>像素或结构位置发生明显变化</td></tr>
+            <tr><td>样式丢失、主题错乱</td><td>能</td><td>颜色与尺寸大面积偏离基线</td></tr>
+            <tr><td>文案错别字、数字写错</td><td>只报差异，不判对错</td><td>无法区分「预期改动」和「错误改动」</td></tr>
+            <tr><td>接口数据、业务逻辑错误</td><td>不能</td><td>页面长相可能完全一致</td></tr>
+            <tr><td>点击无响应、流程走不通</td><td>不能</td><td>属于行为问题，不是渲染问题</td></tr>
+          </tbody>
+        </table>
+
+        <h2>三种比对方式：逐像素、感知哈希、结构比对</h2>
+        <p>逐像素是最直接的一种：要求尺寸完全一致，然后逐点比较颜色差，超过容差就算差异。它最敏感，布局挪动一个像素、颜色差一档都能抓到；代价是同样对字体抗锯齿、图片压缩、显卡渲染差异敏感，环境稍有不一致就满屏红。</p>
+        <p>感知哈希走另一条路：把图片缩成很小的灰度指纹，比较两个指纹的汉明距离。它对压缩、轻微缩放、亮度变化更宽容，适合营销页这种三天两头换图的地方；缺点是局部的大改动会被整张图的平均值稀释，一个角落的按钮错位可能算不出差异。结构比对则只看元素的位置和尺寸，不看颜色，最适合验证响应式断点和设计系统组件的骨架。</p>
+        <p>取舍很明确：核心交易页面用逐像素加遮罩，宁可多修几次也要抓住真实错位；组件库用结构比对，避免颜色主题切换带来的噪声；活动页用感知哈希做粗筛，只拦「整页塌了」这种级别的问题。三种方式可以叠加，但不要在同一条用例里既要求像素一致又允许结构漂移，判定口径必须唯一。</p>
+
+        <h2>从最小可用开始：框架自带的截图断言</h2>
+        <p>不要一上手就接云服务。主流框架自带的截图断言已经完成了截图、比对、差异图、报告这一整条链路，先把这条链路跑通，再判断是否需要更强的基线管理。接入成本只有一行断言，前提是运行环境固定，这一点后面单独讲。</p>
+        <p>两个参数必须显式给：禁用动画、隐藏文本光标。原因很实在——加载动画和闪烁的光标会让同一页面在两次截图里长得不一样，而这种差异每天都会出现，很快就会被当成噪声忽略。另外把缩放模式设成按样式像素，避免高分屏把截图尺寸整体翻倍，导致基线与当前图尺寸不一致直接判失败。</p>
+        <div class="code-head"><span>python — 最小可用的视觉断言</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from playwright.sync_api import Page, expect
+
+
+def test_checkout_page_visual(page: Page):
+    page.goto('https://app.example.com/checkout')
+    expect(page.get_by_role('heading', name='确认订单')).to_be_visible()
+
+    expect(page).to_have_screenshot(
+        'checkout.png',
+        full_page=True,
+        animations='disabled',
+        caret='hide',
+        scale='css',
+    )</code></pre>
+        <p>第一次运行没有基线，框架会把当前截图写成基线并标记为新增。这一步必须人工打开看一眼再提交，否则等于把「当前可能错误的长相」固化成了标准答案。之后每次运行都是比对，失败时会在结果目录里留下当前图、基线图和差异图三份文件。</p>
+
+        <h2>基线图的生成、评审与更新</h2>
+        <p>基线是「已经被批准的当前长相」，它必须和代码一起进版本库，和代码走同一次评审。谁来审？改这个页面的前端和负责这条用例的测试，两个人都看过才算数，因为只有前端知道这次样式变更是有意的，只有测试知道这次变更有没有超出需求范围。多久更新？随需求变更更新，不设定时刷新——定时刷新等于定期把未知差异合法化。</p>
+        <p>最危险的反模式是让 CI 自动更新基线。那等于让回归自己给自己判卷，任何一次错误渲染都会被写成新的正确，第二天全绿，问题上线。守卫的做法很朴素：CI 里禁止基线文件发生变化，只允许人在本地生成后提交，PR 里把基线图片的变更当成评审内容，和代码改动一起看。</p>
+        <div class="code-head"><span>yaml — 禁止 CI 改写基线</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>- name: 基线只允许人工更新
+  run: |
+    if ! git diff --quiet -- tests/__snapshots__; then
+      echo "检测到视觉基线变化，请人工确认后单独提交"
+      git diff --stat -- tests/__snapshots__
+      exit 1
+    fi</code></pre>
+        <p>还有一个细节：基线文件名通常带浏览器与平台后缀。这意味着在 Windows 上生成的基线，到了 Linux 容器里会被当成「缺失」而不是「不同」，于是全部用例判新增。这不是 bug，是框架在提醒你跨平台截图本来就不能直接比，正确做法是在统一容器里生成基线。</p>
+
+        <h2>动态内容：遮罩、固定与局部截图</h2>
+        <p>动态内容分三类。第一类是时间和计数，倒计时、相对时间、实时在线人数，这类优先固定：注入固定时间、锁定测试数据，让页面每次都渲染同一个值。第二类是广告位和推荐位，内容由后端随机下发，固定不了，就用遮罩盖住。第三类是动画和轮播，框架能禁用就禁用，不能禁用就等它停在第一帧。</p>
+        <p>等待顺序比等待时长重要得多。正确顺序是：等字体加载完成，否则文字宽度会在最后一刻跳变；等图片解码完成，否则占位图会被截进基线；等动画结束并且关键元素可见，然后才截图。少任何一步，得到的都是偶发差异，而且差异总是出现在文字区域，让人误以为是字体问题。</p>
+        <div class="code-head"><span>python — 稳定截图：字体、图片、遮罩</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>def stable_screenshot(page, name, masks=()):
+    page.evaluate('() =&gt; document.fonts.ready.then(() =&gt; true)')
+    page.wait_for_function(
+        '() =&gt; Array.from(document.images).every(i =&gt; i.complete)'
+    )
+    page.evaluate('() =&gt; window.scrollTo(0, 0)')
+    expect(page.get_by_test_id('page-ready')).to_be_attached()
+
+    expect(page).to_have_screenshot(
+        name,
+        full_page=True,
+        animations='disabled',
+        caret='hide',
+        mask=list(masks),
+        mask_color='#ff00ff',
+    )</code></pre>
+        <p>遮罩不是越多越好。每遮一块，就少一块可视区域，遮到一半以上时这条用例已经失去意义，不如改成只截关键组件。判断标准很简单：如果遮罩面积超过页面的三分之一，说明这个页面本身不适合做整页视觉回归，应该缩小到某一个稳定的区块。</p>
+
+        <h2>字体渲染与设备像素比造成的假差异</h2>
+        <p>同一个页面在设计师的 Mac 和 CI 的 Linux 容器里截图，结果必然不同。原因有三个：字体渲染引擎的抗锯齿策略不同，中文在缺少字体包时会回退成另一种字形甚至方块；默认字体族在各系统上不一致；设备像素比为 2 的高分屏会把截图尺寸整体放大一倍。这些差异不是产品 bug，阈值调到多大都救不回来。</p>
+        <p>解法只有一个方向：把截图环境钉死。容器镜像固定浏览器版本和中文字体，上下文固定视口、像素比、语言、时区、配色方案，开发机上不做基线比对，只做本地预览。想让页面自己少动，还可以声明偏好减少动效，很多组件库会读取这个信号直接跳过过渡动画。</p>
+        <div class="code-head"><span>python — 固定上下文的渲染条件</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>context = browser.new_context(
+    viewport={'width': 1280, 'height': 800},
+    device_scale_factor=1,      # 与基线一致，避免尺寸翻倍
+    locale='zh-CN',
+    timezone_id='Asia/Shanghai',
+    color_scheme='light',
+    reduced_motion='reduce',    # 让组件库跳过过渡动画
+)</code></pre>
+        <p>取舍在这里：想覆盖高分屏，就得为每个像素比维护一套基线，用例数量和维护成本直接翻倍。除非产品明确要求高分屏细节一致，否则固定成一倍像素比是更划算的选择，因为高分屏的差异大多属于渲染层面，而不是布局层面。</p>
+
+        <h2>差异阈值怎么定</h2>
+        <p>阈值有三个维度，很多人只用了其中一个。第一个是单像素颜色容差，取值在零到一之间，用来吸收抗锯齿带来的细微色差；第二个是差异像素的绝对数量，适合局部组件，因为区域本来就小，一点点错位对应的像素数很具体；第三个是差异像素占整图的比例，适合整页，因为页面高度会随内容变化，绝对值不稳定。</p>
+        <p>定阈值不能拍脑袋。可行的做法是先把容差设为零、上限设为严格，跑一段时间，把每条用例的真实差异值和差异区域全部收集起来，看正常波动落在什么区间，再把阈值定在正常波动之上、真实缺陷之下。这个过程通常要一到两周，比直接抄一个百分比靠谱得多，因为每个产品的页面复杂度完全不同。</p>
+        <div class="code-head"><span>python — 三个阈值一起用</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>expect(page).to_have_screenshot(
+    'checkout.png',
+    threshold=0.2,               # 单像素颜色容差，0 到 1
+    max_diff_pixels=400,         # 绝对像素上限，适合局部组件
+    max_diff_pixel_ratio=0.001,  # 占比上限，适合整页
+)
+
+# 1280 x 800 = 1024000 像素，0.1% 约等于 1024 像素
+# 两个上限任一超限即失败，容差先过滤噪声，再用上限兜底</code></pre>
+        <p>这里有个容易忽略的换算：同样写百分之一，在一千二百八十宽、八百高的页面上是一万多像素，在一个按钮大小的区域里只有几十像素。所以局部组件不要用比例，改成绝对像素；否则一个按钮整体偏移两像素，占比可能还不到百分之一，直接被放过。</p>
+
+        <h2>CI 里的一致性：同一容器、同一字体、同一分辨率</h2>
+        <p>视觉回归在 CI 上失败，九成不是产品变了，而是环境变了。浏览器小版本升级会改变文字排版和圆角渲染；容器里少装中文字体会让整页文字变成方块；视口或缩放参数被别的用例改过，会让后续所有截图尺寸不一致。这些变化一次影响全量用例，看起来像产品全线崩了。</p>
+        <p>所以 CI 的第一条纪律是锁版本：镜像用固定的标签，不使用最新版；字体在镜像构建阶段装好，不依赖运行时下载；视口、像素比、语言、时区全部写死在上下文工厂里，任何用例都不允许临时改。验收标准也简单：同一份代码连跑两次差异必须为零，换一台构建机跑差异仍然为零。</p>
+        <div class="code-head"><span>dockerfile — 固定截图环境</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 标签固定，与本地 Playwright 版本保持一致
+FROM mcr.microsoft.com/playwright/python:v1.49.0-jammy
+
+RUN apt-get update &amp;&amp; apt-get install -y --no-install-recommends \
+    fonts-noto-cjk &amp;&amp; rm -rf /var/lib/apt/lists/*
+
+ENV TZ=Asia/Shanghai
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+CMD ["pytest", "tests/visual", "-q"]</code></pre>
+        <p>还有一条常被漏掉的：测试数据也要固定。同一页面在登录态下有头像是谁、有多少条未读、订单金额是多少，这些都会变。做法是用固定的测试账号和固定的种子数据，登录后先断言关键文本再截图，让数据问题和视觉问题在日志里能分开。</p>
+
+        <h2>失败结果长什么样才算有用</h2>
+        <p>只贴一张当前截图的失败报告等于没报告，因为看的人不知道「原来应该长什么样」。有用的报告必须有三张图：基线、当前、差异高亮，并且差异图要把变化的区域框出来。人眼在差异图上定位问题的速度，比来回切换两张图找不同要快一个数量级，这是视觉回归唯一能省时间的环节。</p>
+        <p>此外还要带上下文：用例名、视口尺寸、浏览器与镜像版本、差异像素数与占比、这次基线是哪次提交定下的。少了这些，三个月后回头看只能知道「当时不一样」，回答不了「什么时候开始不一样的」。差异区域的外接矩形也值得记录，它能直接告诉你是页头、内容区还是页脚出了问题。</p>
+        <div class="code-head"><span>python — 生成差异图与统计</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+
+from PIL import Image, ImageChops
+
+
+def diff_report(baseline, actual, out_dir='artifacts'):
+    base = Image.open(baseline).convert('RGB')
+    curr = Image.open(actual).convert('RGB')
+    if base.size != curr.size:
+        return {'size_mismatch': (base.size, curr.size)}
+
+    delta = ImageChops.difference(base, curr).convert('L')
+    mask = delta.point(lambda v: 255 if v &gt; 12 else 0)   # 12 为颜色容差
+
+    changed = sum(1 for v in mask.getdata() if v)
+    total = base.size[0] * base.size[1]
+    pathlib.Path(out_dir).mkdir(exist_ok=True)
+    mask.save(pathlib.Path(out_dir) / 'diff-mask.png')
+
+    return {
+        'changed_pixels': changed,
+        'ratio_percent': round(changed / total * 100, 3),
+        'box': mask.getbbox(),       # 差异集中在外接矩形里
+    }</code></pre>
+        <p>报告还要能被找到。构建产物里的报告保留期通常只有几天到一个月，跨版本追查时要另存一份长期归档，并且在用例管理平台上挂链接。否则半年后想确认某个视觉问题是哪次发布引入的，只能靠翻聊天记录。</p>
+
+        <h2>维护成本与适用范围</h2>
+        <p>视觉回归的成本不在运行，在评审。每一次界面改动都会产生一批基线更新，需要有人逐张看图确认「这些变化是有意的」。页面越多，噪声越大，团队很快就会对红色疲劳，最后变成无脑点更新。所以只对核心页面做：登录后的首页、下单主流程、支付结果、账户资产这类改坏了会出事的页面。</p>
+        <p>组件库是收益最高的场景，因为组件被几十个页面复用，一次样式退化影响面极广，而组件数量有限、样式相对稳定。营销活动页收益最低，一周一换、每次都要更新基线，维护成本远大于它能抓到的问题。另外，带分流实验的页面不适合直接纳入：同一地址会因分流返回不同版本，基线必须按变体分开维护，否则每条用例都在抖。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>把前面这些收敛成一张表，新增视觉用例时逐条对一遍。清单的意义在于把判断从个人经验变成团队共识，新人接手时不必重新踩一遍同样的坑。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>判据</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>覆盖范围</td><td>只覆盖核心页面与稳定组件，活动页不纳入</td></tr>
+            <tr><td>环境锁定</td><td>镜像标签、字体、视口、像素比、时区全部固定</td></tr>
+            <tr><td>基线评审</td><td>基线变更进 PR，由前端与测试双人确认</td></tr>
+            <tr><td>CI 守卫</td><td>CI 内禁止自动更新基线，检测到变更即失败</td></tr>
+            <tr><td>动态内容</td><td>时间与数据固定，广告位遮罩，动画禁用</td></tr>
+            <tr><td>阈值依据</td><td>由历史差异分布导出，不是拍脑袋的百分比</td></tr>
+            <tr><td>报告完整</td><td>基线、当前、差异三图齐全，附视口与版本信息</td></tr>
+          </tbody>
+        </table>
+        <p>判断标准可以这样定：如果一条视觉用例失败后，评审的人需要问一句「这是改的还是坏的」，那说明基线评审流程还没建立。合格的视觉失败应该自带答案——差异图指出变了哪里，PR 记录说明为什么变，剩下的只看这次改动是否越界。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://playwright.dev/python/docs/test-snapshots" target="_blank" rel="noopener">Visual comparisons（截图断言与基线）— Playwright 官方文档</a></li>
+            <li><a href="https://playwright.dev/python/docs/api/class-page#page-screenshot" target="_blank" rel="noopener">page.screenshot 参数说明（mask、animations、scale）— Playwright API</a></li>
+            <li><a href="https://playwright.dev/python/docs/emulation" target="_blank" rel="noopener">Emulation（视口、像素比、时区模拟）— Playwright 官方文档</a></li>
+            <li><a href="https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion" target="_blank" rel="noopener">prefers-reduced-motion — MDN</a></li>
+            <li><a href="https://www.w3.org/TR/WCAG22/" target="_blank" rel="noopener">Web Content Accessibility Guidelines 2.2 — W3C</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#visual-regression</span>
+          <span class="tag">#playwright</span>
+          <span class="tag">#screenshot</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

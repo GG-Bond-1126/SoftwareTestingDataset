@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC 自动化的调试与排错：脚本「跑不通」怎么查 · 软件测试资料集</title>
+<meta name="description" content="调试打印、单步执行、截图取证、异常栈分析、常见错误速查表，配定位脚本卡在哪一步完整案例。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-debugging.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="PC 自动化的调试与排错：脚本「跑不通」怎么查">
+<meta property="og:description" content="调试打印、单步执行、截图取证、异常栈分析、常见错误速查表，配定位脚本卡在哪一步完整案例。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-debugging.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="PC 自动化的调试与排错：脚本「跑不通」怎么查">
+<meta name="twitter:description" content="调试打印、单步执行、截图取证、异常栈分析、常见错误速查表，配定位脚本卡在哪一步完整案例。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"PC 自动化的调试与排错：脚本「跑不通」怎么查","description":"调试打印、单步执行、截图取证、异常栈分析、常见错误速查表，配定位脚本卡在哪一步完整案例。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-debugging.html","articleSection":"PC 自动化","keywords":"pc-automation, debugging, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>PC 自动化的调试与排错：脚本「跑不通」怎么查</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="pc-automation-debugging">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 PC 自动化工具
+pip install pyautogui pynput uiautomation pywinauto opencv-python
+# 验证
+python -c "import pyautogui; print(pyautogui.size())"</code></pre>
+<div class="code-head"><span>python — 验证环境</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui
+# 获取屏幕尺寸（验证）
+print(f"屏幕尺寸：{pyautogui.size()}")
+print("PC 自动化环境就绪 ✓")</code></pre>
+
+<h2>基础应用：自动操作桌面应用</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui, subprocess, time
+
+# 启动记事本
+subprocess.Popen(["notepad.exe"])
+time.sleep(1)
+
+# 输入 + 保存
+pyautogui.write("Hello, PC Automation!")
+time.sleep(0.3)
+pyautogui.hotkey("ctrl", "s")
+time.sleep(0.5)
+
+# 截图
+pyautogui.screenshot("result.png")
+print("基础操作完成 ✓")</code></pre>
+
+<h2>项目进阶：pytest + 多场景 + CI</h2>
+<div class="code-head"><span>python — pytest fixture</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># conftest.py
+import pytest, subprocess, time
+import uiautomation as auto
+
+@pytest.fixture
+def notepad():
+    subprocess.Popen(["notepad.exe"])
+    time.sleep(1)
+    win = auto.WindowControl(searchDepth=1, subTitle="无标题 - 记事本")
+    assert win.Exists(5)
+    yield win
+    auto.press_keys("alt+f4")
+
+# test_notepad.py
+def test_type(notepad):
+    import pyautogui
+    pyautogui.write("测试内容")
+    pyautogui.hotkey("ctrl", "s")
+    time.sleep(0.5)</code></pre>
+
+        <h2>调试打印：每一步「说话」</h2>
+        <p>PC 自动化脚本「黑盒」最可怕——跑了不知道「哪一步」。把「每一步操作」都打日志，失败后翻日志就知道「卡在哪」：</p>
+        <div class="code-head"><span>python — 调试打印</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import logging
+import time
+
+# 配置日志（控制台 + 文件）
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("debug.log", encoding="utf-8"),
+    ]
+)
+logger = logging.getLogger("pc_debug")
+
+# 封装"带日志"的操作
+def logged_click(x, y, description):
+    """点击 + 打日志。"""
+    logger.info(f"→ 点击 ({x}, {y})：{description}")
+    logger.debug(f"  鼠标当前位置：{pyautogui.position()}")
+    pyautogui.click(x, y)
+    logger.debug(f"  点击完成")
+    time.sleep(0.3)   # 给界面反应时间
+
+def logged_type(text, description):
+    """输入 + 打日志。"""
+    logger.info(f"→ 输入：{text}（{description}）")
+    import pyperclip
+    pyperclip.copy(text)
+    pyautogui.hotkey("ctrl", "v")
+    logger.debug(f"  输入完成")
+    time.sleep(0.3)
+
+# 测试脚本（每一步都打日志）
+logger.info("=== 测试开始 ===")
+logged_click(500, 300, "点击'新建'按钮")
+logged_type("hello", "输入测试文本")
+logged_click(800, 600, "点击'保存'按钮")
+logger.info("=== 测试结束 ===")
+
+# 翻日志（debug.log）
+# 2026-11-23 10:00:00 [INFO] === 测试开始 ===
+# 2026-11-23 10:00:00 [INFO] → 点击 (500, 300)：点击'新建'按钮
+# 2026-11-23 10:00:00 [DEBUG]   鼠标当前位置：(100, 100)
+# 2026-11-23 10:00:01 [INFO] → 输入：hello（输入测试文本）
+# 2026-11-23 10:00:01 [ERROR] 点击 (800, 600)：点击'保存'按钮 → 失败（弹窗拦截）</code></pre>
+
+        <h2>单步执行：一行一行「走」</h2>
+        <p>脚本「跑太快」看不清哪一步挂的，用「单步执行」（每行执行后暂停）：</p>
+        <div class="code-head"><span>python — 单步执行</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import time
+
+def step(description):
+    """单步暂停（回车继续）。"""
+    print(f"\n→ {description}")
+    input("  按回车继续...（q 退出）")
+
+# 单步执行脚本
+step("1. 启动应用")
+import subprocess
+subprocess.Popen(["notepad.exe"])
+time.sleep(2)
+
+step("2. 输入文本")
+pyautogui.write("Hello")
+
+step("3. 保存（Ctrl+S）")
+pyautogui.hotkey("ctrl", "s")
+
+step("4. 关闭")
+pyautogui.hotkey("alt", "f4")
+
+# 或者用断点（IDE）
+# import pdb
+# pdb.set_trace()   # 这行后暂停，REPL 里单步
+# 或者
+# 运行脚本时：python -m pdb test_script.py</code></pre>
+
+        <h2>截图取证：失败时「拍照」</h2>
+        <div class="code-head"><span>python — 失败截图</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import traceback
+import os
+from datetime import datetime
+
+def run_with_screenshot(test_func):
+    """执行测试 + 失败时截图。"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    try:
+        test_func()
+        print("✅ 测试通过")
+    except Exception as e:
+        # 截图（取证）
+        screenshot_path = f"debug_fail_{timestamp}.png"
+        pyautogui.screenshot(screenshot_path)
+
+        # 异常栈
+        traceback_text = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+
+        print(f"\n❌ 测试失败：{e}")
+        print(f"  截图：{screenshot_path}")
+        print(f"  异常栈：\n{traceback_text}")
+        return False
+    return True
+
+# 使用
+def test_login():
+    """登录测试。"""
+    pyautogui.click(500, 400)   # 用户名输入框
+    pyautogui.write("admin")
+    pyautogui.press("tab")
+    pyautogui.write("123456")
+    pyautogui.click(800, 600)   # 登录按钮
+
+success = run_with_screenshot(test_login)
+if not success:
+    print("翻截图和异常栈定位问题")</code></pre>
+
+        <h2>异常栈分析：读 traceback</h2>
+        <p>PC 自动化最常见的 5 种异常，配「怎么读」：</p>
+        <div class="code-head"><span>异常栈分析</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. pyautogui.FailSafeException
+# 原因：鼠标移到屏幕左上角 (0,0)（紧急停止）
+# 解法：脚本没失控，是"手动停止"了。检查操作顺序
+
+# 2. pyautogui.ImageNotFoundException
+# 原因：locateOnScreen 找不到参考图
+# 解法：检查参考图是否清晰、分辨率是否一致、界面是否变化
+
+# 3. uiautomation.ElementNotFoundError
+# 原因：控件树找不到控件
+# 解法：dump 控件树（print_control_identifiers），检查控件名是否变了
+
+# 4. requests.exceptions.Timeout（接口调用）
+# 原因：接口超时
+# 解法：加 timeout、检查网络、用重试
+
+# 5. psutil.NoSuchProcess
+# 原因：进程被关掉了
+# 解法：检查进程名、确认应用还在跑
+
+# 读 traceback（从下往上看）
+# Traceback (most recent call last):
+#   File "test_excel.py", line 45, in test_save
+#       pyautogui.hotkey("ctrl", "s")
+#   File "pyautogui/__init__.py", line 1234, in hotkey
+#       _pyautogui_osx.hotkey(...)
+# pyautogui.FailSafeException: Failsafe triggered
+# 最后一行是"真正的错误"（前面是"调用栈"）</code></pre>
+
+        <h2>常见错误速查表</h2>
+        <div class="code-head"><span>错误 → 原因 → 解法</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 脚本"点了没反应"
+# 原因：界面没加载完 / 坐标偏了 / 弹窗拦截
+# 解法：加 time.sleep(0.5) / 截图看坐标 / 处理弹窗
+
+# 2. 参考图"找不到"
+# 原因：界面改版 / 分辨率变了 / 参考图模糊
+# 解法：重新截图 / 调低 confidence / 检查参考图
+
+# 3. 控件"找不到"
+# 原因：控件改名 / 层级变了
+# 解法：dump 控件树 / 用 auto_id（更稳定）/ 降级到图像识别
+
+# 4. 脚本"卡住不动"
+# 原因：等待超时 / 死循环 / 弹窗没处理
+# 解法：检查 timeout / 加 Failsafe / 处理弹窗
+
+# 5. 权限错误（Mac）
+# 原因：辅助功能/屏幕录制权限没授权
+# 解法：系统设置 → 隐私与安全性 → 授权
+
+# 6. 进程"找不到"
+# 原因：进程名不对 / 应用没启动 / 启动慢
+# 解法：检查进程名 / 加启动等待 / 确认应用已启动</code></pre>
+
+        <h2>案例：定位「脚本卡在哪一步」</h2>
+        <p>把「调试打印 + 单步 + 截图 + 异常栈」串起来，写一个「定位脚本卡在哪一步」的完整案例：</p>
+        <div class="code-head"><span>python — 完整案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import pyperclip
+import uiautomation as auto
+import logging
+import time
+import traceback
+import os
+from datetime import datetime
+
+# 1. 配置调试日志
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("debug_pc_test.log", encoding="utf-8"),
+    ]
+)
+logger = logging.getLogger("pc_test_debug")
+
+# 2. 封装"带日志 + 超时"的操作
+def safe_operation(func, description, timeout=10):
+    """执行操作 + 打日志 + 超时 + 截图。"""
+    start = time.time()
+    logger.info(f"→ 开始：{description}")
+
+    try:
+        result = func()
+        elapsed = time.time() - start
+        logger.info(f"✅ 成功：{description}（{elapsed:.1f}s）")
+        return result
+    except Exception as e:
+        elapsed = time.time() - start
+        logger.error(f"❌ 失败：{description}（{elapsed:.1f}s）：{e}")
+
+        # 截图（取证）
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        screenshot_path = f"debug_{description}_{timestamp}.png"
+        os.makedirs("debug", exist_ok=True)
+        try:
+            pyautogui.screenshot(os.path.join("debug", screenshot_path))
+            logger.info(f"  截图：debug/{screenshot_path}")
+        except Exception:
+            pass
+
+        # 异常栈
+        logger.error(f"  异常栈：\n{''.join(traceback.format_exception(type(e), e, e.__traceback__))}")
+        raise
+
+# 3. 测试脚本（每一步都"安全执行"）
+def test_excel_full_flow():
+    """Excel 完整流程（每一步都打日志 + 截图 + 异常栈）。"""
+    logger.info("=== Excel 测试开始 ===")
+
+    # 步骤 1：启动 Excel
+    def start_excel():
+        import subprocess
+        subprocess.Popen(["excel.exe"])
+        time.sleep(5)
+        excel = auto.WindowControl(searchDepth=1, subTitle="Microsoft Excel")
+        if not excel.Exists(10):
+            raise RuntimeError("Excel 窗口没打开")
+        return excel
+
+    excel_window = safe_operation(start_excel, "启动 Excel", timeout=15)
+
+    # 步骤 2：输入数据
+    def input_data():
+        pyperclip.copy("测试数据 v1")
+        pyautogui.hotkey("ctrl", "v")
+        time.sleep(0.5)
+
+    safe_operation(input_data, "输入数据", timeout=5)
+
+    # 步骤 3：保存
+    def save_file():
+        pyautogui.hotkey("ctrl", "s")
+        time.sleep(1)
+        # 处理"另存为"弹窗
+        save_dialog = auto.WindowControl(searchDepth=1, subTitle="另存为")
+        if save_dialog.Exists(5):
+            filename_edit = save_dialog.child_window(control_type="Edit", auto_id="1001")
+            filename_edit.set_edit_text("test_excel.xlsx")
+            save_btn = save_dialog.child_window(control_type="Button", title="保存(S)")
+            save_btn.click()
+            time.sleep(1)
+
+    safe_operation(save_file, "保存文件", timeout=15)
+
+    # 步骤 4：验证
+    def verify_file():
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+        file_path = os.path.join(desktop, "test_excel.xlsx")
+        if not os.path.exists(file_path):
+            raise RuntimeError(f"文件没保存：{file_path}")
+        logger.info(f"  文件已保存：{file_path}")
+
+    safe_operation(verify_file, "验证文件", timeout=5)
+
+    # 步骤 5：关闭
+    def close_excel():
+        pyautogui.hotkey("alt", "f4")
+        time.sleep(1)
+
+    safe_operation(close_excel, "关闭 Excel", timeout=5)
+
+    logger.info("=== Excel 测试结束 ===")
+    return True
+
+# 运行
+if __name__ == "__main__":
+    try:
+        test_excel_full_flow()
+        print("\n✅ 测试通过")
+    except Exception as e:
+        print(f"\n❌ 测试失败：{e}")
+        print("翻 debug_pc_test.log 和 debug/ 目录的截图定位问题")</code></pre>
+        <div class="callout">
+          <p>PC 自动化「调试五步法」：<strong>调试打印</strong>（每一步打 log）→ <strong>单步执行</strong>（一行一行走）→ <strong>截图取证</strong>（失败时拍照）→ <strong>异常栈分析</strong>（从下往上看）→ <strong>常见错误速查</strong>（对号入座）。脚本「跑不通」90% 是「界面没到位」（加 sleep / 处理弹窗 / 检查坐标），10% 是「代码逻辑错」（看异常栈）。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/library/logging.html" target="_blank" rel="noopener">Python logging 官方文档</a></li>
+            <li><a href="https://docs.python.org/3/library/traceback.html" target="_blank" rel="noopener">Python traceback 官方文档</a></li>
+            <li><a href="https://pyautogui.readthedocs.io/en/latest/index.html" target="_blank" rel="noopener">pyautogui 官方文档（常见错误）</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#pc-automation</span>
+          <span class="tag">#debugging</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

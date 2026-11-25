@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 生成测试数据：从造一条到批量造 1000 条 · 软件测试资料集</title>
+<meta name="description" content="random 固定种子、Faker 中文化、唯一 ID 与规则造数、批量写入与清理标记，附身份证校验位实现思路。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-data-generation.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Python 生成测试数据：从造一条到批量造 1000 条">
+<meta property="og:description" content="random 固定种子、Faker 中文化、唯一 ID 与规则造数、批量写入与清理标记，附身份证校验位实现思路。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-data-generation.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Python 生成测试数据：从造一条到批量造 1000 条">
+<meta name="twitter:description" content="random 固定种子、Faker 中文化、唯一 ID 与规则造数、批量写入与清理标记，附身份证校验位实现思路。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Python 生成测试数据：从造一条到批量造 1000 条","description":"random 固定种子、Faker 中文化、唯一 ID 与规则造数、批量写入与清理标记，附身份证校验位实现思路。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-data-generation.html","articleSection":"Python 进阶","keywords":"python, test-data, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Python 进阶</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>20 min read</span>
+        </div>
+        <h1>Python 生成测试数据：从造一条到批量造 1000 条</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-data-generation">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>造数到底在解决什么问题</h2>
+        <p>测试数据有一个很尴尬的位置：它是用例能跑起来的前提，却几乎没有人在设计阶段认真对待它。结果是注册用例只能用一个手机号反复跑，第二次就报「手机号已注册」；压测把同一个用户 ID 塞满队列，所有请求打在同一个分片上；边界值测试永远是 1 和 100，从来没有人试过 0 和 -1。造数不是写个 random 就完事，它要同时满足三件互相拉扯的事。</p>
+        <p>第一类是唯一标识。注册、下单、发券这些流程都要求账号或单号不重复，而且这个唯一性往往由数据库唯一索引兜底，撞了就是一个 500。第二类是边界值，长度 0、1、刚好上限、上限加一，金额 0.00、0.01、最大可用额度，日期跨月跨年。这类数据不能随机，必须精确。第三类是批量数据，压测要一万条订单，列表页要一千条记录才能翻页到有意义的深度，搜索要足够多的样本才能看出索引有没有生效。</p>
+        <p>三类需求的写法完全不同：唯一标识靠 ID 策略，边界值靠穷举加断言，批量数据靠生成器加批量写入。把三者混在一个脚本里，最后就会变成那个没人敢改、每次跑都报不同错误的祖传脚本。下面按这个分类往下讲，每一节都给出代价和失败模式。</p>
+
+        <h2>可复现是底线：random 的 seed 与版本边界</h2>
+        <p>造数脚本最容易被忽略的指标是「能不能重跑」。一条用例昨天失败、今天通过，数据是随机生成的，你根本不知道是代码修好了还是数据碰巧不同。所以第一件事是把随机源固定下来。但固定种子有两个层级，很多人只做了一个。</p>
+        <p>第一个层级是进程级。<code>random.seed(42)</code> 会重置模块内部那个全局随机状态，之后所有调用 <code>random</code> 的地方都会受影响——包括你依赖的第三方库。Faker 默认用的就是这个全局状态，于是你在脚本开头 seed 一次、Faker 内部又消耗掉几十个随机数，后面自己的序列就全偏了。更稳的做法是建一个私有的 <code>random.Random</code> 实例，只给它 seed，所有造数都走这个实例。</p>
+        <p>第二个层级是版本。官方文档明确写过：random 模块的算法和种子函数在不同 Python 版本之间可能变化，只有 <code>random()</code> 方法在给定兼容种子时会保持相同序列。也就是说，换了 Python 小版本，<code>randint</code> 生成的数字序列理论上可能不一样。如果你们把期望值硬编码在用例里，升级解释器后要重跑一遍确认；更常见的做法是只保证「同一环境内可复现」，把这次的种子记进报告，而不是假设跨版本绝对一致。</p>
+        <div class="code-head"><span>python — 私有随机实例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import random
+
+# 私有实例，不污染全局 random，也不会被 Faker 抢走状态
+rng = random.Random(20261123)
+first = [rng.randint(100000, 999999) for _ in range(3)]
+
+# 用同一个种子重建，序列完全一致
+again = random.Random(20261123)
+second = [again.randint(100000, 999999) for _ in range(3)]
+
+print(first)
+print(second)
+assert first == second      # 可复现
+print("种子：20261123")      # 把种子写进报告，失败时照着重建</code></pre>
+
+        <h2>Faker 与中文本地化：它造得出像人的数据，造不出业务约束</h2>
+        <p>random 只能给出数字和字母，注册流程里那个「姓名」字段填 <code>a8f3k2</code> 虽然能过校验，但页面上一眼就能看出是假数据，做 UI 验收和截图留档时很难看。Faker 补的正是这一层：中文姓名、省市区地址、公司名、手机号、邮箱、身份证号，看起来就是一个人。</p>
+        <p>本地化的关键是指定 locale。<code>Faker(zh_CN)</code> 才会生成中文姓名的组合，不指定会拿到英文名。种子方面它也有两种：<code>Faker.seed()</code> 是类级别的，影响所有实例；<code>fake.seed_instance()</code> 只影响当前实例。并行跑用例时用后者，不然两个 worker 会互相踩状态。</p>
+        <p>Faker 最大的误区是把它当业务数据生成器。它保证的是「格式像」，不保证「业务能过」。生成的邮箱域名可能被注册策略拦掉，生成的地址里可能缺门牌号，手机号可能落在测试环境的黑名单里，身份证的户籍地和生日组合在你们的风控规则下可能直接被拒。这不是 Faker 的 bug，是它本来就不了解你的业务。</p>
+        <p>处理办法是加一层校验器：造完立刻用和线上同一套规则函数验证，不通过就重试，重试若干次仍不通过就报错退出，而不是把脏数据塞进库然后在下游报一个看不懂的错误。这一步看起来多余，但它能把「数据问题」和「被测系统 bug」彻底分开，省下的排查时间远超写它的时间。</p>
+        <div class="code-head"><span>python — 中文本地化与约束校验</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import re
+
+from faker import Faker
+
+fake = Faker("zh_CN")
+Faker.seed(20261123)
+
+PHONE_RE = re.compile(r"^1[3-9]\d{9}$")     # 粗校验，精确号段按最新放号表维护
+
+
+def make_profile():
+    for _ in range(20):                      # 最多重试 20 次
+        profile = {
+            "name": fake.name(),
+            "phone": fake.phone_number(),
+            "email": fake.email(),
+            "company": fake.company(),
+        }
+        phone = profile["phone"].strip()
+        # 业务约束：只接受 11 位手机号，且不以 170 开头（示例规则）
+        if PHONE_RE.match(phone) and not phone.startswith("170"):
+            profile["phone"] = phone
+            return profile
+    raise RuntimeError("连续 20 次都没造出符合规则的手机号，检查约束是否过严")
+
+
+print(make_profile())</code></pre>
+
+        <h2>唯一 ID 的三种方案与代价</h2>
+        <p>唯一标识是最容易出事的一环，因为它的失败往往不是立刻报错，而是并发时偶发冲突。常见的三种方案各有明确的适用边界，选错不是不能跑，而是跑到一定并发量才开始抖。</p>
+        <p><code>uuid4</code> 最简单，128 位里 122 位随机，碰撞概率低到可以不管，代价是 32 位十六进制字符串，作为订单号对人不友好，索引也比自增整数大。它在测试环境几乎无脑可用，尤其是需要跨进程、跨机器同时造数的时候。</p>
+        <p>时间戳加随机适合要求「看起来像业务单号」的场景。毫秒时间戳保证大致有序，后几位随机补足同一毫秒内的并发。代价很直接：同一毫秒内并发生成的数量如果超过随机位的取值数，就会撞。四位随机只有一万个可能，压测时一秒几千个请求就会开始碰撞，所以要么加随机位，要么加进程标识。</p>
+        <p>自增加前缀最可控，可读性最好，代价是需要共享状态。数据库序列、Redis 自增都行，问题是多进程跑测试时，每个进程都从 1 开始，前缀不同还好，前缀相同就直接撞主键。正确做法是把 worker 号编进高位，让每个进程负责一段号段。</p>
+        <table>
+          <thead>
+            <tr><th>方案</th><th>示例</th><th>优点</th><th>代价与适用</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>uuid4</td><td>32 位十六进制</td><td>无状态、跨进程安全、免协调</td><td>字符串长、不可读；适合测试环境大批量造数</td></tr>
+            <tr><td>时间戳加随机</td><td>毫秒加四位随机</td><td>大致有序、像业务单号</td><td>同毫秒并发超过随机位就撞；需加 worker 标识</td></tr>
+            <tr><td>自增加前缀</td><td>ORD-0100000123</td><td>可读、有序、便于定位</td><td>需要序列或 Redis；多进程必须分配号段</td></tr>
+          </tbody>
+        </table>
+        <div class="code-head"><span>python — 三种 ID 生成</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import random
+import time
+import uuid
+
+
+def uid_uuid() -&gt; str:
+    return uuid.uuid4().hex
+
+
+def uid_time_rand(rng) -&gt; str:
+    # 毫秒时间戳 + 6 位随机，同毫秒并发上限一百万
+    return f"{int(time.time() * 1000)}{rng.randint(0, 999999):06d}"
+
+
+def uid_seq(worker_id: int, seq: int) -&gt; str:
+    # worker_id 占高位，避免每个进程都从 1 开始撞号
+    return f"ORD-{worker_id:02d}{seq:08d}"
+
+
+print(uid_uuid())
+print(uid_time_rand(random.Random(1)))
+print(uid_seq(3, 128))</code></pre>
+
+        <h2>按规则造数：手机号段、身份证校验位、金额精度、枚举</h2>
+        <p>很多字段不能随便随机，必须符合格式规则，否则连被测系统的入参校验都过不去，用例根本走不到业务逻辑。这类字段建议自己写生成函数，而不是全指望 Faker，因为你需要的往往不是「像」，而是「一定合法」。</p>
+        <p>手机号的核心是 11 位、首位为 1、第二位 3 到 9。精确到具体号段会随放号政策变化，写死一份完整号段表迟早过期，所以测试里的粗校验用正则就够，生成时从一个可维护的前缀集合里挑。身份证是 18 位，前 17 位是地区码、出生日期、顺序码，第 18 位是按固定权重算出来的校验位，用 GB 11643 的加权和取模 11 映射。自己实现这十行代码，比依赖某个库的字段名稳定得多。</p>
+        <p>金额的坑在精度。浮点数做运算会出现 0.1 加 0.2 等于 0.30000000000000004 这种情况，如果被测系统用浮点存金额，测试断言就会在某个金额上莫名其妙地失败。<code>Decimal</code> 加 <code>ROUND_HALF_UP</code> 是标准做法，生成时就以「分」为单位取整，再除以 100，保证只有两位小数。<code>float</code> 只在写库接口强制要求时才转，且转之前已经定型。</p>
+        <p>枚举字段要按业务真实分布生成，而不是等概率。<code>random.choice</code> 会让「已取消」和「已支付」各占一半，做统计类用例时完全不像真实数据。用 <code>random.choices</code> 带权重，让主流程状态占大头、异常状态占少数，这样造出来的数据集才能用来验证报表和漏斗。</p>
+        <div class="code-head"><span>python — 规则化字段生成</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from decimal import Decimal
+
+# 号段会随放号政策变化，这里只是示例集合，生产口径以最新号段表为准
+PHONE_PREFIXES = ("130", "131", "132", "155", "156", "166",
+                  "175", "176", "185", "186", "188", "199")
+ID_WEIGHTS = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2]
+ID_CHECK = "10X98765432"          # 模 11 的映射表，10 映射为 X
+ORDER_STATUS = ("PENDING", "PAID", "SHIPPED", "CANCELLED")
+
+
+def make_phone(rng):
+    return rng.choice(PHONE_PREFIXES) + "".join(rng.choices("0123456789", k=8))
+
+
+def make_id_card(rng):
+    area = rng.choice(("110101", "310104", "440305", "510107"))
+    birth = f"{rng.randint(1960, 2005)}{rng.randint(1, 12):02d}{rng.randint(1, 28):02d}"
+    seq = f"{rng.randint(1, 999):03d}"
+    body = area + birth + seq
+    total = sum(int(ch) * w for ch, w in zip(body, ID_WEIGHTS))
+    return body + ID_CHECK[total % 11]
+
+
+def make_amount(rng, low="1.00", high="9999.99"):
+    cents = rng.randint(int(Decimal(low) * 100), int(Decimal(high) * 100))
+    return (Decimal(cents) / Decimal(100)).quantize(Decimal("0.01"))
+
+
+def make_status(rng):
+    return rng.choices(ORDER_STATUS, weights=(50, 30, 15, 5), k=1)[0]</code></pre>
+
+        <h2>边界值：造数最该精确的地方</h2>
+        <p>随机数据永远覆盖不到边界，因为边界是单点，概率接近零。十个字符的随机昵称不会恰好等于十个字符——它可能更长也可能更短。所以边界值必须穷举，而且要按「有效等价类、无效等价类」成对出现，一条用例验证刚好通过，下一条验证超一位必须被拒。</p>
+        <p>落实到代码里，边界数据不应该是随机的，应该是常量加明确的期望值，直接喂给参数化。这样做的好处是失败信息可读：用例名就叫「刚好上限」，一看就知道测的是哪条规则。另一个细节是，边界的两侧要成对写，只测「超一位被拒」而不测「刚好等于上限通过」，分不清是校验太严还是太松，这两种问题的修复方向完全相反。</p>
+        <p>数字类边界还有一层：0、负数、极大值。金额为 0 的订单能不能提交，库存扣到 0 时能不能下单，数量传 -1 时后端有没有做非空校验——这些都是随机造数覆盖不到的，必须显式列出来。把它们放进同一份参数化列表，数据量不大，覆盖的价值却最高。</p>
+        <div class="code-head"><span>python — 边界值参数化</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+
+FIELD_MAX = 20
+
+
+def text_of_length(n: int) -> str:
+    return "测" * n
+
+
+@pytest.mark.parametrize("case_name, nickname, expected", [
+    ("空串", "", "参数错误"),
+    ("单字符", text_of_length(1), "成功"),
+    ("刚好上限", text_of_length(FIELD_MAX), "成功"),
+    ("超一位", text_of_length(FIELD_MAX + 1), "参数错误"),
+    ("纯空格", "   ", "参数错误"),
+])
+def test_nickname_boundary(case_name, nickname, expected, api_client):
+    resp = api_client.post("/api/profile", json={"nickname": nickname})
+    body = resp.json()
+    assert body["status"] == expected, f"{case_name}：期望 {expected}，实际 {body['status']}"</code></pre>
+
+        <h2>批量一千条：生成器、分块与写库方式</h2>
+        <p>批量数据的第一原则是不要一次性都放进内存。一千条用户对象看着不多，但如果每条带几十个字段、还嵌了订单列表，整体占用会超出直觉；更何况同样的脚本迟早会被人改成十万条。用生成器逐条产出，外层再按固定大小切块，内存里同时只有一个块，规模翻十倍也不用改代码。</p>
+        <p>写库方式对耗时的影响比对生成数据的影响大得多。逐条 <code>execute</code> 加 <code>commit</code> 意味着每条都要走一次事务提交，磁盘同步的开销会主导总耗时；<code>executemany</code> 配合一次提交能把批次的开销摊薄，示例环境下差距通常在一个数量级以上，具体取决于数据库类型、磁盘和事务配置。注意这里的数量级是示例，不要拿去当基准。</p>
+        <p>块大小也不是越大越好。<code>executemany</code> 的参数列表会整体进内存，块太大反而把刚省下的内存用掉；太小的块又会退化成很多次小事务。几百到几千是常见区间，我一般用 200 到 500，先在测试库里量一次再定。</p>
+        <div class="code-head"><span>python — 生成器加分块批量写入</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import random
+import sqlite3
+import uuid
+from itertools import islice
+
+from faker import Faker
+
+RUN_ID = uuid.uuid4().hex[:8]
+rng = random.Random(20261123)
+fake = Faker("zh_CN")
+Faker.seed(20261123)
+
+
+def iter_users(count):
+    for i in range(count):
+        yield (
+            f"AUTOTEST-{RUN_ID}-{i:05d}",
+            fake.name(),
+            make_phone(rng),
+            float(make_amount(rng)),
+        )
+
+
+def batched(source, size):
+    while True:
+        chunk = list(islice(source, size))
+        if not chunk:
+            return
+        yield chunk
+
+
+conn = sqlite3.connect("test_users.db")
+cur = conn.cursor()
+cur.execute("CREATE TABLE IF NOT EXISTS users("
+            "marker TEXT PRIMARY KEY, name TEXT, phone TEXT, balance REAL)")
+
+for chunk in batched(iter_users(1000), 500):
+    cur.executemany(
+        "INSERT INTO users(marker, name, phone, balance) VALUES (?, ?, ?, ?)",
+        chunk,
+    )
+conn.commit()
+print(cur.execute("SELECT COUNT(*) FROM users").fetchone()[0])</code></pre>
+
+        <h2>造数脚本必须做的清理与标记</h2>
+        <p>造数脚本写起来爽，后果往往留在环境里。测试库跑了几十轮之后，用户表里有几十万个假账号，分页接口的耗时被拖慢，统计报表的数字对不上，新人接手时没人说得清哪些数据可以删。这个问题跟技术无关，跟纪律有关，所以标记必须在造数的那一刻就写进去。</p>
+        <p>标记要有两个部分：一个是固定的前缀，把所有测试数据圈在一个可识别的集合里；另一个是本次运行的唯一号，让清理能精确到这一轮。只有前缀的话，清理会误删别人正在联调的数据；只有运行号的话，历史遗留的脏数据永远清不掉。两者组合，才能既敢删又删得准。</p>
+        <p>清理入口要加保护。见过最惨的一次是 <code>LIKE</code> 模式写错，把 <code>AUTO%</code> 当成测试前缀，结果一个真实用户的昵称正好以 Auto 开头，被一起删了。所以清理函数里要有三道闸：运行号必须非空且有最小长度、必须匹配前缀格式、删除前先 <code>SELECT COUNT(*)</code> 打印出来让人确认，再执行 <code>DELETE</code>。批量环境里再用环境变量控制是否真的删除，默认只打印。</p>
+        <div class="code-head"><span>python — 带保护的清理</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>PREFIX = "AUTOTEST"
+
+
+def cleanup(conn, run_id: str, apply: bool = False) -&gt; int:
+    if not run_id or len(run_id) &lt; 6:
+        raise ValueError("拒绝执行：run_id 不可信，可能是环境变量没传进来")
+
+    pattern = f"{PREFIX}-{run_id}-%"
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM users WHERE marker LIKE ?", (pattern,))
+    total = cur.fetchone()[0]
+    print(f"待清理 {total} 条，模式 {pattern}")
+
+    if not apply:
+        print("dry-run，未执行删除；确认后传 apply=True")
+        return 0
+
+    cur.execute("DELETE FROM users WHERE marker LIKE ?", (pattern,))
+    conn.commit()
+    return cur.rowcount</code></pre>
+
+        <h2>生产数据不能直接拖进测试环境</h2>
+        <p>「把生产库导一份到测试环境，用真实数据测」这句话在字符里看着很合理，在合规上是红线。真实的手机号、身份证、地址、银行卡属于个人信息，复制到测试环境就意味着管控范围之外多了一份全量副本，运维有权限的人、外包、离职交接都可能接触到。个人信息保护法对这类处理有明确要求，出了事不是技术问题。</p>
+        <p>从测试效果看，它也不划算。真实数据里脏数据比例不可控，回归用例被一条历史脏数据打挂，排查方向会完全跑偏；真实数据的分布还会掩盖边界问题，因为极少出现刚好卡在边界上的记录。合成数据虽然不如真实数据「丰富」，但它的每一条都是可控的，失败了能立刻定位。</p>
+        <p>确实需要保留真实数据的形态时，用脱敏代替复制：手机号中间四位掩码，姓名只留姓，身份证保留前六位地区码后整体替换，邮箱本地部分哈希。脱敏的关键是「可关联但不可识别」——同一个用户在两张表里的哈希值要一致，这样才能做 join 和一致性校验；而哈希加盐后无法反推出原值。盐值必须存在配置中心或密钥管理里，不能写进代码仓库。</p>
+        <div class="code-head"><span>python — 脱敏与伪名化</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import hashlib
+
+
+def mask_phone(phone: str) -> str:
+    return phone[:3] + "****" + phone[-4:] if len(phone) == 11 else "***"
+
+
+def mask_id_card(id_card: str) -> str:
+    return id_card[:6] + "*" * 8 + id_card[-4:]
+
+
+def pseudonym(user_id: str, salt: str) -> str:
+    # 同样的 salt 与 user_id 得到同样的结果，可跨表关联
+    digest = hashlib.sha256((salt + user_id).encode("utf-8")).hexdigest()
+    return digest[:16]
+
+
+print(mask_phone("13812345678"))
+print(mask_id_card("110101199003070011"))
+print(pseudonym("u_88213", salt="从密钥管理读取，不要写死"))</code></pre>
+
+        <h2>常见坑与排查</h2>
+        <p><strong>症状</strong>：同一份造数脚本跑两次，第二次插入报唯一约束冲突。<strong>原因</strong>：用了 <code>fake.unique</code> 但进程没重启，唯一值集合在上一次运行里已经被消耗；或者 ID 用了固定种子加自增，从 1 重新开始。<strong>处理</strong>：唯一字段用 uuid 或带上运行号；<code>Faker.unique</code> 在长驻进程里要配合 <code>clear()</code>，或者每次运行新建实例。</p>
+        <p><strong>症状</strong>：Faker 重试到抛 <code>UniquenessException</code>。<strong>原因</strong>：可用的唯一值池被耗尽，比如只生成了有限的邮箱域名组合，却要求十万个唯一邮箱。<strong>处理</strong>：把运行号或计数器拼进字段，别指望 Faker 在小值域里保证唯一。这个异常本身就是设计信号：说明字段的取值空间撑不住你要的数据量。</p>
+        <p><strong>症状</strong>：金额断言偶尔失败，差 0.01 或者出现一长串小数。<strong>原因</strong>：生成阶段用了 <code>float</code>，或者用了 <code>round</code> 而没指定舍入模式，<code>ROUND_HALF_EVEN</code> 会把 2.675 舍成 2.67。<strong>处理</strong>：全程 <code>Decimal</code> 加 <code>quantize</code> 显式指定 <code>ROUND_HALF_UP</code>，只在最外层写库时转 <code>float</code>。</p>
+        <p><strong>症状</strong>：压测时偶发主键冲突，重跑又不复现。<strong>原因</strong>：多进程各自初始化自己的计数器，都从 1 开始；或者时间戳加随机的随机位不够。<strong>处理</strong>：把 worker 号编进 ID 高位，或者统一走 uuid；压测脚本上线前先做一次一万条的冲突检测。</p>
+        <p><strong>症状</strong>：清理脚本删掉了不该删的数据。<strong>原因</strong>：<code>LIKE</code> 模式过宽，或者运行号为空时拼出了空前缀。<strong>处理</strong>：清理函数先校验运行号，再先 <code>SELECT</code> 计数，默认 dry-run，只有显式传参才真删；生产环境禁止执行造数与清理脚本。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>造数脚本通常不会被当成正式代码维护，所以更需要一份清单，让下一个人接手时知道哪里不能动。下面这些条目是踩过之后沉淀下来的，按重要性排序。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>通过标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>随机源</td><td>使用私有 <code>Random</code> 实例，种子记录在报告里</td></tr>
+            <tr><td>可复现</td><td>同环境同种子重跑，断言结果一致</td></tr>
+            <tr><td>唯一性</td><td>ID 带运行号或 uuid，并发下不冲突</td></tr>
+            <tr><td>格式合法性</td><td>手机号、身份证、金额生成后立刻过校验器</td></tr>
+            <tr><td>精度</td><td>金额全程 Decimal，舍入模式显式指定</td></tr>
+            <tr><td>数据量</td><td>用生成器加 <code>executemany</code> 分块，内存恒定</td></tr>
+            <tr><td>标记</td><td>每条数据带固定前缀与本次运行号</td></tr>
+            <tr><td>清理</td><td>有 dry-run、有计数、运行号不可信时直接拒绝</td></tr>
+            <tr><td>合规</td><td>不含生产个人信息；必要时走脱敏与伪名化</td></tr>
+          </tbody>
+        </table>
+        <p>判断这套造数是否可用的标准很简单：随便挑一条失败用例，你能在五分钟内说出它用的数据是怎么来的、能不能在本地一模一样地重建出来。如果重建不出来，那这条用例失败时的信息量就只剩下「挂了」两个字，自动化也就退化成了通知器。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/library/random.html" target="_blank" rel="noopener">random — 生成伪随机数，含种子与版本兼容性说明 — Python 官方文档</a></li>
+            <li><a href="https://faker.readthedocs.io/en/master/" target="_blank" rel="noopener">Faker 官方文档：locale、seed 与 unique</a></li>
+            <li><a href="https://docs.python.org/3/library/decimal.html" target="_blank" rel="noopener">decimal — 定点与浮点运算，含舍入模式 — Python 官方文档</a></li>
+            <li><a href="https://docs.python.org/3/library/uuid.html" target="_blank" rel="noopener">uuid — RFC 4122 的 UUID 对象 — Python 官方文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#python</span>
+          <span class="tag">#test-data</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

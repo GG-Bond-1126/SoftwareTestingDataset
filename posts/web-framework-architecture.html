@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web UI 自动化框架设计：分层架构 · 软件测试资料集</title>
+<meta name="description" content="从变更隔离出发，讲透六层职责边界、配置与数据分离、重试与失败快照钩子，以及演进路线的成本账。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-framework-architecture.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Web UI 自动化框架设计：分层架构">
+<meta property="og:description" content="从变更隔离出发，讲透六层职责边界、配置与数据分离、重试与失败快照钩子，以及演进路线的成本账。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-framework-architecture.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Web UI 自动化框架设计：分层架构">
+<meta name="twitter:description" content="从变更隔离出发，讲透六层职责边界、配置与数据分离、重试与失败快照钩子，以及演进路线的成本账。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Web UI 自动化框架设计：分层架构","description":"从变更隔离出发，讲透六层职责边界、配置与数据分离、重试与失败快照钩子，以及演进路线的成本账。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-framework-architecture.html","articleSection":"Web 自动化","keywords":"framework-design, page-object, web-automation","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>24 min read</span>
+        </div>
+        <h1>Web UI 自动化框架设计：分层架构</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-framework-architecture">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+
+        <figure class="article-figure">
+          <svg viewBox="0 0 720 400" width="100%" role="img" aria-labelledby="fig-web-framework-architecture-1-title" xmlns="http://www.w3.org/2000/svg">
+            <title id="fig-web-framework-architecture-1-title">测试框架五层结构：用例层、业务层、页面对象层、驱动层与被测系统，依赖只能自上而下，每层右侧标注失败时应修改的位置</title>
+            <defs>
+              <marker id="fig-arch-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--text-faint)"/>
+              </marker>
+            </defs>
+            <text x="680" y="20" fill="var(--text-faint)" font-size="11.5" font-family="inherit" text-anchor="end">依赖只能自上而下，不许反向</text>
+            <rect x="40" y="30" width="640" height="50" rx="10" fill="var(--panel-2)" stroke="var(--border)"/>
+            <rect x="512" y="42" width="156" height="26" rx="10" fill="rgba(61,220,132,0.12)" stroke="var(--accent)" stroke-width="1.2"/>
+            <text x="56" y="51" fill="var(--text)" font-size="15" font-weight="600" font-family="inherit">用例层 cases</text>
+            <text x="56" y="69" fill="var(--text-dim)" font-size="12.5" font-family="inherit">组织场景、写断言、打标记</text>
+            <text x="590" y="59" fill="var(--accent)" font-size="11.5" font-family="inherit" text-anchor="middle">失败改：断言与数据</text>
+            <path d="M 360 80 L 360 104" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-arch-arrow)"/>
+            <rect x="40" y="104" width="640" height="50" rx="10" fill="var(--panel-2)" stroke="var(--border)"/>
+            <rect x="512" y="116" width="156" height="26" rx="10" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.2"/>
+            <text x="56" y="125" fill="var(--text)" font-size="15" font-weight="600" font-family="inherit">业务层 flows</text>
+            <text x="56" y="143" fill="var(--text-dim)" font-size="12.5" font-family="inherit">跨页面编排，不碰定位器与断言</text>
+            <text x="590" y="133" fill="var(--cyan)" font-size="11.5" font-family="inherit" text-anchor="middle">失败改：流程顺序</text>
+            <path d="M 360 154 L 360 178" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-arch-arrow)"/>
+            <rect x="40" y="178" width="640" height="50" rx="10" fill="var(--panel-2)" stroke="var(--border)"/>
+            <rect x="512" y="190" width="156" height="26" rx="10" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.2"/>
+            <text x="56" y="199" fill="var(--text)" font-size="15" font-weight="600" font-family="inherit">页面对象层 pages / components</text>
+            <text x="56" y="217" fill="var(--text-dim)" font-size="12.5" font-family="inherit">单页元素与动作，locator 留在这层</text>
+            <text x="590" y="207" fill="var(--cyan)" font-size="11.5" font-family="inherit" text-anchor="middle">失败改：定位器</text>
+            <path d="M 360 228 L 360 252" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-arch-arrow)"/>
+            <rect x="40" y="252" width="640" height="50" rx="10" fill="var(--panel-2)" stroke="var(--border)"/>
+            <rect x="512" y="264" width="156" height="26" rx="10" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.2"/>
+            <text x="56" y="273" fill="var(--text)" font-size="15" font-weight="600" font-family="inherit">驱动层 driver</text>
+            <text x="56" y="291" fill="var(--text-dim)" font-size="12.5" font-family="inherit">浏览器 API、动作原语、超时注入</text>
+            <text x="590" y="281" fill="var(--cyan)" font-size="11.5" font-family="inherit" text-anchor="middle">失败改：驱动封装</text>
+            <path d="M 360 302 L 360 326" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-arch-arrow)"/>
+            <rect x="40" y="326" width="640" height="50" rx="10" fill="none" stroke="var(--border-strong)" stroke-dasharray="5 4"/>
+            <rect x="512" y="338" width="156" height="26" rx="10" fill="rgba(230,180,80,0.14)" stroke="var(--amber)" stroke-width="1.2"/>
+            <text x="56" y="347" fill="var(--text)" font-size="15" font-weight="600" font-family="inherit">被测系统</text>
+            <text x="56" y="365" fill="var(--text-dim)" font-size="12.5" font-family="inherit">浏览器与被测应用，不在框架内</text>
+            <text x="590" y="355" fill="var(--amber)" font-size="11.5" font-family="inherit" text-anchor="middle">先判断：是否真 bug</text>
+          </svg>
+          <figcaption>图 1 · 依赖单向向下，哪一层变了就只改哪一层；失败时先看它属于断言、定位还是驱动</figcaption>
+        </figure>
+
+        <h2>分层买的是变更隔离，不是目录好看</h2>
+        <p>某个后台管理系统有三百八十条回归用例（示例值），两个人维护，页面对象还没抽。前端把登录按钮的 id 从 login-btn 改成 btn-submit，这一改动了十一个文件：九条用例各写了一遍定位，另外两个是公共函数。这类事故一个月两三次，对人的消耗很大。</p>
+        <p>分层真正买到的是变更隔离。用例变更只碰 cases 与 data；页面变更只碰 pages 与 components；流程变更只碰 flows；技术栈与环境变更只碰 driver、support 与 config。每类变更都有唯一归属，框架才算成立。反过来还能做体检：上个月的 git log 若显示一次改版让 cases 出现十个 diff，就说明分层只在名义上存在。</p>
+        <table>
+          <thead>
+            <tr><th>变更类型</th><th>典型触发</th><th>应该只改</th><th>绝不该改</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>用例变更</td><td>新增场景、调整优先级</td><td>cases、data</td><td>pages、components</td></tr>
+            <tr><td>页面变更</td><td>改版、id 或文案变化</td><td>pages、components</td><td>cases、flows</td></tr>
+            <tr><td>流程变更</td><td>下单从两步变三步</td><td>flows</td><td>cases 断言、pages 定位</td></tr>
+            <tr><td>技术栈变更</td><td>驱动升级、迁移云测</td><td>driver、support</td><td>cases、flows、pages</td></tr>
+            <tr><td>环境变更</td><td>新增环境、域名切换</td><td>config</td><td>任何代码</td></tr>
+          </tbody>
+        </table>
+
+        <h2>六层怎么切：职责要一句话说得清</h2>
+        <p>我们固定六层：用例层、业务层、页面层、控件层、驱动层、数据层。判断标准不是层数，而是能不能一句话说清某层负责什么。依赖严格单向：cases 依赖 flows，flows 依赖 pages，pages 依赖 components 与 driver；数据层谁都能读，但不许写运行时状态。</p>
+        <div class="code-head"><span>项目结构</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>web-automation/
+├── config/                 # 环境数据：URL、账号、超时、并行度
+│   ├── base.yaml           # 全局基线
+│   ├── dev.yaml            # 开发环境覆盖
+│   ├── staging.yaml        # 预发环境覆盖
+│   └── config.example.yaml # 入库模板，不含真实密钥
+├── data/                   # 用例数据：参数化输入与期望
+│   └── checkout_cases.yaml
+├── cases/                  # 用例层：场景、断言、标记
+│   ├── conftest.py
+│   ├── assertions.py
+│   ├── test_login.py
+│   └── test_checkout.py
+├── flows/                  # 业务层：跨页面编排
+│   ├── login_flow.py
+│   └── checkout_flow.py
+├── pages/                  # 页面层：单页元素与动作
+│   ├── base_page.py
+│   ├── login_page.py
+│   └── cart_page.py
+├── components/             # 控件层：导航栏、弹窗、表格
+│   ├── nav_bar.py
+│   ├── modal.py
+│   └── data_table.py
+├── driver/                 # 驱动层：唯一允许出现浏览器 API 的地方
+│   ├── browser_factory.py
+│   └── driver.py
+├── support/                # 驱动层横向设施：配置、日志、造数
+│   ├── config_loader.py
+│   ├── logger.py
+│   └── data_factory.py
+└── requirements.txt</code></pre>
+        <table>
+          <thead>
+            <tr><th>层</th><th>职责</th><th>不该出现的东西</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>用例层 cases</td><td>组织场景、写断言、打标记</td><td>定位器、sleep、页面操作细节</td></tr>
+            <tr><td>业务层 flows</td><td>跨页面编排与前置校验</td><td>元素定位、断言实现</td></tr>
+            <tr><td>页面层 pages</td><td>单个页面的元素与动作</td><td>业务流程、跨页面跳转决策</td></tr>
+            <tr><td>控件层 components</td><td>导航栏、弹窗、表格等片段</td><td>页面级 URL、登录态处理</td></tr>
+            <tr><td>驱动层 driver</td><td>浏览器工厂、动作原语、超时注入</td><td>业务名词、页面元素</td></tr>
+            <tr><td>数据层 data/config</td><td>用例数据与环境数据，分开存放</td><td>断言逻辑、运行时状态</td></tr>
+          </tbody>
+        </table>
+        <p>pages 与 components 的边界一句话判断：带 URL、能独立打开的放 pages；只能嵌在页面里、自己打不开的放 components。导航栏、分页器、日期选择器、确认弹窗都属于后者。这比按代码行数划分可靠，因为行数会随风格漂移。</p>
+
+        <h2>为什么只有 PO 不够：业务层该在什么位置</h2>
+        <p><a class="ilink" href="web-playwright-pagemodel.html">Page Object</a> 让「登录按钮在哪」只有一个答案。三百条以内、以单页面验证为主的套件，PO 加一个薄基类就够用，硬加业务层只会多一次转发。</p>
+        <p>但 PO 的结构性缺陷是只能描述单个页面，跨页面的顺序决策无处安放。真实业务是登录、详情、加购、结算、提交，每步依赖上一步的产物。没有业务层时，这段编排只会散落成三种形态：用例里重复、页面对象互相调用、塞进 helper 杂物间。最后一种最贵，因为没人敢删。</p>
+        <p>业务层把这些散落收进一处：只管顺序与前置校验，不碰定位器、不写最终断言。信号有两个：同一序列在用例里出现三次以上，或页面对象互相调用。反之，若用例都是单页面单操作，flows 永远为空，直接删掉，别硬造只有转发的类。</p>
+        <div class="callout">
+          <p>PO 与 Screenplay 不必纠结：三五个人、三百条以内，PO 加 flows 足够；只有任务被多入口复用、用例上千、多人并行，Screenplay 的抽象成本才收得回来。最糟是停在中间态：每个 flow 只有一个方法、全是动词短语。</p>
+        </div>
+
+        <h2>驱动层：把浏览器 API 关进一个盒子</h2>
+        <p>驱动层的职责只有三件：创建与销毁浏览器、把动作原语封装成稳定接口、注入超时与视口这类运行时参数，除此之外不该认识任何业务名词。它最容易被忽略，却直接决定迁移成本。</p>
+        <p>因为浏览器 API 的变动频率远高于业务代码。Selenium 3 升 4 改了一批签名，Playwright 的同步与异步是两套写法。如果 <code>driver.find_element</code> 散落在三百处页面对象里，一次升级就是三百处改动；都收敛在驱动层，升级只改一个文件。有团队把 <code>page.locator</code> 写进每个页面对象，后来换异步版，工期估两周做了五周，这不是选型错误，是层没守住。</p>
+        <div class="code-head"><span>python — driver/driver.py：接口与 Playwright 实现</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from abc import ABC, abstractmethod
+
+
+class Driver(ABC):
+    """页面层只认这五个方法，不认任何浏览器 API"""
+
+    @abstractmethod
+    def open(self, path: str) -&gt; None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def click(self, selector: str) -&gt; None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def fill(self, selector: str, value: str) -&gt; None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def text(self, selector: str) -&gt; str:
+        raise NotImplementedError
+
+    @abstractmethod
+    def visible(self, selector: str, timeout_ms: int) -&gt; bool:
+        raise NotImplementedError
+
+
+class PlaywrightDriver(Driver):
+    def __init__(self, browser, base_url: str, timeout_ms: int = 10_000):
+        self.page = browser.new_page(viewport={"width": 1280, "height": 720})
+        self.page.set_default_timeout(timeout_ms)
+        self.base_url = base_url.rstrip("/")
+
+    def open(self, path: str) -&gt; None:
+        self.page.goto(f"{self.base_url}{path}", wait_until="domcontentloaded")
+
+    def click(self, selector: str) -&gt; None:
+        self.page.locator(selector).click()
+
+    def fill(self, selector: str, value: str) -&gt; None:
+        self.page.locator(selector).fill(value)
+
+    def text(self, selector: str) -&gt; str:
+        return self.page.locator(selector).inner_text()
+
+    def visible(self, selector: str, timeout_ms: int) -&gt; bool:
+        try:
+            self.page.locator(selector).wait_for(state="visible", timeout=timeout_ms)
+            return True
+        except Exception:
+            return False</code></pre>
+        <h2>数据层：用例数据与环境数据必须分开</h2>
+        <p>很多项目把所有 yaml 都塞进 data：URL、账号密码、商品 sku、期望文案混在一起，看着整齐，实际上两类数据的生命周期完全不同。混用最典型的后果是换环境要改 data，而 data 一改，用例 diff 里就混进了环境变更，review 时看不出哪条期望值被动过。</p>
+        <p>用例数据随场景走，正确性由需求决定，改一条期望值要测试确认，应该进版本库走 review；环境数据随部署走，同一用例在三套环境跑，只有 URL、账号、超时、并行度不同，应该由 CI 注入。账号密码写进用例数据，等于写进 git 历史，删掉也没用。</p>
+        <table>
+          <thead>
+            <tr><th>维度</th><th>用例数据 data/</th><th>环境数据 config/</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>典型内容</td><td>输入值、期望文案、商品 sku</td><td>base_url、账号池、超时、并行度</td></tr>
+            <tr><td>由谁维护</td><td>测试同学，跟需求走</td><td>运维或 CI，跟部署走</td></tr>
+            <tr><td>变更频率</td><td>随迭代</td><td>随环境新增或迁移</td></tr>
+            <tr><td>能否含密钥</td><td>绝对不能</td><td>只存变量名，值从 secret 注入</td></tr>
+            <tr><td>缺失时行为</td><td>用例报数据缺失</td><td>进程直接启动失败</td></tr>
+          </tbody>
+        </table>
+        <div class="code-head"><span>yaml — data/checkout_cases.yaml：只有用例数据</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 用例数据：随场景走，进版本库，不含任何地址与密码
+- id: checkout-normal
+  title: 普通商品立即购买成功
+  user: buyer_01          # 账号标识，密码由环境注入
+  sku: SKU-001
+  qty: 1
+  expect:
+    banner: 订单已提交
+    status: 已支付
+
+- id: checkout-stock-empty
+  title: 库存为零时下单被拒
+  user: buyer_02
+  sku: SKU-EMPTY
+  qty: 1
+  expect:
+    banner: 库存不足</code></pre>
+        <p>这份文件里的 user 只有标识没有密码，这是刻意的：用例描述「谁在买什么、应该看到什么」，环境决定「对应哪个密码、连哪套服务」。边界清晰后，新增环境只是加一个 yaml，用例零 diff。</p>
+
+        <h2>配置管理：多环境、账号池、超时与并行度</h2>
+        <p>多环境的最低要求是：同一份用例，不改代码，只改一个环境变量就能跑三套环境。优先级从高到低是命令行参数、环境变量、<code>config/环境名.yaml</code>、<code>config/base.yaml</code>。代码里不该出现按环境名分支的判断，一旦写 <code>if env == 'prod'</code>，新增环境就要改代码、改代码就要回归。</p>
+        <p>环境差异用配置项承载：预发真发短信就加 <code>sms_enabled: false</code>，生产只读校验就加 <code>read_only: true</code>。账号池、超时、并行度同样属于环境数据，写死在 CI 脚本与页面对象里，等于把配置分散在三个地方，迁移时必漏改一处。</p>
+        <div class="code-head"><span>python — support/config_loader.py：合并、校验、注入密钥</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import os
+from functools import lru_cache
+from pathlib import Path
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[1]
+REQUIRED = ("base_url", "accounts", "timeout", "parallel")
+
+
+@lru_cache(maxsize=1)
+def load_config(env: str | None = None) -&gt; dict:
+    env = env or os.getenv("TEST_ENV", "dev")
+    base = yaml.safe_load((ROOT / "config" / "base.yaml").read_text("utf-8"))
+    overlay_file = ROOT / "config" / f"{env}.yaml"
+    overlay = yaml.safe_load(overlay_file.read_text("utf-8")) if overlay_file.exists() else None
+
+    merged = {**base, **(overlay or {})}
+    merged["base_url"] = os.getenv("BASE_URL", merged["base_url"])
+    merged["parallel"] = int(os.getenv("PARALLEL", merged["parallel"]))
+    merged["timeout"]["action_ms"] = int(
+        os.getenv("ACTION_TIMEOUT_MS", merged["timeout"]["action_ms"]))
+
+    missing = [key for key in REQUIRED if key not in merged]
+    if missing:
+        raise RuntimeError(f"配置缺少必填项: {missing}, env={env}")
+
+    # 密钥只从环境变量读，没有默认值；取不到就启动失败
+    merged["accounts"] = [
+        {**acc, "password": os.environ[f"QA_PWD_{acc['name'].upper()}"]}
+        for acc in merged["accounts"]
+    ]
+    return merged</code></pre>
+        <p>密钥没有折中方案。写成 <code>os.getenv('DB_PASSWORD', '123456')</code> 的项目，最后一定会把生产密码写进仓库，因为默认值会让人误以为本地能跑就行。真提交过密钥，正确处置是立刻轮换，而不是删掉那次 commit，历史里还在。</p>
+
+        <h2>统一等待与断言：一个管时序，一个管归因</h2>
+        <p>等待失败是「没等到元素」，属于时序；断言失败是「元素在了、内容不对」，属于业务。两者必须在报告里一眼可分，否则定位时先怀疑错方向。等待只有一种正确做法：全局隐式等待为 0，所有等待走显式。Selenium 官方文档明确说两者共存会让等待时间不可预测，实际表现是设了三秒却等了十三秒，错误信息还是一句 <code>TimeoutException</code>。</p>
+        <p>断言只有一种归属：用例层。页面对象读状态、业务层走流程、用例层判断对错。价值不在整洁而在归因——报告该直接说预期是已支付、实际是待支付，而不是页面文件第八十七行断言失败。断言消息至少带位置、预期值、实际值，能带 URL 就带。软断言只在只读场景用，写操作宁可快速失败。</p>
+        <div class="code-head"><span>python — pages/base_page.py：等待统一在这里</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from playwright.sync_api import TimeoutError as PWTimeout
+
+
+class BasePage:
+    """只放与业务无关的能力，复制到别的项目依然能用"""
+
+    def __init__(self, driver, config: dict):
+        self.driver = driver
+        self.page = driver.page
+        self.action_ms = config["timeout"]["action_ms"]
+
+    def visit(self, path: str) -&gt; "BasePage":
+        self.driver.open(path)
+        return self
+
+    def click(self, selector: str) -&gt; None:
+        self.page.locator(selector).click(timeout=self.action_ms)
+
+    def fill(self, selector: str, value: str) -&gt; None:
+        self.page.locator(selector).fill(value, timeout=self.action_ms)
+
+    def text_of(self, selector: str) -&gt; str:
+        return self.page.locator(selector).inner_text(timeout=self.action_ms)
+
+    def visible(self, selector: str, timeout_ms: int = 3000) -&gt; bool:
+        # 故意比动作超时短：用于可能不存在元素的探测
+        try:
+            self.page.locator(selector).wait_for(state="visible", timeout=timeout_ms)
+            return True
+        except PWTimeout:
+            return False</code></pre>
+        <div class="code-head"><span>python — cases/assertions.py：消息带定位三要素</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>def assert_text(actual: str, expected: str, where: str) -&gt; None:
+    assert expected in actual, (
+        f"文本不符: where={where} expected={expected!r} actual={actual!r}"
+    )
+
+
+def assert_visible(page, selector: str, where: str) -&gt; None:
+    assert page.locator(selector).is_visible(), (
+        f"元素不可见: where={where} selector={selector} url={page.url}"
+    )</code></pre>
+
+        <h2>失败重试与失败快照：一个治抖动，一个留现场</h2>
+        <p>重试的正确用途只有一个：处理外部依赖的瞬时抖动，比如第三方接口偶超时、环境偶发 502。错误用途是把真 bug 藏起来、让红灯变绿。判断标准很朴素——重试后通过的用例必须打标记进观察名单，连续两周都靠重试通过的，要么修用例要么提缺陷。</p>
+        <p>代价也要算。全局开两次重试，最坏情况下套件时长三倍，而失败用例本来就慢，实际更糟。我们只给明确标记的用例重试一次、延迟五秒，其余快速失败。快照钩子则只在 call 阶段失败时取证：不要把截图写进 teardown，那时页面可能已跳走或关闭，截到的是空白页，挂进报告反而误导人。</p>
+        <div class="code-head"><span>python — cases/conftest.py：只在业务失败时取证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+
+import pytest
+
+ARTIFACTS = pathlib.Path("artifacts")
+
+
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+    setattr(item, f"rep_{report.when}", report)
+
+    if report.when != "call" or not report.failed:
+        return
+    driver = item.funcargs.get("driver")
+    if driver is None:
+        return
+
+    case_dir = ARTIFACTS / item.nodeid.replace("::", "_").replace("/", "_")
+    case_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        driver.page.screenshot(path=str(case_dir / "01-shot.png"), full_page=True)
+    except Exception as exc:
+        print(f"截图失败: {exc}")
+    try:
+        (case_dir / "02-dom.html").write_text(driver.page.content(), encoding="utf-8")
+    except Exception as exc:
+        print(f"DOM 快照失败: {exc}")
+    try:
+        (case_dir / "03-url.txt").write_text(driver.page.url, encoding="utf-8")
+    except Exception as exc:
+        print(f"URL 写入失败: {exc}")</code></pre>
+        <p>每项取证各包一层 try，任何附件失败都不能覆盖原始业务异常；driver 从 <code>item.funcargs</code> 取而不是全局变量，否则并行时报告里的截图会来自别的用例，这种证据比没有更糟。</p>
+        <div class="code-head"><span>ini — pytest.ini：重试只给标记过的用例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>[pytest]
+markers =
+    smoke: 冒烟回归
+    retry: 允许最多重试一次，需登记原因
+addopts = -ra
+
+# 常规回归：不重试，快速失败
+# pytest -m "not retry" -n 4
+
+# 含抖动用例：只对 retry 标记重试一次
+# pytest -m retry --reruns 1 --reruns-delay 5 -n 2</code></pre>
+
+        <h2>并发：先隔离状态，再谈提速</h2>
+        <p>很多人上来就装 pytest-xdist 开八进程，失败率从百分之二涨到百分之二十，最后得出自动化不稳定的结论。并发的前提是状态隔离，不是进程数。共享资源有五类：登录账号与登录态、购物车与草稿箱、库存与优惠券、自增 id 与唯一约束、报告与下载目录。</p>
+        <p>前四类直接导致业务失败，最后一类让证据串台。账号用账号池加 worker 映射，一个 worker 一个账号，结束恢复状态；数据用 worker 前缀加随机后缀，天然唯一，不必依赖清理脚本。离线目录也按 worker 分，跑完再合并。</p>
+        <div class="code-head"><span>python — support/data_factory.py：并行数据天然唯一</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import os
+import uuid
+
+
+def worker_id() -&gt; str:
+    return os.getenv("PYTEST_XDIST_WORKER", "master")
+
+
+def unique_sku(prefix: str = "QA") -&gt; str:
+    return f"{prefix}-{worker_id()}-{uuid.uuid4().hex[:6]}"
+
+
+def worker_dir(root: str = "artifacts") -&gt; str:
+    path = os.path.join(root, worker_id())
+    os.makedirs(path, exist_ok=True)
+    return path</code></pre>
+        <p>并发后看一个指标：单进程与四进程的失败率差异在一个百分点以内（示例值）才算隔离到位；明显更差就先查账号与数据冲突，别急着怀疑产品。</p>
+
+        <h2>演进路线：四个阶段与四条分界线</h2>
+        <p>框架不该一步到位。单文件阶段只求快速验证自动化值不值得做，退出信号是用例超过六十到八十条（示例值）、维护人从一个变两个、一次改版要改三个以上文件。页面对象阶段把定位器收进类里，退出信号是跨页面编排重复、页面对象互相调用。</p>
+        <p>分层阶段让改动半径可预测，退出信号是非编码同学要写用例、多团队共用、需要按需调度设备。平台化把用例变成配置，执行、报告、调度、设备管理都在平台上，代价是平台成了产品，规模不够时收益为负。两百条用例就搭平台的团队，最后往往平台没人用、用例也没人写。</p>
+        <table>
+          <thead>
+            <tr><th>阶段</th><th>典型规模</th><th>核心特征</th><th>升级信号</th><th>主要代价</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>单文件</td><td>数十条</td><td>单文件、硬编码</td><td>用例翻倍、两人维护</td><td>改一处动全身</td></tr>
+            <tr><td>页面对象</td><td>百条级</td><td>页面类、定位器收敛</td><td>跨页面编排重复</td><td>页面互调成网</td></tr>
+            <tr><td>分层</td><td>数百条</td><td>六层、配置与数据分离</td><td>非编码同学要写用例</td><td>前期搭建与规范成本</td></tr>
+            <tr><td>平台化</td><td>上千条</td><td>用例配置化、调度与设备池</td><td>多团队共用、按需扩容</td><td>平台自身的研发投入</td></tr>
+          </tbody>
+        </table>
+
+        <h2>什么时候不该自研框架</h2>
+        <p>自研的收益是贴合业务，成本是长期维护；收益覆盖不了成本时，自研就是负债。四种情况不建议自研：用例两百条以内且半年不翻倍，pytest 加 playwright 插件就够；只有一个人维护，自研会在他休假时变成黑盒；项目活不到一年，收益要一年以上才回本；没人负责驱动层升级，半年后整套跑不起来。</p>
+        <p>还有个隐蔽成本：自研会吸引精力去打磨框架而不是覆盖业务。走偏信号是框架有自己的单元测试、业务用例却没增加。值得自研的只有四类场景：大量重复的跨页面编排、需要严格隔离用例数据与环境数据、要接内部账号与审批流、要在多团队间统一报告口径。其余情况优先用现成的。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>框架投入使用前用这张表过一遍，每条都能用一次实际操作验证，不需要读代码，也不需要看懂架构图。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>合格标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>页面改版影响面</td><td>只改 pages 与 components，cases 零 diff</td></tr>
+            <tr><td>新增场景成本</td><td>只加 cases 与 data，不改框架代码</td></tr>
+            <tr><td>环境切换</td><td>只改 TEST_ENV，代码零改动</td></tr>
+            <tr><td>数据边界</td><td>用例数据无地址与密码，环境数据不含期望值</td></tr>
+            <tr><td>仓库密钥</td><td>git 历史无明文密码，CI 用 secret 注入</td></tr>
+            <tr><td>失败可读性</td><td>断言消息含位置、预期值、实际值与当前 URL</td></tr>
+            <tr><td>失败取证</td><td>失败用例自动带截图、DOM 快照与 URL</td></tr>
+            <tr><td>重试纪律</td><td>只对标记用例重试，且有原因记录</td></tr>
+            <tr><td>等待策略</td><td>全局隐式等待为 0，代码中无 time.sleep</td></tr>
+            <tr><td>并发稳定性</td><td>四 worker 连跑十轮，失败率与单进程差异小于一个百分点（示例值）</td></tr>
+          </tbody>
+        </table>
+        <p>判断标准：如果一个不熟悉项目的人能在十分钟内加一条新场景、并在改版后独立修复，这套分层就成立；如果每次都要找原作者，那只是把复杂度换了个位置。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://www.selenium.dev/documentation/test_practices/encouraged/page_object_models/" target="_blank" rel="noopener">Page object models — Selenium 官方文档</a></li>
+            <li><a href="https://martinfowler.com/bliki/PageObject.html" target="_blank" rel="noopener">PageObject — Martin Fowler</a></li>
+            <li><a href="https://www.selenium.dev/documentation/webdriver/waits/" target="_blank" rel="noopener">Waits：隐式与显式等待的区别 — Selenium 官方文档</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/fixtures.html" target="_blank" rel="noopener">pytest fixtures 使用说明 — pytest 文档</a></li>
+            <li><a href="https://github.com/pytest-dev/pytest-rerunfailures" target="_blank" rel="noopener">pytest-rerunfailures：失败重试插件 — GitHub</a></li>
+            <li><a href="https://12factor.net/config" target="_blank" rel="noopener">III. Config：配置存于环境 — The Twelve-Factor App</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#framework-design</span>
+          <span class="tag">#page-object</span>
+          <span class="tag">#web-automation</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

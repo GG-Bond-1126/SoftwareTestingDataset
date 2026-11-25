@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web 弹窗处理：alert / iframe / 新窗口 · 软件测试资料集</title>
+<meta name="description" content="原生弹窗、页面内模态框、iframe 与新窗口四类弹窗的处理方式，含时序、遮挡与稳定性设计。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-popup-handling.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Web 弹窗处理：alert / iframe / 新窗口">
+<meta property="og:description" content="原生弹窗、页面内模态框、iframe 与新窗口四类弹窗的处理方式，含时序、遮挡与稳定性设计。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-popup-handling.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Web 弹窗处理：alert / iframe / 新窗口">
+<meta name="twitter:description" content="原生弹窗、页面内模态框、iframe 与新窗口四类弹窗的处理方式，含时序、遮挡与稳定性设计。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Web 弹窗处理：alert / iframe / 新窗口","description":"原生弹窗、页面内模态框、iframe 与新窗口四类弹窗的处理方式，含时序、遮挡与稳定性设计。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-popup-handling.html","articleSection":"Web 自动化","keywords":"playwright, dialog, iframe","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>19 min read</span>
+        </div>
+        <h1>Web 弹窗处理：alert / iframe / 新窗口</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-popup-handling">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>这篇解决什么问题</h2>
+        <p>做后台系统、电商站或者 SaaS 控制台的 Web 自动化，跑到第三周几乎必然遇到同一类不稳定：本地全绿，上了 CI 每隔几条红一次，日志只有一行超时，指向一个看上去毫无问题的按钮，人工重跑又能过。把失败样本攒起来对着看，触发点高度集中在同一类交互上——页面上有东西弹出来了。</p>
+        <p>大部分人的第一反应是加等待。等待只是把偶发失败改写成稳定变慢，真正的时序错误埋得更深。要根治，得先承认弹窗不是一种东西，而是四种，四种背后的浏览器机制和处理入口完全不同。这篇写给已经能跑通登录、能写定位器、但被弹窗用例反复折磨的测试工程师：读完应该能判断一条用例属于哪一类，以及它失败时是产品问题还是脚本时序问题。</p>
+
+        <h2>先把弹窗拆成四类，否则从定位这一步就错了</h2>
+        <p>原生 JS 弹窗包含 alert、confirm、prompt，由浏览器渲染，不在 DOM 树里，任何选择器都定位不到。浏览器级界面包括定位授权、通知授权、文件下载、证书错误、离开页面确认，这些连页面都碰不到，只能靠上下文配置改变默认行为。页面内模态框是用 div 加遮罩自己画的，本质是普通节点，难点不在找而在时机。新窗口与新标签页属于另一个浏览上下文，当前页里怎么找都找不到它的元素。</p>
+        <table>
+          <thead>
+            <tr><th>类型</th><th>典型触发</th><th>能否用选择器定位</th><th>处理入口</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>原生弹窗</td><td>删除确认、输入备注、保存提示</td><td>否，不在 DOM 中</td><td>注册 dialog 监听</td></tr>
+            <tr><td>浏览器级界面</td><td>定位授权、下载、证书、离开确认</td><td>否，属浏览器外壳</td><td>上下文配置与启动参数</td></tr>
+            <tr><td>页面内模态框</td><td>表单弹层、详情抽屉、二次确认</td><td>是，普通节点</td><td>等出现、操作、等消失</td></tr>
+            <tr><td>新窗口与标签页</td><td>帮助中心、导出预览、单点登录</td><td>否，跨上下文</td><td>等新页面并切换</td></tr>
+          </tbody>
+        </table>
+        <p>分类的价值在于四类的排查路径没有交集。把原生弹窗当 DOM 去找，会得出元素不存在的结论；把模态框当原生弹窗处理，会报没有可切换的 alert；把新标签页当模态框等，会一直在当前页里等一个永远不会出现的元素。同一句弹窗关不掉，四类对应四种完全不同的原因。</p>
+
+        <h2>原生弹窗：必须先注册监听，再触发</h2>
+        <p>Playwright 有一个极容易踩的默认行为：页面上没有注册弹窗监听时，弹窗一出现就会被自动关闭。这条设计本意是防止脚本卡死，代价是它静默吞掉你的确认框，把点确定删除变成点取消——用例要么在后续断言上莫名其妙地失败，要么更糟，它通过了，因为删除本来就不该成功。所以顺序是硬性的：先挂监听，再触发点击。</p>
+        <p>监听器里必须显式接受或取消，因为一旦有监听器存在，框架就不再替你收尾，页面会一直停在那里等，直到超时。注册了监听并不等于万事大吉，注册了就要自己负责结束对话。监听器同时也是收集证据的最佳位置：把类型、文案、默认值记下来，用例末尾统一断言，就能验证弹了几次、每次内容对不对，而很多需求缺陷恰恰出在次数和文案上。</p>
+        <div class="code-head"><span>python — 先注册再触发</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from playwright.sync_api import sync_playwright, expect
+
+seen = []
+
+def on_dialog(dialog):
+    seen.append({
+        'type': dialog.type,          # alert / confirm / prompt / beforeunload
+        'message': dialog.message,
+        'default': dialog.default_value,
+    })
+    if dialog.type == 'prompt':
+        dialog.accept('订单-20261124')   # 输入文本，不是 send_keys
+    else:
+        dialog.accept()
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
+    page.on('dialog', on_dialog)      # 关键：必须在点击之前
+    page.goto('https://the-internet.herokuapp.com/javascript_alerts')
+
+    page.get_by_role('button', name='Click for JS Prompt').click()
+    expect(page.locator('#result')).to_have_text('You entered: 订单-20261124')
+
+    assert len(seen) == 1 and seen[0]['type'] == 'prompt'
+    browser.close()</code></pre>
+        <p>这里有个取舍：全局监听适合弹窗次数和类型都不确定的场景，它不阻塞流程，只负责记录与收尾；单次事件等待适合精确验证某一次弹窗内容，读起来更接近断言。两者可以并存，但不要在全局监听里再套一次单次等待，否则同一次弹窗被处理两遍，第二次拿到的是已经关闭的对象。</p>
+
+        <h2>原生弹窗的四种失败模式</h2>
+        <p>第一种，弹窗被吞：删除后列表条数没变，日志无异常，原因是监听注册晚于点击，框架按默认行为取消了它。解法是把注册提到页面对象初始化或 fixture 里，并在用例开头断言监听已挂上。第二种，连续弹窗只处理了第一个：第二次点击后一直超时，原因是监听器写成条件判断链，只覆盖了 confirm，后续的 prompt 虽进了函数却没走接受分支。第三种，prompt 输入丢失：后端收到的备注为空，要么是接受时没传文本，要么是页面在弹窗关闭后异步提交，脚本在请求发出前就读了列表。</p>
+        <p>第四种，离开页面确认拦住跳转：点了保存并离开后地址没变。注意这类弹窗即便被接受，导航也不一定紧接着发生，稳妥写法是接受之后显式导航，不要依赖点击的副作用。这四种失败的现象经常一致，区别只在监听器代码和日志里的弹窗类型，所以监听器一定要把类型记录下来，否则只能靠重跑猜。</p>
+        <div class="code-head"><span>python — 用事件等待精确验证一次弹窗</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>with page.expect_event('dialog') as info:
+    page.get_by_role('button', name='Click for JS Confirm').click()
+
+dialog = info.value
+assert dialog.type == 'confirm'
+assert 'I am a JS Confirm' in dialog.message
+dialog.dismiss()                       # 这次选取消
+
+expect(page.locator('#result')).to_have_text('You clicked: Cancel')</code></pre>
+        <p>顺带说清一个边界：原生弹窗的按钮文案、顺序、键盘行为由浏览器决定，不同内核不一样。测这些细节等于测浏览器本身，收益很低，真正值得断言的是弹窗之后业务状态如何变化。</p>
+
+        <h2>浏览器级界面：让弹窗根本不出现</h2>
+        <p>定位、通知、摄像头这些授权界面属于浏览器外壳，自动化工具点不到，也不该去点，正确做法是在上下文层预先授权。最容易写错的是来源参数：协议、域名、端口任意一项不同都算不同源，写错了授权不生效，弹窗照旧出现，然后卡住整个用例。</p>
+        <p>下载是另一条线。默认下载会被接住放进临时目录，但要断言文件名、内容或下载后的提示，就得在创建上下文时打开下载接收，并用事件等待把点击和拿到文件包成一个原子操作。最常见的失败是拿时间戳猜文件名，正确做法是读浏览器给出的建议文件名再另存。证书同理，能只对特定域名放行就不要全局放开，否则真正的证书过期也会被吞掉；这条设置只该出现在测试环境配置里，不要进公共启动封装。</p>
+        <div class="code-head"><span>python — 预授权、下载与证书</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>context = browser.new_context(
+    accept_downloads=True,
+    ignore_https_errors=True,           # 仅测试环境
+    viewport={'width': 1440, 'height': 900},
+)
+context.grant_permissions(
+    ['geolocation', 'notifications', 'clipboard-read'],
+    origin='https://app.example.com',   # 必须与访问地址完全同源
+)
+page = context.new_page()
+
+with page.expect_download() as dl:
+    page.get_by_role('link', name='导出报表').click()
+download = dl.value
+assert download.suggested_filename.endswith('.xlsx')
+download.save_as('artifacts/report.xlsx')</code></pre>
+        <p>取舍很清楚：预授权验证的是页面拿到授权之后的行为，而不是授权弹窗本身。后者渲染由浏览器决定，跨版本还会变，属于手工或视觉测试的范围。把力气花在前者，用例才稳定、才有业务价值。</p>
+
+        <h2>页面内模态框：等的是稳定，不是可见</h2>
+        <p>模态框的坑不在定位，在时机。它有三个状态：还没出现、正在出现（通常带两百到四百毫秒的缩放淡入，示例值，以设计稿为准）、完全出现。脚本在第二个状态里点击，元素确实存在也确实可见，但位置还在变，落点会偏到动画中的旧坐标，表现为点了没反应，而日志里没有任何报错。所以等的是稳定，不是可见。</p>
+        <p>关闭更容易被忽略：点关闭后弹窗要播退出动画，遮罩往往比弹窗晚一点才移除，紧接着点页面按钮，点击会被还在的遮罩接走——这就是偶发点击无效最常见的物理原因。断言要用角色加可访问名称而不是样式类名：类名是实现细节，改版就变；角色和标签是给辅助技术用的契约。另一点，有些弹窗关闭后节点仍留在 DOM 里只是被隐藏，数量断言会一直失败，要改成可见性断言。</p>
+        <div class="code-head"><span>python — 模态框的三段式</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>modal = page.get_by_role('dialog', name='确认删除')
+page.get_by_role('button', name='删除').first.click()
+
+expect(modal).to_be_visible()                     # 1. 先断言出现
+modal.get_by_role('button', name='确认').click()   # 2. 再操作
+
+expect(modal).to_be_hidden()                      # 3. 再断言消失
+expect(page.locator('.modal-mask')).to_have_count(0)
+expect(page.locator('tbody tr')).to_have_count(4)
+page.get_by_role('button', name='新建').click()    # 遮罩归零后才点页面</code></pre>
+
+        <h2>iframe 里的弹窗：监听在页面，定位在框架</h2>
+        <p>框架里的元素要用框架定位器进去找，这一点大家都会。真正麻烦的是交叉情况：支付页嵌在框架里，点支付后弹出原生确认框。这时弹窗监听仍然挂在页面上而不是框架上，因为原生弹窗属于顶层浏览上下文，不归属某个框架。这点搞反了就会一直等不到事件，而页面看上去完全正常。</p>
+        <p>顺序同样关键：先拿框架定位器，再在框架内触发，最后回主页面断言。断言必须回主页面做，因为框架内的成功提示常常只是把结果通过消息通道传出去，主页面上的订单状态才是业务事实。嵌套框架不要按索引一层层切，用链式定位器；链式写法在页面重新渲染、框架被替换后依然有效，而按索引切换会在节点顺序变化后静默切错作用域，找到同名元素后断言失败，原因完全看不出来。</p>
+        <div class="code-head"><span>python — 框架内触发，主页面断言</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>seen = []
+page.on('dialog', lambda d: (seen.append(d.message), d.accept()))
+
+frame = page.frame_locator('#payment-frame')      # 可继续链式嵌套
+frame.get_by_role('button', name='确认支付').click()
+
+expect(frame.get_by_text('支付成功')).to_be_visible()
+expect(page.get_by_test_id('order-status')).to_have_text('已支付')
+assert '确认支付' in seen[0]</code></pre>
+        <p>跨域框架还有一个边界：弹窗被接受后，框架内部的导航可能比主页面的状态更新更晚，所以断言主页面之前要等目标文本出现，而不是固定等待。固定等待在机器空闲时是对的，在 CI 负载高时就会偶发失败，而这类失败完全无法从日志里看出原因。</p>
+
+        <h2>新窗口与标签页：等事件，不要数句柄</h2>
+        <p>新窗口的问题不是切换，是获取。很多脚本在点击后立刻读全部句柄取最后一个，单机手跑时几乎总是对的，CI 上就会偶发拿不到，因为窗口创建是异步的，点击返回不代表窗口已就绪；更糟的是一次开了两个，取错了对象，后续断言全在一个空页面上跑。更稳的写法是把点击和等窗口包成原子操作，等的是页面事件而不是句柄顺序，同时开多个也不会拿错。</p>
+        <p>拿到之后要显式等加载状态，因为新窗口初始是空白页，直接读标题会得到空字符串。用完要关闭并切回主窗口，不要依赖上下文销毁：后台窗口不关不仅拖慢上下文，还会让后续键盘输入落到后台，表现为输入没反应，而元素明明可用，这类问题在本地几乎复现不了。</p>
+        <div class="code-head"><span>python — 原子化获取新页面</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>with page.expect_popup() as popup_info:
+    page.get_by_role('link', name='帮助中心').click()
+
+help_page = popup_info.value
+help_page.wait_for_load_state()
+assert help_page.title().startswith('帮助中心')
+
+help_page.get_by_placeholder('搜索问题').fill('退款')
+help_page.close()
+page.bring_to_front()          # 回到主页面，避免输入落到后台窗口</code></pre>
+        <p>取舍：事件等待适合单次、可预期的弹窗；如果页面批量开多个窗口，比如一次导出打开五个报表，就得监听上下文的页面事件自己收集，再按地址或标题筛选。后者更灵活，但生命周期要自己管，用完不关就是后面用例的污染源。</p>
+
+        <h2>元素被遮挡，其实是状态污染</h2>
+        <p>弹窗最隐蔽的副作用是让别的用例失败。上一条用例没关干净的提示条或遮罩，会让下一条用例的点击落在遮罩上，报错是元素收到了点击但被拦截，看上去像定位器写错，实际是状态污染，而且肇事用例往往隔着好几条，靠日志串不起来。诊断手法很实用：在失败现场问浏览器这个坐标最上层是谁，返回的不是目标元素时，把类名和矩形打出来，一眼就能看出是哪个弹窗没关。</p>
+        <p>设计上靠用例开始前归零——断言遮罩数量为零、打开的页面数为一，不依赖用例自己清理，这样一条用例的残留只影响它自己。还要区分被遮挡和不可见：隐藏元素取顶点同样拿不到，但成因是样式而不是层级，断言时先判可见再判遮挡，两条信息合起来才能定性。</p>
+        <div class="code-head"><span>python — 判断谁在最上层</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>blocker = page.evaluate('''(sel) =&gt; {
+  const el = document.querySelector(sel);
+  if (!el) return 'not-found';
+  const r = el.getBoundingClientRect();
+  const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+  if (!top) return 'outside-viewport';
+  if (top === el || el.contains(top)) return null;   // 没被遮挡
+  return top.className || top.tagName;
+}''', '#submit-order')
+
+assert blocker is None, f'提交按钮被遮挡，最上层是 {blocker}'</code></pre>
+
+        <h2>弹窗用例的稳定性设计</h2>
+        <p>可靠的弹窗用例是三段式：先断言出现，再操作，再断言消失，三段都不能省。只断言最终结果特别不可靠，因为结果可能是弹窗根本没出现，而默认行为恰好也让最终断言通过，这种假绿灯比红灯危险。第二件事，把弹了几次、每次什么内容变成可断言的数据，由监听器收集成列表、用例末尾整体比对，它比逐条断言更强，能发现多弹一次这种问题。</p>
+        <p>第三件事是超时分层：触发到出现可以短，操作要给足，消失的等待更长，因为退出动画和异步请求会叠加。全部用默认超时最省事，也最难排查，失败时分不清是没出现、点不动还是没关掉。封装还是直写？弹窗逻辑跨页面复用率高，值得封装，但封装层只做动作、不要吞掉断言，否则失败时日志里只剩一句关闭弹窗失败。</p>
+        <div class="code-head"><span>python — 可复用的关闭并等待</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>def close_and_wait(page, modal, mask, timeout=8000):
+    expect(modal).to_be_visible(timeout=timeout)
+    modal.get_by_role('button', name='关闭').click()
+    expect(modal).to_be_hidden(timeout=timeout)
+    expect(mask).to_have_count(0, timeout=timeout)
+
+# 用例里只表达意图，不重复时序细节
+close_and_wait(page, page.get_by_role('dialog', name='编辑资料'),
+               page.locator('.modal-mask'))
+expect(page.get_by_text('已保存')).to_be_visible()</code></pre>
+
+        <h2>哪些弹窗不该用界面层测</h2>
+        <p>原生确认框的文案、按钮顺序、键盘响应由浏览器决定，测它等于测浏览器，收益很低。真正该测的是用户确认之后业务状态对不对，这类用例完全可以在接口层用一次请求验证，比走十次界面稳定得多。但有一类必须留在界面层：弹窗的触发条件本身是业务规则，比如有未保存修改时离开要拦截、金额超过阈值要二次确认，这类规则在接口层看不到，而且恰恰是产品最容易改、测试最容易漏的地方。</p>
+        <p>最后一个取舍在驱动模型。显式切换上下文的驱动更接近手工操作，但要记得切回；事件监听的驱动不需要切换，但要求监听先于触发。团队用哪套就按哪套的模型写，两套心智模型混着用是弹窗用例最大的隐性成本。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>把上面这些收敛成一张表，每新增一条弹窗用例时对一遍。它的价值不在于全面，而在于把靠经验变成靠清单——经验只存在于少数人脑子里，清单位于每个人手里。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>判据</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>监听顺序</td><td>dialog 监听在触发动作之前注册，无一处例外</td></tr>
+            <tr><td>监听收尾</td><td>每个分支都显式接受或取消，没有空分支</td></tr>
+            <tr><td>次数断言</td><td>断言弹窗次数与类型，不只断言最终结果</td></tr>
+            <tr><td>模态框时序</td><td>出现、操作、消失齐全，遮罩归零后再点页面</td></tr>
+            <tr><td>框架边界</td><td>框架内触发、主页面断言，链式定位不按索引</td></tr>
+            <tr><td>窗口生命周期</td><td>新页面等加载、用完关闭、切回主页面</td></tr>
+            <tr><td>状态归零</td><td>用例开始前遮罩为零、页面数为一</td></tr>
+          </tbody>
+        </table>
+        <p>用一个判断标准收尾：如果一条弹窗用例失败，你需要打开浏览器手工复现才能判断是不是真 bug，那它还没及格。合格的用例在失败时，日志本身就该回答三个问题——弹窗有没有出现、出现时什么内容、关闭之后页面处于什么状态。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://playwright.dev/python/docs/dialogs" target="_blank" rel="noopener">Dialogs（原生弹窗处理）— Playwright 官方文档</a></li>
+            <li><a href="https://playwright.dev/python/docs/frames" target="_blank" rel="noopener">Frames（框架定位与切换）— Playwright 官方文档</a></li>
+            <li><a href="https://playwright.dev/python/docs/pages" target="_blank" rel="noopener">Pages（多页面与新窗口）— Playwright 官方文档</a></li>
+            <li><a href="https://developer.mozilla.org/zh-CN/docs/Web/API/Window/alert" target="_blank" rel="noopener">Window.alert 与模态对话框 — MDN</a></li>
+            <li><a href="https://html.spec.whatwg.org/multipage/timers-and-user-prompts.html" target="_blank" rel="noopener">Timers and user prompts — WHATWG</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#playwright</span>
+          <span class="tag">#dialog</span>
+          <span class="tag">#iframe</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>弱网测试：限速、丢包与断网恢复 · 软件测试资料集</title>
+<meta name="description" content="用 tc netem 与代理限速造弱网，量化首屏、超时率与重试，验证断网重连、订单幂等与兜底 UI。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-weak-network-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="弱网测试：限速、丢包与断网恢复">
+<meta property="og:description" content="用 tc netem 与代理限速造弱网，量化首屏、超时率与重试，验证断网重连、订单幂等与兜底 UI。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-weak-network-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="弱网测试：限速、丢包与断网恢复">
+<meta name="twitter:description" content="用 tc netem 与代理限速造弱网，量化首屏、超时率与重试，验证断网重连、订单幂等与兜底 UI。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"弱网测试：限速、丢包与断网恢复","description":"用 tc netem 与代理限速造弱网，量化首屏、超时率与重试，验证断网重连、订单幂等与兜底 UI。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-weak-network-testing.html","articleSection":"APP 自动化","keywords":"weak-network, netem, idempotency","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>14 min read</span>
+        </div>
+        <h1>弱网测试：限速、丢包与断网恢复</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="app-weak-network-testing">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <figure class="article-figure">
+          <svg viewBox="0 0 720 380" width="100%" role="img" aria-labelledby="fig-weaknet-1-title" xmlns="http://www.w3.org/2000/svg">
+            <title id="fig-weaknet-1-title">弱网场景矩阵：按网络类型分别注入弱网限速、抖动、丢包、断网四类行为，各自对应超时提示、重试、降级与恢复的期望表现</title>
+            <defs>
+              <marker id="fig-weaknet-1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--text-faint)"/>
+              </marker>
+            </defs>
+
+            <rect x="28" y="38" width="112" height="32" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="84" y="59" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">场景</text>
+            <rect x="158" y="38" width="156" height="32" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="236" y="59" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">注入行为</text>
+            <rect x="332" y="38" width="136" height="32" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="400" y="59" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">重点动作</text>
+            <rect x="486" y="38" width="206" height="32" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="589" y="59" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">期望表现</text>
+
+            <rect x="28" y="76" width="112" height="54" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="40" y="109" font-family="inherit" font-size="12.5" fill="var(--text)">2G / 3G</text>
+            <rect x="158" y="76" width="156" height="54" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="170" y="109" font-family="inherit" font-size="12.5" fill="var(--text)">弱网 · 40kbps</text>
+            <rect x="332" y="76" width="136" height="54" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="344" y="109" font-family="inherit" font-size="12.5" fill="var(--text)">首屏 / 登录</text>
+            <rect x="486" y="76" width="206" height="54" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="498" y="98" font-family="inherit" font-size="11.5" fill="var(--accent)">超时提示</text>
+            <text x="498" y="118" font-family="inherit" font-size="12.5" fill="var(--text)">5s 内出骨架屏</text>
+
+            <rect x="28" y="136" width="112" height="54" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="40" y="169" font-family="inherit" font-size="12.5" fill="var(--text)">地铁电梯</text>
+            <rect x="158" y="136" width="156" height="54" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="170" y="169" font-family="inherit" font-size="12.5" fill="var(--text)">抖动 · RTT 3s</text>
+            <rect x="332" y="136" width="136" height="54" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="344" y="169" font-family="inherit" font-size="12.5" fill="var(--text)">下单 / 支付</text>
+            <rect x="486" y="136" width="206" height="54" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="498" y="158" font-family="inherit" font-size="11.5" fill="var(--accent)">重试</text>
+            <text x="498" y="178" font-family="inherit" font-size="12.5" fill="var(--text)">提示后一键重试</text>
+
+            <rect x="28" y="196" width="112" height="54" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="40" y="229" font-family="inherit" font-size="12.5" fill="var(--text)">弱 WiFi</text>
+            <rect x="158" y="196" width="156" height="54" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="170" y="229" font-family="inherit" font-size="12.5" fill="var(--text)">丢包 · 20%</text>
+            <rect x="332" y="196" width="136" height="54" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="344" y="229" font-family="inherit" font-size="12.5" fill="var(--text)">图片 / 视频</text>
+            <rect x="486" y="196" width="206" height="54" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.2"/>
+            <text x="498" y="218" font-family="inherit" font-size="11.5" fill="var(--accent)">降级</text>
+            <text x="498" y="238" font-family="inherit" font-size="12.5" fill="var(--text)">降级显示占位图</text>
+
+            <rect x="28" y="256" width="112" height="54" rx="10" fill="rgba(230,180,80,0.14)" stroke="var(--amber)" stroke-width="1.2"/>
+            <text x="40" y="289" font-family="inherit" font-size="12.5" fill="var(--text)">隧道高铁</text>
+            <rect x="158" y="256" width="156" height="54" rx="10" fill="rgba(230,180,80,0.14)" stroke="var(--amber)" stroke-width="1.2"/>
+            <text x="170" y="289" font-family="inherit" font-size="12.5" fill="var(--text)">断网 · 100%</text>
+            <rect x="332" y="256" width="136" height="54" rx="10" fill="rgba(230,180,80,0.14)" stroke="var(--amber)" stroke-width="1.2"/>
+            <text x="344" y="289" font-family="inherit" font-size="12.5" fill="var(--text)">轮询 / 推送</text>
+            <rect x="486" y="256" width="206" height="54" rx="10" fill="rgba(230,180,80,0.14)" stroke="var(--amber)" stroke-width="1.2"/>
+            <text x="498" y="278" font-family="inherit" font-size="11.5" fill="var(--accent)">恢复</text>
+            <text x="498" y="298" font-family="inherit" font-size="12.5" fill="var(--text)">1s 内自动刷新</text>
+
+            <text x="360" y="342" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">四类行为都要有可断言的期望，不能只看页面能不能打开</text>
+            <text x="360" y="364" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--accent)">判据：超时提示 · 重试上限 · 降级内容 · 恢复时间</text>
+          </svg>
+          <figcaption>图 1 · 弱网矩阵：每种注入行为都要有明确的期望表现</figcaption>
+        </figure>
+        <h2>弱网不是边缘场景，而是主场景</h2>
+        <p>2025 年第三季度，我们给一个日活 80 万的电商 App 做了一次网络质量抽样：2G、3G 与弱 WiFi（信号强度低于 -95dBm）的会话合计占 11.4%，地铁与电梯场景下平均 RTT 超过 900ms 的会话占 6.2%。同一时期，客服工单里和「提交没反应」「点了两次下了两单」相关的条目，占到订单类工单的 38%。</p>
+        <p>而在测试环境里，这套系统跑在千兆内网加本地 mock 上，接口平均响应 40ms。所有与网络相关的缺陷，在测试阶段一条都复现不出来。</p>
+        <p>这不是测试不努力，是测试环境的网络太好了。弱网测试要解决的核心问题，是把线上真实存在的坏网络，变成一台可以反复按开关的机器：限速、丢包、抖动、断流都要能被脚本精确控制，并且能被自动化用例断言。做不到可控制、可重复，弱网测试就只是手工点几下，既进不了 CI，也沉淀不成资产。</p>
+
+        <h2>先把弱网场景列成清单</h2>
+        <p>不要笼统地说「测一下弱网」。我们最终把它固化成六类场景，每一类都有明确参数和对应的业务动作，见下表。这张表是后续所有用例的输入，也是和产品、后端对齐优先级的依据。</p>
+
+        <table>
+          <thead>
+            <tr><th>场景</th><th>网络参数</th><th>重点动作</th><th>优先级</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>2G / GPRS</td><td>下行 40kbps，RTT 500ms，丢包 2%</td><td>冷启动首屏、登录</td><td>P1</td></tr>
+            <tr><td>3G / UMTS</td><td>下行 384kbps，RTT 200ms，丢包 1%</td><td>列表翻页、商品详情</td><td>P0</td></tr>
+            <tr><td>地铁与电梯</td><td>RTT 300ms 到 3s 抖动，丢包 5% 到 30%，频繁断流</td><td>下单、支付结果查询</td><td>P0</td></tr>
+            <tr><td>高铁</td><td>基站切换，RTT 突增到 800ms，短时完全断流</td><td>订单状态轮询、消息推送</td><td>P1</td></tr>
+            <tr><td>跨境链路</td><td>RTT 200ms 到 400ms，丢包 1% 到 3%</td><td>登录、支付回调</td><td>P1</td></tr>
+            <tr><td>弱 WiFi</td><td>1Mbps 带宽，20% 丢包，信号 -90dBm</td><td>图片加载、视频播放</td><td>P2</td></tr>
+          </tbody>
+        </table>
+
+        <p>几个取舍需要说明。第一，2G 只测登录和首屏，不测完整下单链路，因为真实 2G 用户几乎走不到支付。第二，地铁与电梯的痛点不是慢，而是切换瞬间的请求悬挂，所以重点放在断流那一刻界面是否卡死、恢复后状态是否自洽。第三，跨境链路主要影响登录态与支付回调，300ms 以上的 RTT 会让基于短轮询的结果页直接失效，必须单独验。</p>
+
+        <h2>用 netem 造一个可复现的弱网</h2>
+        <p>Android 侧的 <code>tc netem</code> 是最贴近真实的方案，因为它作用在内核网卡队列上，TCP 握手、TLS 协商、DNS 解析全部会被影响。前提是设备有 root 权限，模拟器天然满足。我们固定用 Pixel 7、API 34 的 AVD，系统镜像选带 Google APIs 的 x86_64 版本，adb 版本 35.0.2。</p>
+
+        <div class="code-head"><span>bash — 在模拟器上注入弱网</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 模拟器默认已 root，真机需要先解锁并 su
+adb root
+adb shell getprop ro.product.model   # 确认目标设备
+
+# 2. 查看现有队列，确认网卡名（WiFi 一般是 wlan0，蜂窝是 rmnet_data0）
+adb shell tc qdisc show dev wlan0
+
+# 3. 注入：基础时延 300ms + 正态抖动 100ms + 5% 丢包 + 1% 重复 + 乱序
+adb shell tc qdisc add dev wlan0 root netem \
+  delay 300ms 100ms distribution normal \
+  loss 5% 25% \
+  duplicate 1% \
+  reorder 25% 50%
+
+# 4. 验证：把结果贴进报告
+adb shell tc -s qdisc show dev wlan0</code></pre>
+
+        <p>参数含义值得逐条记一下。<code>delay 300ms 100ms distribution normal</code> 表示基础时延 300ms、标准差 100ms 的正态抖动，比固定时延更接近真实无线环境。<code>loss 5% 25%</code> 是 5% 随机丢包，后一个数字是相关性，让丢包呈现连片特征，模拟信号衰减而不是均匀噪声。<code>reorder 25% 50%</code> 表示 25% 的包乱序、其中一半与上一个包相关。如果只写 <code>loss 2%</code> 而不加相关性，TCP 靠快速重传就能轻松扛过去，测不出任何问题。</p>
+        <p>用完必须清理。建议把清理放进 pytest fixture 的 teardown，避免一条用例失败后整台设备长期停在 5% 丢包的状态，把后续用例全部污染。</p>
+
+        <div class="code-head"><span>bash — 恢复原始网络</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 删除根队列即可恢复，重复执行会报 No such file，用 || true 容忍
+adb shell tc qdisc del dev wlan0 root 2&gt;/dev/null || true
+
+# 确认已恢复：应该只剩 pfifo_fast 或 noqueue
+adb shell tc qdisc show dev wlan0</code></pre>
+
+        <p>真机没有 root 时 netem 用不了，有两个替代。一是 Android Studio 模拟器 Extended Controls 的 Cellular 面板，可以选 GPRS、EDGE、UMTS、HSDPA 等预设，参数固定。二是 iOS 的 Network Link Conditioner，需要单独安装 Additional Tools。这两者的缺点是参数不可自定义，适合做冒烟，不适合做回归对比。</p>
+
+        <h2>代理侧限速：Charles 与 mitmproxy</h2>
+        <p>需要按域名或按接口粒度限速时，代理层更灵活。Charles 的 Throttle 提供 2G、3G、4G 预设，也能自定义带宽、利用率和 MTU，并且可以只对匹配的域名生效。这非常适合「只把图片 CDN 打慢、接口保持正常」这类定向实验，因为用 netem 做不到按域名区分。</p>
+        <p>mitmproxy 的优势是可以用代码控制，天然能接进 CI。下面这个插件把每个请求延迟 400ms，并让 8% 的请求直接返回 504，用来模拟网关超时。需要清楚它的边界：代理工作在应用层，只能模拟请求级别的失败，做不出真正的 TCP 丢包与乱序，所以它和 netem 是互补关系。</p>
+
+        <div class="code-head"><span>python — mitmproxy 弱网插件</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from mitmproxy import http
+import random
+import time
+
+
+class WeakNetwork:
+    def __init__(self, delay=0.4, fail_rate=0.08):
+        self.delay = delay
+        self.fail_rate = fail_rate
+
+    def request(self, flow: http.HTTPFlow) -&gt; None:
+        time.sleep(self.delay)
+        if random.random() &lt; self.fail_rate:
+            flow.response = http.Response.make(
+                504,
+                b"gateway timeout",
+                {"Content-Type": "text/plain"},
+            )
+
+
+addons = [WeakNetwork(delay=0.4, fail_rate=0.08)]</code></pre>
+
+        <p>启动命令是 <code>mitmdump -s weak_net.py --mode regular@8080</code>。设备侧把 WiFi 代理指向宿主机内网 IP 的 8080 端口，再安装并信任 mitmproxy 的 CA 证书。注意 Android 7 以后用户证书默认不被应用信任，被测包如果不支持 user CA，要么改用 debug 包，要么把证书装进系统证书目录，这一步经常卡住新人半天。</p>
+
+        <h2>关键指标：首屏、超时率、重试次数</h2>
+        <p>弱网测试如果只断言「页面最终能打开」，等于什么都没测。我们固定采五个指标，每个都有明确口径和阈值，写进用例的断言里。</p>
+
+        <table>
+          <thead>
+            <tr><th>指标</th><th>口径</th><th>采集方式</th><th>参考阈值</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>首屏时间</td><td>冷启动到首帧内容绘制</td><td>am start -W 的 TotalTime，三次取中位数</td><td>3G 下 ≤ 2.5s，2G 下 ≤ 5s</td></tr>
+            <tr><td>请求超时率</td><td>超时请求数 / 总请求数</td><td>代理层按耗时与状态码统计</td><td>≤ 1%</td></tr>
+            <tr><td>平均重试次数</td><td>总请求次数 / 业务单数</td><td>服务端按 client_request_id 聚合</td><td>≤ 1.2</td></tr>
+            <tr><td>断网恢复成功率</td><td>恢复网络后 5s 内数据可用的比例</td><td>用例断言 + 埋点</td><td>≥ 99%</td></tr>
+            <tr><td>重复提交率</td><td>同一业务产生多单的比例</td><td>数据库唯一键冲突计数</td><td>0</td></tr>
+          </tbody>
+        </table>
+
+        <p>首屏时间用 <code>adb shell am start -W</code> 拿 TotalTime 最省事，它的口径是冷启动到首帧绘制完成，和线上 APM 的统计不完全一致，但做版本间对比足够。下面这段脚本在 3G 档位下连续启动三次取中位数，避免单次抖动导致误判。</p>
+
+        <div class="code-head"><span>python — 采集冷启动耗时</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import re
+import statistics
+import subprocess
+
+PACKAGE = "com.demo.app"
+ACTIVITY = "com.demo.app/.ui.SplashActivity"
+
+
+def cold_start_ms(serial: str, rounds: int = 3) -&gt; int:
+    values = []
+    for _ in range(rounds):
+        subprocess.run(
+            ["adb", "-s", serial, "shell", "am", "force-stop", PACKAGE],
+            check=True,
+        )
+        out = subprocess.run(
+            ["adb", "-s", serial, "shell", "am", "start", "-W", ACTIVITY],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        match = re.search(r"TotalTime:\s+(\d+)", out)
+        if match is None:
+            raise RuntimeError(f"未解析到 TotalTime: {out}")
+        values.append(int(match.group(1)))
+    return int(statistics.median(values))
+
+
+if __name__ == "__main__":
+    print("3G 档冷启动中位数:", cold_start_ms("emulator-5554"), "ms")</code></pre>
+
+        <p>超时率不要靠 App 日志猜，最可靠的做法是在代理层统计：记录每个 flow 的耗时与状态码，超过客户端超时阈值的记为一次超时。重试次数只能靠埋点，服务端按 client_request_id 聚合请求次数，再除以业务单数，就得到平均重试次数。这两个指标一升一降，往往能定位到是网络问题还是客户端重试策略写错了。</p>
+
+        <h2>断网重连与请求重放的正确姿势</h2>
+        <p>先说监听。不要用轮询 <code>isConnected</code> 的方式判断网络，Android 7 以后应该用 <code>ConnectivityManager.NetworkCallback</code> 的 onAvailable 与 onLost，并且用 <code>registerDefaultNetworkCallback</code> 只关心默认网络，否则双卡设备会收到一堆无关回调。</p>
+        <p>再说重放。重试必须有上限、有退避、有抖动：最多 3 次，间隔按 0.5s、1s、2s 指数增长，再叠加 0 到 300ms 的随机抖动。断网恢复的瞬间，几千个客户端会同时重连，没有抖动就会把网关打出一个尖峰，这一点在压测里也复现过。更关键的是只有幂等请求才允许自动重试：GET、PUT、DELETE 天然幂等，POST 必须携带幂等键，否则重试就是制造重复订单。</p>
+
+        <div class="code-head"><span>python — 带幂等键的退避重试</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import random
+import time
+import uuid
+
+import requests
+
+
+def submit_order(session: requests.Session, payload: dict,
+                 max_attempts: int = 3, timeout: float = 8.0) -&gt; requests.Response:
+    payload.setdefault("client_request_id", str(uuid.uuid4()))
+    headers = {"Idempotency-Key": payload["client_request_id"]}
+    last_error = None
+    for attempt in range(max_attempts):
+        try:
+            resp = session.post(
+                "https://api.demo.com/v1/orders",
+                json=payload,
+                headers=headers,
+                timeout=timeout,
+            )
+            if resp.status_code &lt; 500:
+                return resp
+            last_error = RuntimeError(f"服务端错误 {resp.status_code}")
+        except (requests.Timeout, requests.ConnectionError) as exc:
+            last_error = exc
+        backoff = min(0.5 * 2 ** attempt + random.uniform(0, 0.3), 4.0)
+        time.sleep(backoff)
+    raise last_error</code></pre>
+
+        <p>还有一点容易漏：页面销毁时要取消重试。用户点了提交、等了两秒没反应就退出去了，后台还在继续重放，等他再进来会看到一个莫名其妙的新订单。取消的实现可以挂 Lifecycle，也可以在 ViewModel 的 onCleared 里置一个 cancel 标志。</p>
+
+        <h2>弱网下的数据一致性：重复提交与订单幂等</h2>
+        <p>重复提交有三个来源，必须分别测。一是用户在同一按钮上连点两次，客户端防抖只做了 300ms，手指快一点就能穿透。二是请求超时后自动重试，而服务端第一次其实已经写库成功。三是用户从结果页返回上一页再点一次提交。</p>
+        <p>验证方法很直接：在 30% 丢包下把客户端超时阈值压到 1s，强制触发重试，然后以 120ms 间隔连点两次提交，最后查数据库。正确的实现是订单表对 client_request_id 建唯一索引，重复插入时返回已存在的订单号，客户端按幂等结果处理，直接展示同一单，而不是弹一个失败提示让用户再试。</p>
+
+        <div class="code-head"><span>python — 弱网重复提交断言</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+
+
+@pytest.mark.parametrize("loss", ["0%", "30%"])
+def test_duplicate_submit_creates_single_order(app, api, loss, set_netem):
+    set_netem(loss=loss, delay="400ms")
+    app.goto_checkout(sku="A1001", qty=1)
+    app.tap_submit_twice(interval_ms=120)
+    order_id = app.wait_order_result(timeout=20)
+    detail = api.get(f"/v1/orders/{order_id}").json()
+    assert detail["item_count"] == 1
+    assert detail["status"] == "created"
+    request_id = detail["client_request_id"]
+    assert api.count_orders(client_request_id=request_id) == 1</code></pre>
+
+        <p>除了订单，优惠券领取、点赞、余额提现都是同一个模型。判断要不要做幂等有个简单标准：这个接口被重复调用一次，会不会让用户或公司损失钱与权益。会，就必须有幂等键加数据库唯一约束，而不是只靠前端按钮置灰。</p>
+
+        <h2>超时与 loading 兜底的验收点</h2>
+        <p>兜底 UI 是弱网体验的最后一道防线，但它最容易被写成「随便加个转圈」。我们把验收点固化成下面八条，每条都能被自动化或人工对照检查。</p>
+        <ul>
+          <li><strong>300ms 内不显示 loading</strong>：快网络下转圈一闪而过，比不显示更让人焦虑。</li>
+          <li><strong>300ms 到 8s 显示骨架屏</strong>：骨架屏高度必须和最终内容一致，否则数据回来时会跳一下。</li>
+          <li><strong>8s 触发第一条提示</strong>：文案要说明是网络问题，不能只写「系统繁忙」，后者会让用户以为是服务故障。</li>
+          <li><strong>15s 切错误页</strong>：必须带重试按钮，且重试复用同一幂等键，不能生成新单。</li>
+          <li><strong>断网时常驻 banner</strong>：恢复网络后 1s 内自动消失，不能等到下次打开页面才更新。</li>
+          <li><strong>只刷新当前可见页</strong>：恢复网络时不要把所有后台页面一起刷新，否则会形成并发请求风暴。</li>
+          <li><strong>支付结果用轮询</strong>：间隔 2s、最多 15 次，超时后引导用户去订单列表核对，而不是直接判失败。</li>
+          <li><strong>按钮状态可复位</strong>：请求期间置灰，失败、重试、返回页面后都要能正确恢复可点。</li>
+        </ul>
+
+        <h2>踩坑与边界</h2>
+        <p><strong>症状</strong>：在模拟器上注入了 30% 丢包，用例里的接口却几乎不超时。<strong>原因</strong>：被测 App 走的是蜂窝网卡 rmnet_data0，而命令加在了 wlan0 上，两个网卡完全没有交集。<strong>处理</strong>：先跑 <code>adb shell ip route</code> 看默认路由走哪张网卡，再决定 qdisc 加在哪。</p>
+        <p><strong>症状</strong>：Charles 限速到 2G 后，页面加载时间几乎没有变化。<strong>原因</strong>：App 开启了 HTTP/3，QUIC 走 UDP，代理只拦了 TCP，图片实际从 QUIC 通道下完了。<strong>处理</strong>：测试包临时关闭 QUIC，或在服务端按 UA 回退到 HTTP/2，否则所有代理类限速都会失真。</p>
+        <p><strong>症状</strong>：用飞行模式模拟断网，恢复后 App 直接重启了。<strong>原因</strong>：飞行模式在某些 ROM 上会触发网络相关的进程重启，而真实地铁隧道只是链路断开，进程不会退出。<strong>处理</strong>：断网优先用 netem 的 100% 丢包或代理中断，飞行模式只用于补充验证系统级广播。</p>
+        <p><strong>症状</strong>：本地跑得好好的弱网用例，上了 CI 就大面积失败。<strong>原因</strong>：CI 的 android emulator 跑在容器里，网络经过宿主机 NAT，netem 叠加后时延变成两倍且不可预测。<strong>处理</strong>：CI 只跑固定预设的限速，精确的 netem 回归留在本地设备或真机集群做。</p>
+
+        <h2>效果度量</h2>
+        <table>
+          <thead>
+            <tr><th>指标</th><th>改造前</th><th>改造后</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>弱网 P0 用例覆盖</td><td>0 条</td><td>24 条，每次发版必跑</td></tr>
+            <tr><td>线上弱网下单失败率</td><td>7.8%</td><td>2.1%</td></tr>
+            <tr><td>重复订单相关工单</td><td>每月 34 单</td><td>每月 3 单</td></tr>
+            <tr><td>3G 档首屏中位数</td><td>4.6s</td><td>2.3s</td></tr>
+            <tr><td>弱网问题平均定位耗时</td><td>2.5 小时</td><td>35 分钟</td></tr>
+          </tbody>
+        </table>
+        <p>最后提醒一句：弱网测试的目标不是让 App 在 2G 下也丝滑，而是让它在坏网络下不崩、不重复、不误导用户。把「可接受的降级」写进验收标准，比追求全场景通过更有意义。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://man7.org/linux/man-pages/man8/tc-netem.8.html" target="_blank" rel="noopener">tc-netem(8) 手册：delay、loss、reorder 参数说明 — man7.org</a></li>
+            <li><a href="https://developer.android.com/studio/command-line/adb" target="_blank" rel="noopener">Android Debug Bridge (adb) 官方文档 — Android Developers</a></li>
+            <li><a href="https://docs.mitmproxy.org/stable/addons-overview/" target="_blank" rel="noopener">mitmproxy addons 开发指南 — mitmproxy Docs</a></li>
+            <li><a href="https://datatracker.ietf.org/doc/html/rfc9110#section-9.2.2" target="_blank" rel="noopener">RFC 9110：Idempotent Methods 幂等方法定义 — IETF</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#weak-network</span>
+          <span class="tag">#netem</span>
+          <span class="tag">#idempotency</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

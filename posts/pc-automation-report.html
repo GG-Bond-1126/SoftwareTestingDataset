@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC 自动化的测试报告：从「跑通了」到「可汇报」 · 软件测试资料集</title>
+<meta name="description" content="桌面自动化的证据链：失败瞬间截图、控件树 dump、日志与录屏，用 pytest-html 与 Allure 落地。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-report.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="PC 自动化的测试报告：从「跑通了」到「可汇报」">
+<meta property="og:description" content="桌面自动化的证据链：失败瞬间截图、控件树 dump、日志与录屏，用 pytest-html 与 Allure 落地。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-report.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="PC 自动化的测试报告：从「跑通了」到「可汇报」">
+<meta name="twitter:description" content="桌面自动化的证据链：失败瞬间截图、控件树 dump、日志与录屏，用 pytest-html 与 Allure 落地。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"PC 自动化的测试报告：从「跑通了」到「可汇报」","description":"桌面自动化的证据链：失败瞬间截图、控件树 dump、日志与录屏，用 pytest-html 与 Allure 落地。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-report.html","articleSection":"PC 自动化","keywords":"pc-automation, report, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>23 min read</span>
+        </div>
+        <h1>PC 自动化的测试报告：从「跑通了」到「可汇报」</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="pc-automation-report">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>桌面报告和 Web 报告差在哪</h2>
+        <p>Web 自动化的报告之所以容易做得好看，是因为浏览器把现场都替你留下了：失败时可以抓 DOM 快照、控制台日志、网络请求、Playwright 的 trace 和录屏，点开就能回放。桌面应用没有这层东西，控件树要靠 UI Automation 临时抓，日志散落在应用自己的目录里，录屏要额外开进程，任何一样忘了采集，事后都补不回来。</p>
+        <p>更根本的差别在于断言的可解释性。Web 上一句「元素不存在」通常意味着页面没渲染到那一步，而桌面上的「控件不存在」可能是窗口还没激活、被模态框挡住、在屏幕外、或者应用根本没响应。同一个报错对应五种现场，报告如果只抄一句异常信息，读的人就只能猜。</p>
+        <p>所以桌面报告的重点不是排版，而是证据链：失败那一刻的屏幕、当时的控件树、应用日志、操作过程，以及跑在什么环境上。这份东西的目标是让一个没参与写脚本的人，三分钟内判断出是产品问题还是脚本问题。下面按证据、工具、表达、趋势四块展开。</p>
+
+        <h2>一份能自证的报告要哪些证据</h2>
+        <p>最少四样，缺一样都会显著拉长定位时间。截图回答「长什么样」，控件树回答「程序当时认为界面上有什么」，日志回答「应用内部发生了什么」，环境信息回答「这个结论在什么条件下成立」。录屏是可选项，但对过程性问题几乎是必需品。</p>
+        <table>
+          <thead>
+            <tr><th>证据</th><th>采集时机</th><th>解决的问题</th><th>常见缺失原因</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>失败截图</td><td>断言抛出的同一瞬间</td><td>界面状态、弹窗、错位、空白</td><td>teardown 里才截，窗口已关</td></tr>
+            <tr><td>控件树 dump</td><td>与截图同时</td><td>控件是否存在、是否可用、坐标</td><td>只在定位失败时抓，断言失败没抓</td></tr>
+            <tr><td>应用日志</td><td>失败后立即读取尾部</td><td>内部异常、状态机、超时</td><td>日志被下一条用例覆盖</td></tr>
+            <tr><td>环境信息</td><td>会话开始一次</td><td>DPI、会话、版本、语言</td><td>只写了操作系统名字</td></tr>
+            <tr><td>执行录屏</td><td>用例开始到结束</td><td>一闪而过的弹窗、无响应</td><td>只在通过时录制，失败时反而没录</td></tr>
+          </tbody>
+        </table>
+        <p>环境信息要写到能复现的程度：Windows 版本与内部版本号、屏幕分辨率与 DPI 缩放、当前会话是控制台还是 RDP、系统语言与区域格式、应用版本与构建号、被测账号类型。只写「Windows 11」等于没写，三个月后没人能凭这一行还原现场。</p>
+        <p>还有一项容易被忽略的证据：用例开始前的环境快照标识。它告诉你这次运行是不是从干净状态起步的，配合失败现场才能区分「应用有问题」和「上一轮留了脏数据」。</p>
+
+        <h2>失败截图：时机比清晰度重要</h2>
+        <p>失败截图只有一个正确时机：断言失败、异常抛出的那一瞬间，在 teardown 关闭窗口之前。事后补拍拿到的是另一个界面——弹窗已经消失、列表已经刷新、应用可能已经退出，只剩一个空桌面。很多人说「截图没用」，其实是截图时机错了。</p>
+        <p>截全屏还是截窗口，这是个取舍。截窗口干净、便于比对，但会漏掉最关键的现场信息：是不是有另一个窗口盖在上面、是不是弹了一个系统级对话框、任务栏上是不是有崩溃提示。截全屏信息完整，但多显示器环境下可能把三块屏拼成一张巨图。实践建议是全屏加窗口裁剪各存一张，全屏用于判断遮挡，窗口用于看细节。</p>
+        <p>还有一个必须处理的异常情况：RDP 断开或锁屏时，截图会得到纯黑图，而且不会报错。如果直接把黑图挂到报告上，读的人会以为应用白屏了。所以要加一个简单的均匀度检测，检测到全黑或全白时，在报告里明确标注「截图采集失败，会话可能已断开」，这比一张误导性的图有价值得多。</p>
+        <div class="code-head"><span>python — 失败瞬间取证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+import time
+
+import pyautogui
+import pytest
+
+ARTIFACTS = pathlib.Path("artifacts")
+
+
+def grab(tag: str) -&gt; dict:
+    ARTIFACTS.mkdir(exist_ok=True)
+    shot = ARTIFACTS / f"{tag}.png"
+    image = pyautogui.screenshot(allScreens=True)
+    image.save(shot)
+    # 纯黑/纯白说明会话没有渲染，不能当成应用白屏
+    colors = image.convert("RGB").getcolors(maxcolors=4)
+    blank = bool(colors) and len(colors) == 1
+    return {"path": str(shot), "blank": blank, "ts": time.time()}
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+    if report.when != "call" or not report.failed:
+        return
+    item.user_properties.append(("shot", grab(item.name)))</code></pre>
+        <p>注意 <code>getcolors(maxcolors=4)</code> 的写法：返回 None 说明颜色数量超过上限，也就是画面有内容；返回长度为一的列表才是真的单色。这个判断很粗糙，但足以拦住最常见的黑图问题，比引入图像库做方差计算便宜得多。</p>
+
+        <h2>把控件树写成可读附件</h2>
+        <p>控件树是桌面报告里最有信息量、也最容易被浪费的证据。直接 <code>print</code> 一棵默认深度的树，动辄几千行、缩进混乱、混着内存地址，挂在报告里没人会看。它需要被裁剪和格式化，才能变成「可读附件」。</p>
+        <p>裁剪的规则：限制深度在 6 到 8 层，只保留对定位有用的属性——控件类型、名称、AutomationId、类名、边界矩形、是否可用、是否在屏幕外；对重复的列表项只保留前若干个并注明总数。这样一棵完整的窗口树通常能压到两三百行，正好是一屏能扫完的规模。</p>
+        <p>看树的时候重点看三个字段。一是 <code>IsOffscreen</code>，为真说明控件存在但在可视区域外，这解释了「明明有却点不到」；二是 <code>IsEnabled</code>，为假说明按钮是灰的，属于产品状态而不是脚本问题；三是边界矩形的宽高为 0，说明控件还没完成布局，通常意味着等得不够或者窗口尺寸异常。</p>
+        <div class="code-head"><span>python — uiautomation 裁剪控件树</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import uiautomation as auto
+
+FIELDS = ("ControlTypeName", "Name", "AutomationId", "ClassName",
+          "IsEnabled", "IsOffscreen")
+
+
+def dump_tree(root, max_depth: int = 7, max_items: int = 40) -&gt; str:
+    lines = []
+
+    def walk(ctrl, depth: int) -&gt; None:
+        if depth &gt; max_depth:
+            return
+        rect = ctrl.BoundingRectangle
+        attrs = " ".join(f"{k}={getattr(ctrl, k)!r}" for k in FIELDS)
+        lines.append(
+            f"{'  ' * depth}{ctrl.ControlTypeName} {attrs} "
+            f"rect=({rect.left},{rect.top},{rect.right - rect.left},"
+            f"{rect.bottom - rect.top})"
+        )
+        children = ctrl.GetChildren()
+        for child in children[:max_items]:
+            walk(child, depth + 1)
+        if len(children) &gt; max_items:
+            lines.append(f"{'  ' * (depth + 1)}... 其余 {len(children) - max_items} 个同级控件已省略")
+
+    walk(root, 0)
+    return "\n".join(lines)</code></pre>
+        <p>用 pywinauto 的话有现成方法 <code>print_control_identifiers(depth=..., filename=...)</code>，输出里带可直接复用的定位表达式，比自写遍历更适合写脚本的人看。两套工具混用时，建议统一成一种附件格式，否则报告里会出现两种风格迥异的树，读的人要来回切换思维。</p>
+        <div class="code-head"><span>python — pywinauto 导出控件标识</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from pywinauto import Application
+
+app = Application(backend="uia").connect(title_re=".*DeskTool.*")
+dlg = app.window(title_re=".*导出.*")
+dlg.print_control_identifiers(
+    depth=6,
+    filename="artifacts/export_dialog_tree.txt",
+)</code></pre>
+        <p>一个实践细节：dump 控件树必须带超时。应用如果正在忙，UI Automation 的调用会卡住，取证逻辑把整个用例拖死，最后连截图都没保存下来。给每个取证动作设一个总的截止时间，超时就写「控件树采集超时」，这本身也是一条有价值的诊断信息。</p>
+
+        <h2>pytest-html 在桌面场景的适配</h2>
+        <p>pytest-html 的优点是零配置、单文件、能直接发邮件，适合团队规模不大、只需要「一份能看的报告」的场景。但它的默认输出对桌面自动化并不友好：不带环境信息、不带自定义附件、失败详情只有异常栈。要做三处适配。</p>
+        <p>第一处是自包含开关。<code>--self-contained-html</code> 会把图片以 base64 内嵌进单个 HTML，发给别人不会出现图片裂开，代价是文件体积膨胀，一张 1080p 的 PNG 转成 base64 大约多出三分之一。截图多的项目不要开这个选项，改成生成一个目录，打包成 zip 再分发。</p>
+        <p>第二处是通过 <code>extras</code> 挂附件。pytest-html 4 之后的写法是在钩子里往 <code>report.extras</code> 追加，而不是旧版本的 <code>report.extra</code> 列表。版本混用是这里最常见的错误，现象是附件静默丢失、报告里什么都没有，也不报错。</p>
+        <p>第三处是环境信息。pytest-html 没有内置的环境区块，需要自己写进报告标题或者一条固定的汇总用例里。懒一点的做法是在 <code>pytest_sessionfinish</code> 里把环境写入一个单独的 HTML 片段，再用报告模板拼进去；更简单的是接受它，把环境信息放进摘要页。</p>
+        <div class="code-head"><span>python — pytest-html 附件钩子</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+from pytest_html import extras
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+    if report.when != "call" or not report.failed:
+        return
+    shot = grab(item.name)
+    report.extras.append(extras.image(shot["path"]))
+    tree_file = item.user_properties and item.funcargs.get("tree_path")
+    if tree_file:
+        report.extras.append(extras.text(open(tree_file, encoding="utf-8").read(),
+                                         name="控件树"))</code></pre>
+        <p>命令行参数建议固定写进 <code>pytest.ini</code>，尤其是 <code>--html</code> 的输出路径和 <code>--capture=tee-sys</code>。桌面用例的输出量很大，默认捕获会让失败时的 stdout 丢失，而应用的很多诊断信息恰恰是打印到控制台的。</p>
+
+        <h2>Allure 的附件、步骤与环境信息</h2>
+        <p>用例数量上去、需要按业务域分组、需要看历史趋势之后，Allure 的收益就明显了。它的三层标记可以让报告首页按模块折叠，步骤树能把「打开导出对话框、选择格式、点击保存」拆成可读的操作记录，失败节点自动标红，截图挂在对应步骤下面。</p>
+        <p>桌面场景里，Allure 的附件建议统一命名并加序号前缀，比如 <code>01-失败截图</code>、<code>02-控件树</code>、<code>03-应用日志</code>，渲染后按名称排序，读的人顺着序号看就是一条完整的取证链路。不编号的话附件顺序取决于写入时机，经常是日志在前、截图在后，读起来别扭。</p>
+        <p>环境信息通过 results 目录下的 <code>environment.properties</code> 提供，键值对即可，渲染后出现在报告首页。别偷懒只写操作系统，把 DPI、会话类型、应用构建号一起写上，这几项在排查「换台机器就挂」时几乎是决定性的。</p>
+        <div class="code-head"><span>python — Allure 取证与环境信息</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+
+import allure
+from allure_commons.types import AttachmentType
+
+
+def attach_evidence(shot: dict, tree_text: str, log_tail: str) -&gt; None:
+    allure.attach.file(shot["path"], name="01-失败截图",
+                       attachment_type=AttachmentType.PNG)
+    allure.attach(tree_text, name="02-控件树",
+                  attachment_type=AttachmentType.TEXT)
+    allure.attach(log_tail, name="03-应用日志",
+                  attachment_type=AttachmentType.TEXT)
+
+
+def write_environment(results: str = "allure-results",
+                      dpi: str = "150%", session: str = "console") -&gt; None:
+    info = {
+        "os": "Windows 11 23H2 (22631)",
+        "app_version": "1.2.0 (build 20261112)",
+        "screen": "1920x1080",
+        "dpi": dpi,
+        "session": session,
+        "locale": "zh-CN",
+    }
+    lines = [f"{key}={value}" for key, value in info.items()]
+    pathlib.Path(results, "environment.properties").write_text(
+        "\n".join(lines), encoding="utf-8")</code></pre>
+        <p>如果不方便引入 Allure 命令行，pytest-html 加自写摘要页也能达到八成效果，差别主要在历史趋势和分组筛选上。选型时先问自己：这份报告是给自己看，还是要发给产品和管理层？后者更值得上 Allure。</p>
+
+        <h2>「点不到按钮」这类失败怎么表达</h2>
+        <p>桌面自动化里最典型的失败不是断言失败，而是定位失败：脚本要找「保存」按钮，找不到。这既可能是产品 bug（按钮没渲染出来），也可能是脚本 bug（定位表达式写错），还可能是环境问题（窗口不在前台、被遮挡、DPI 变了）。报告如果只写一句控件不存在，等于把判断责任推给了读报告的人。</p>
+        <p>正确的表达是把「找的过程」也当成证据。写清尝试了哪几种定位策略、每种策略的搜索范围和深度、窗口内一共有多少个控件、最接近的候选控件是哪几个以及相似度。这些信息能让人一眼看出是「按钮真的没有」还是「按钮改名了」。</p>
+        <p>同时要把失败分类，而不是笼统地标红。建议至少分四类：定位失败、断言失败、应用崩溃、超时。四类的处理人不同，定位失败多半是脚本或环境问题，断言失败才可能指向产品缺陷。分类之后，通过率这个数字才有意义。</p>
+        <div class="code-head"><span>python — 定位失败时带诊断信息</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import difflib
+
+import uiautomation as auto
+
+
+class LocateError(AssertionError):
+    pass
+
+
+def find_button(win, name: str = "保存", depth: int = 8):
+    strategies = [
+        lambda: win.ButtonControl(Name=name, searchDepth=depth),
+        lambda: win.ButtonControl(AutomationId="SaveButton", searchDepth=depth),
+        lambda: auto.ButtonControl(Name=name, searchFromControl=win),
+    ]
+    for index, strategy in enumerate(strategies, start=1):
+        ctrl = strategy()
+        if ctrl.Exists(2):
+            return ctrl
+
+    names = [c.Name for c in win.GetChildren() if c.Name]
+    close = difflib.get_close_matches(name, names, n=3, cutoff=0.4)
+    raise LocateError(
+        f"未找到按钮「{name}」：已尝试 3 种策略，"
+        f"窗口内可见命名控件 {len(names)} 个，最接近候选 {close}"
+    )</code></pre>
+        <p>把这类异常定义成 <code>AssertionError</code> 的子类而不是裸 <code>Exception</code>，是为了让 pytest 的失败统计保持一致，同时在报告里还能按异常类型筛选。命令行里看到 <code>LocateError</code>，就知道不用去翻产品代码了。</p>
+        <div class="callout"><p>失败的三种典型表述对比：<br>差：<code>AssertionError: None</code><br>中：<code>找不到保存按钮</code><br>好：<code>未找到按钮「保存」，3 种策略均失败，窗口内 47 个命名控件，最接近候选 ['另存为', '保存全部']，截图与控件树见附件</code></p></div>
+
+        <h2>历史趋势与 flaky 标记</h2>
+        <p>单次报告回答「这次怎么样」，历史趋势回答「这条用例可信吗」。桌面自动化的不稳定因素比 Web 更多：焦点抢占、弹窗时序、渲染延迟、屏幕缩放，任何一项都能让一条本来正确的用例偶发失败。没有趋势数据，团队只能凭印象判断，最后所有偶发失败都被归为「已知问题」。</p>
+        <p>做法很朴素：每次运行把结果写一份 JSONL，一行一条用例，记录用例 ID、状态、耗时、开始时间、环境标识。统计时读最近 N 次，同一条用例既出现过通过也出现过失败，就标记为 flaky。flaky 率的定义要看清楚分母是「运行次数达标的用例数」，不是全部用例数，否则新加的用例会把比例稀释得毫无意义。</p>
+        <p>flaky 用例不要自动隐藏，也不要自动重跑后只报最终结果。这两种做法都会让报告变好看，同时让问题永远不被修。正确姿势是在报告里明确标记，附上最近十次的通过情况，然后每周公示一次最不稳定的前十条，推动脚本或产品两边去定位。</p>
+        <div class="code-head"><span>python — 从 JSONL 计算 flaky</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import collections
+import json
+import pathlib
+
+
+def flaky_report(history_dir: str = "artifacts/history",
+                 min_runs: int = 5) -&gt; tuple[float, list[str]]:
+    runs = collections.defaultdict(list)
+    for path in sorted(pathlib.Path(history_dir).glob("*.jsonl")):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            row = json.loads(line)
+            runs[row["case_id"]].append(row["status"])
+
+    checked = {case: states for case, states in runs.items()
+               if len(states) &gt;= min_runs}
+    flaky = [case for case, states in checked.items()
+             if len(set(states)) &gt; 1]
+    flaky.sort(key=lambda case: runs[case].count("passed"))
+    rate = round(len(flaky) / max(len(checked), 1) * 100, 1)
+    return rate, flaky[:10]</code></pre>
+        <p>趋势图不必上专门的平台，把每天的通过率和 flaky 率写成两列 CSV，用任何表格工具都能画出曲线。关键是数据要连续，断档一周的曲线没有任何解释力。</p>
+
+        <h2>给非技术同事的摘要页</h2>
+        <p>报告的第一页决定了它会不会被打开第二次。如果第一页是三百行用例明细和一屏红色堆栈，产品经理看两眼就会关掉，然后继续在群里问「这次能不能发」。所以摘要页必须单独设计，只回答四个问题：能不能发、哪里有问题、影响多大、找谁看细节。</p>
+        <p>写法上要换算成业务语言。「导出对话框定位失败」要写成「订单导出功能不可用」，附上影响范围，比如「影响全部导出格式」。用例 ID 和异常类名留在详情页，摘要页只出现功能名。几条失败按业务影响排序，不要按执行顺序排。</p>
+        <p>摘要页还需要给出明确结论，而不是把判断留给读者。通过率 96% 是「可以发，附两个已知问题」还是「不建议发」，取决于失败用例的等级，这个判断应该由写脚本的人在报告里给出，而不是让管理层去猜。</p>
+        <div class="code-head"><span>python — 生成摘要数据</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import collections
+
+SEVERITY = {"blocker": 0, "critical": 1, "normal": 2, "minor": 3}
+
+
+def summary(results: list[dict], env: dict) -&gt; dict:
+    total = len(results)
+    passed = sum(1 for r in results if r["status"] == "passed")
+    failures = [r for r in results if r["status"] == "failed"]
+    failures.sort(key=lambda r: SEVERITY.get(r["severity"], 9))
+    blockers = [r for r in failures if r["severity"] in ("blocker", "critical")]
+    return {
+        "verdict": "不建议发布" if blockers else "可以发布",
+        "pass_rate": f"{passed / total * 100:.1f}%" if total else "0%",
+        "total": total,
+        "failed": len(failures),
+        "risks": [{"feature": r["feature"], "impact": r["impact"]}
+                  for r in failures[:3]],
+        "env": env,
+        "detail_link": "report.html#cases",
+    }</code></pre>
+        <p>摘要页的排版也值得花十分钟：结论用一句话加大字号放在最上面，风险列表用三条为上限，环境信息折到页面最底部。超过三条风险的报告，读的人只会记住「问题很多」，反而失去了重点。</p>
+
+        <h2>归档、体积与可访问性</h2>
+        <p>报告要能被人拿到，而不是躺在构建机的临时目录里。CI 上无论成败都要上传报告，失败构建的现场恰恰是最需要看的。保留期设三十天足够多数团队用，发版节点的报告另外存一份到固定路径，便于半年后追查问题是什么时候引入的。</p>
+        <p>体积控制主要靠截图。1080p 的 PNG 单张在 1 到 3 MB，三百条用例每条挂两张，报告轻松超过 1 GB，浏览器打开会卡死。做法是失败截图转 JPEG、质量 70 左右、宽度压到 1280，控件树文本截断到 500 行，录屏只在失败时保留。这样通常能压到几十 MB。</p>
+        <p>可访问性是个常被忽略的问题。内网 Jenkins 生成的报告外网打不开，云上流水线的 artifact 需要登录且有保留期。如果报告要发给客户或外包团队，最好把关键几份另存到对象存储的固定路径，并在用例管理平台里挂上链接，别让人为了看一眼截图去申请权限。</p>
+
+        <h2>踩坑与排查</h2>
+        <p><strong>现象</strong>：报告里所有截图都是黑的。<strong>原因</strong>：执行机跑在 RDP 会话里，连接断开后屏幕停止渲染，<code>pyautogui.screenshot</code> 不报错，直接返回黑图。<strong>处理</strong>：取证时做单色检测并显式标注采集失败；执行机改用控制台会话或自动登录保持解锁。</p>
+        <p><strong>现象</strong>：控件树里中文全是问号或乱码。<strong>原因</strong>：附件写入时用了系统默认编码，而 Windows 中文版默认是 GBK，控件名里却有应用自己写入的 UTF-8 字符。<strong>处理</strong>：所有文本附件统一按 UTF-8 编码写入，读取时对非法字节做替换处理，宁可丢几个字符也不要整段抛异常。</p>
+        <p><strong>现象</strong>：报告能打开，但图片全是裂图。<strong>原因</strong>：报告里写的是绝对路径，换台机器或打包上传后路径失效。<strong>处理</strong>：附件用相对路径，或者直接用 <code>--self-contained-html</code> 内嵌；发邮件时打包整个目录。</p>
+        <p><strong>现象</strong>：附件时有时无，同一份代码在不同机器上表现不同。<strong>原因</strong>：pytest-html 的 extras API 在 3.x 和 4.x 之间不兼容，或者取证钩子抛了异常被吞掉。<strong>处理</strong>：锁定插件版本，把每个附件写入包在独立的 try 里，任何一个失败都不影响其余附件和用例结果。</p>
+        <p><strong>现象</strong>：报告里的耗时和实际感受差很远。<strong>原因</strong>：用例耗时只统计了断言部分，没有算上窗口启动、等待控件出现、清理数据的时间。<strong>处理</strong>：在 conftest 的 fixture 里从进程启动开始计时，报告里分别给出用例耗时和会话耗时。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>把下面这张表贴进项目 README，新同学接入时逐条对照，能省掉大半返工。尤其是前两项，缺了它们后面所有工作都是空中楼阁。</p>
+        <table>
+          <thead>
+            <tr><th>项目</th><th>检查点</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>失败取证</td><td>断言失败瞬间自动截图，且在 teardown 之前</td></tr>
+            <tr><td>控件树</td><td>失败时导出裁剪后的树，深度不超过 8 层</td></tr>
+            <tr><td>日志</td><td>失败后立即读取应用日志尾部 200 行</td></tr>
+            <tr><td>环境</td><td>记录系统版本、DPI、会话类型、应用构建号</td></tr>
+            <tr><td>失败分类</td><td>定位失败、断言失败、崩溃、超时四类可区分</td></tr>
+            <tr><td>趋势</td><td>每次运行落一份 JSONL，可计算 flaky 率</td></tr>
+            <tr><td>摘要</td><td>第一页给出发布结论与三条以内风险</td></tr>
+            <tr><td>归档</td><td>成败都上传报告，发版节点长期留存</td></tr>
+          </tbody>
+        </table>
+        <p>最后给一个判断标准：如果一份失败报告，需要写这条用例的人亲自解释才能看懂，那它就还不合格。合格的报告应该让一个不熟悉该项目的人，三分钟内说清失败发生在哪一步、当时界面是什么样、应用有没有留下异常日志。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://pytest-html.readthedocs.io/en/latest/user_guide.html" target="_blank" rel="noopener">pytest-html 用户指南：extras 与自包含报告 — pytest-html Docs</a></li>
+            <li><a href="https://allurereport.org/docs/pytest/" target="_blank" rel="noopener">Allure Report 与 pytest 集成 — Allure Docs</a></li>
+            <li><a href="https://pywinauto.readthedocs.io/en/latest/controls_overview.html" target="_blank" rel="noopener">pywinauto 控件与 print_control_identifiers — pywinauto Docs</a></li>
+            <li><a href="https://learn.microsoft.com/en-us/windows/win32/winauto/entry-uiauto-win32" target="_blank" rel="noopener">UI Automation 入门：控件树与属性 — Microsoft Learn</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/reference/reference.html#hook-reference" target="_blank" rel="noopener">pytest 钩子参考：pytest_runtest_makereport — pytest Docs</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#pc-automation</span>
+          <span class="tag">#report</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

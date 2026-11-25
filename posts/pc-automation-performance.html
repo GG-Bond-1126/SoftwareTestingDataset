@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC 自动化的性能测试：桌面应用「压力 + 资源监控」 · 软件测试资料集</title>
+<meta name="description" content="桌面应用压力测试、内存泄漏检测、CPU 占用监控、响应时间统计，配Excel 批量操作 + 资源监控完整案例。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-performance.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="PC 自动化的性能测试：桌面应用「压力 + 资源监控」">
+<meta property="og:description" content="桌面应用压力测试、内存泄漏检测、CPU 占用监控、响应时间统计，配Excel 批量操作 + 资源监控完整案例。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-performance.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="PC 自动化的性能测试：桌面应用「压力 + 资源监控」">
+<meta name="twitter:description" content="桌面应用压力测试、内存泄漏检测、CPU 占用监控、响应时间统计，配Excel 批量操作 + 资源监控完整案例。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"PC 自动化的性能测试：桌面应用「压力 + 资源监控」","description":"桌面应用压力测试、内存泄漏检测、CPU 占用监控、响应时间统计，配Excel 批量操作 + 资源监控完整案例。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-performance.html","articleSection":"PC 自动化","keywords":"pc-automation, performance, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>PC 自动化的性能测试：桌面应用「压力 + 资源监控」</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="pc-automation-performance">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 PC 自动化工具
+pip install pyautogui pynput uiautomation pywinauto opencv-python
+# 验证
+python -c "import pyautogui; print(pyautogui.size())"</code></pre>
+<div class="code-head"><span>python — 验证环境</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui
+# 获取屏幕尺寸（验证）
+print(f"屏幕尺寸：{pyautogui.size()}")
+print("PC 自动化环境就绪 ✓")</code></pre>
+
+<h2>基础应用：自动操作桌面应用</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui, subprocess, time
+
+# 启动记事本
+subprocess.Popen(["notepad.exe"])
+time.sleep(1)
+
+# 输入 + 保存
+pyautogui.write("Hello, PC Automation!")
+time.sleep(0.3)
+pyautogui.hotkey("ctrl", "s")
+time.sleep(0.5)
+
+# 截图
+pyautogui.screenshot("result.png")
+print("基础操作完成 ✓")</code></pre>
+
+<h2>项目进阶：pytest + 多场景 + CI</h2>
+<div class="code-head"><span>python — pytest fixture</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># conftest.py
+import pytest, subprocess, time
+import uiautomation as auto
+
+@pytest.fixture
+def notepad():
+    subprocess.Popen(["notepad.exe"])
+    time.sleep(1)
+    win = auto.WindowControl(searchDepth=1, subTitle="无标题 - 记事本")
+    assert win.Exists(5)
+    yield win
+    auto.press_keys("alt+f4")
+
+# test_notepad.py
+def test_type(notepad):
+    import pyautogui
+    pyautogui.write("测试内容")
+    pyautogui.hotkey("ctrl", "s")
+    time.sleep(0.5)</code></pre>
+
+        <h2>桌面应用性能测试的核心指标</h2>
+        <p>桌面应用（不像接口有「响应时间」），性能指标主要看「资源 + 操作耗时」：</p>
+        <div class="code-head"><span>指标</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 资源指标（进程级别）
+# - 内存占用（RSS，Working Set Size）
+# - CPU 占用（百分比）
+# - 句柄数（Windows 文件/窗口句柄）
+# - 线程数
+
+# 操作耗时（操作级别）
+# - 启动耗时（应用从启动到可操作）
+# - 操作耗时（点击 → 响应完成）
+# - 批量操作耗时（N 次操作总耗时）
+
+# 内存泄漏（趋势）
+# - 反复操作 N 次，内存是否持续增长
+# - 增长 > 阈值 = 可能泄漏</code></pre>
+
+        <h2>psutil：监控进程资源</h2>
+        <div class="code-head"><span>terminal — 安装</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>pip install psutil</code></pre>
+        <div class="code-head"><span>python — 资源监控</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import psutil
+import time
+from dataclasses import dataclass
+
+@dataclass
+class ProcessStats:
+    """进程资源统计"""
+    pid: int
+    name: str
+    memory_mb: float
+    cpu_percent: float
+    num_handles: int
+    num_threads: int
+
+def monitor_process(process_name, duration=10, interval=1.0):
+    """监控进程资源（N 秒内，每 interval 采一次）。
+
+    Args:
+        process_name: 进程名（如 "excel.exe"）
+        duration: 监控时长（秒）
+        interval: 采样间隔（秒）
+
+    Returns:
+        ProcessStats 列表（每次采样一条）
+    """
+    stats = []
+    process = None
+
+    # 找进程
+    for p in psutil.process_iter():
+        try:
+            if p.name().lower() == process_name.lower():
+                process = p
+                break
+        except psutil.NoSuchProcess:
+            pass
+
+    if not process:
+        print(f"  进程 {process_name} 没找到")
+        return stats
+
+    print(f"  找到进程：{process_name}（PID {process.pid}）")
+
+    start = time.time()
+    while time.time() - start < duration:
+        try:
+            stat = ProcessStats(
+                pid=process.pid,
+                name=process.name(),
+                memory_mb=process.memory_info().rss / (1024 * 1024),
+                cpu_percent=process.cpu_percent(interval=0.1),
+                num_handles=process.num_handles(),   # Windows
+                num_threads=process.num_threads(),
+            )
+            stats.append(stat)
+            print(f"  {stat.name}: 内存 {stat.memory_mb:.1f}MB, "
+                  f"CPU {stat.cpu_percent:.1f}%, 句柄 {stat.num_handles}")
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            break
+        time.sleep(interval)
+
+    return stats
+
+# 使用：监控 Excel 10 秒
+stats = monitor_process("excel.exe", duration=10, interval=2.0)
+if stats:
+    avg_mem = sum(s.memory_mb for s in stats) / len(stats)
+    max_mem = max(s.memory_mb for s in stats)
+    print(f"\n  平均内存：{avg_mem:.1f}MB，最大：{max_mem:.1f}MB")</code></pre>
+
+        <h2>内存泄漏检测：反复操作 + 趋势分析</h2>
+        <div class="code-head"><span>python — 内存泄漏检测</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import psutil
+import time
+from dataclasses import dataclass
+
+class MemoryLeakDetector:
+    """内存泄漏检测（反复操作 + 趋势分析）。"""
+
+    def __init__(self, process_name, baseline_cycles=3, test_cycles=10, interval=2.0):
+        self.process_name = process_name
+        self.baseline_cycles = baseline_cycles
+        self.test_cycles = test_cycles
+        self.interval = interval
+
+    def get_process(self):
+        """找进程。"""
+        for p in psutil.process_iter():
+            try:
+                if p.name().lower() == self.process_name.lower():
+                    return p
+            except psutil.NoSuchProcess:
+                pass
+        return None
+
+    def sample_memory(self):
+        """采样一次内存（MB）。"""
+        process = self.get_process()
+        if not process:
+            return 0
+        return process.memory_info().rss / (1024 * 1024)
+
+    def detect(self, operation_func):
+        """检测内存泄漏。
+
+        Args:
+            operation_func: 每次操作函数（比如"打开一个文件"）
+
+        Returns:
+            {"leaked": bool, "baseline_mb": float, "avg_growth_mb": float, "total_growth_mb": float}
+        """
+        # 1. 基线（不操作，采 N 次）
+        baseline_samples = []
+        for _ in range(self.baseline_cycles):
+            baseline_samples.append(self.sample_memory())
+            time.sleep(self.interval)
+        baseline_mb = sum(baseline_samples) / len(baseline_samples)
+        print(f"  基线内存：{baseline_mb:.1f}MB（{self.baseline_cycles} 次采样）")
+
+        # 2. 测试（操作 + 采样）
+        test_samples = []
+        for i in range(self.test_cycles):
+            operation_func()   # 执行操作（如"打开文件"）
+            time.sleep(self.interval)
+            test_samples.append(self.sample_memory())
+            print(f"  操作 {i+1}/{self.test_cycles}：内存 {test_samples[-1]:.1f}MB")
+
+        # 3. 分析（趋势）
+        avg_growth = sum(test_samples) / len(test_samples) - baseline_mb
+        total_growth = test_samples[-1] - baseline_mb
+        growth_rate = avg_growth / self.test_cycles if self.test_cycles > 0 else 0
+
+        # 判断泄漏（增长率 > 阈值）
+        leaked = growth_rate > 0.5   # 每次操作增长 > 0.5MB 视为泄漏
+
+        print(f"\n  分析结果：")
+        print(f"  平均增长：{avg_growth:.1f}MB / {self.test_cycles} 次")
+        print(f"  总增长：{total_growth:.1f}MB")
+        print(f"  增长率：{growth_rate:.2f}MB/次")
+        print(f"  泄漏判定：{'⚠️ 可能泄漏' if leaked else '✅ 正常'}")
+
+        return {
+            "leaked": leaked,
+            "baseline_mb": baseline_mb,
+            "avg_growth_mb": avg_growth,
+            "total_growth_mb": total_growth,
+            "growth_rate_mb_per_op": growth_rate,
+        }
+
+# 使用：检测"Excel 反复打开文件"是否内存泄漏
+import subprocess
+import os
+
+def open_file_operation():
+    """操作：打开一个 Excel 文件。"""
+    # 假设测试文件已存在
+    subprocess.Popen([os.path.join("test_files", f"test_{int(time.time())}.xlsx")])
+
+# 创建 10 个测试文件
+for i in range(10):
+    from openpyxl import Workbook
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "数据"
+    for row in range(100):
+        for col in range(10):
+            ws.cell(row=row+1, column=col+1, value=f"{row}_{col}")
+    wb.save(f"test_files/test_{i}.xlsx")
+
+detector = MemoryLeakDetector("excel.exe", baseline_cycles=3, test_cycles=10, interval=3.0)
+result = detector.detect(open_file_operation)
+
+if result["leaked"]:
+    print(f"⚠️ Excel 内存泄漏（{result['growth_rate_mb_per_op']:.2f}MB/次）")
+else:
+    print("✅ Excel 内存正常")</code></pre>
+
+        <h2>响应时间统计：操作耗时</h2>
+        <div class="code-head"><span>python — 响应时间统计</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import time
+import statistics
+from dataclasses import dataclass
+
+@dataclass
+class ResponseTimeStats:
+    """响应时间统计"""
+    count: int
+    min_ms: float
+    avg_ms: float
+    p50_ms: float
+    p90_ms: float
+    p95_ms: float
+    p99_ms: float
+    max_ms: float
+
+def measure_operation(operation_func, iterations=100):
+    """测量操作耗时（N 次）。
+
+    Args:
+        operation_func: 操作函数（每次执行一次）
+        iterations: 迭代次数
+
+    Returns:
+        ResponseTimeStats 统计结果
+    """
+    times = []
+    for i in range(iterations):
+        start = time.time()
+        operation_func()
+        elapsed_ms = (time.time() - start) * 1000
+        times.append(elapsed_ms)
+
+    times.sort()
+    total = len(times)
+
+    def percentile(data, p):
+        if not data:
+            return 0
+        k = (len(data) - 1) * p
+        f = int(k)
+        c = f + 1
+        if c >= len(data):
+            return data[f]
+        return data[f] + (k - f) * (data[c] - data[f])
+
+    return ResponseTimeStats(
+        count=total,
+        min_ms=times[0],
+        avg_ms=statistics.mean(times),
+        p50_ms=percentile(times, 0.50),
+        p90_ms=percentile(times, 0.90),
+        p95_ms=percentile(times, 0.95),
+        p99_ms=percentile(times, 0.99),
+        max_ms=times[-1],
+    )
+
+# 使用：测量"Excel 打开文件"耗时
+import subprocess
+import os
+
+def open_excel():
+    """打开 Excel（一次）。"""
+    subprocess.Popen(["excel.exe", "test_files/test_0.xlsx"])
+
+stats = measure_operation(open_excel, iterations=10)
+print(f"Excel 打开文件耗时（10 次）：")
+print(f"  最小：{stats.min_ms:.0f}ms  平均：{stats.avg_ms:.0f}ms  最大：{stats.max_ms:.0f}ms")
+print(f"  P50：{stats.p50_ms:.0f}ms  P90：{stats.p90_ms:.0f}ms  P95：{stats.p95_ms:.0f}ms  P99：{stats.p99_ms:.0f}ms")
+
+# SLA 判定
+if stats.p95_ms > 5000:
+    print("⚠️ P95 超过 5 秒，Excel 打开太慢")
+else:
+    print("✅ P95 在 5 秒内，性能正常")</code></pre>
+
+        <h2>案例：Excel 批量操作 + 资源监控</h2>
+        <p>把「压力测试 + 资源监控 + 内存泄漏 + 响应时间」串起来，写一个「Excel 批量操作 + 资源监控」的完整案例：</p>
+        <div class="code-head"><span>python — 完整案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import psutil
+import subprocess
+import time
+import os
+from datetime import datetime
+
+class ExcelPerformanceTest:
+    """Excel 性能测试（批量操作 + 资源监控）"""
+
+    def __init__(self, test_dir="test_files"):
+        self.test_dir = test_dir
+        os.makedirs(test_dir, exist_ok=True)
+
+    def prepare_files(self, count=20):
+        """准备 N 个 Excel 文件（测试数据）。"""
+        from openpyxl import Workbook
+        for i in range(count):
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "数据"
+            for row in range(100):
+                for col in range(20):
+                    ws.cell(row=row+1, column=col+1, value=f"{i}_{row}_{col}")
+            wb.save(os.path.join(self.test_dir, f"batch_{i:03d}.xlsx"))
+        print(f"准备了 {count} 个 Excel 文件")
+
+    def open_files_sequentially(self, count=20):
+        """顺序打开 N 个文件（测内存 + 耗时）。"""
+        import os
+        times = []
+        memory_samples = []
+
+        # 找 Excel 进程
+        def get_excel_process():
+            for p in psutil.process_iter():
+                try:
+                    if p.name().lower() == "excel.exe":
+                        return p
+                except psutil.NoSuchProcess:
+                    pass
+            return None
+
+        excel = get_excel_process()
+        if not excel:
+            print("⚠️ Excel 没启动，先启动")
+            subprocess.Popen(["excel.exe"])
+            time.sleep(5)
+            excel = get_excel_process()
+
+        for i in range(count):
+            file_path = os.path.join(self.test_dir, f"batch_{i:03d}.xlsx")
+
+            # 打开文件 + 计时
+            start = time.time()
+            subprocess.Popen([file_path])
+            time.sleep(1)
+            elapsed_ms = (time.time() - start) * 1000
+            times.append(elapsed_ms)
+
+            # 采内存
+            memory_samples.append(excel.memory_info().rss / (1024 * 1024))
+            print(f"  文件 {i+1}/{count}：耗时 {elapsed_ms:.0f}ms，内存 {memory_samples[-1]:.0f}MB")
+
+            time.sleep(2)   # 等文件加载
+
+        # 统计
+        avg_time = sum(times) / len(times)
+        peak_memory = max(memory_samples)
+        memory_growth = memory_samples[-1] - memory_samples[0]
+
+        print(f"\n=== 统计结果 ===")
+        print(f"文件数：{count}  平均耗时：{avg_time:.0f}ms")
+        print(f"峰值内存：{peak_memory:.0f}MB  增长：{memory_growth:.0f}MB")
+
+        # 泄漏判定
+        if memory_growth > count * 5:   # 每个文件增长 > 5MB 视为泄漏
+            print(f"⚠️ 内存增长 {memory_growth:.0f}MB（{count} 个文件），可能泄漏")
+        else:
+            print("✅ 内存正常（增长在阈值内）")
+
+        return times, memory_samples
+
+    def run(self):
+        """完整流程。"""
+        print(f"=== Excel 性能测试 - {datetime.now().isoformat()} ===")
+
+        # 1. 准备文件
+        self.prepare_files(count=20)
+
+        # 2. 启动 Excel
+        subprocess.Popen(["excel.exe"])
+        time.sleep(5)
+
+        # 3. 批量操作
+        times, memory_samples = self.open_files_sequentially(count=20)
+
+        # 4. 清理
+        import pyautogui
+        pyautogui.hotkey("alt", "f4")   # 关闭 Excel
+        time.sleep(1)
+
+        # 5. 生成报告
+        self._generate_report(times, memory_samples)
+
+    def _generate_report(self, times, memory_samples):
+        """生成 HTML 报告。"""
+        avg_time = sum(times) / len(times)
+        peak_memory = max(memory_samples)
+
+        html = f"""
+        &lt;!DOCTYPE html&gt;
+        &lt;html lang="zh-CN"&gt;
+        &lt;head&gt;
+            &lt;meta charset="UTF-8"&gt;
+            &lt;title&gt;Excel 性能测试报告&lt;/title&gt;
+            &lt;style&gt;
+                body {{ font-family: monospace; padding: 20px; }}
+                table {{ border-collapse: collapse; margin: 10px 0; }}
+                th, td {{ border: 1px solid #ccc; padding: 8px; }}
+                th {{ background: #0d141d; color: #3ddc84; }}
+            &lt;/style&gt;
+        &lt;/head&gt;
+        &lt;body&gt;
+            &lt;h1&gt;Excel 性能测试报告&lt;/h1&gt;
+            &lt;p&gt;时间：{datetime.now().isoformat()}&lt;/p&gt;
+            &lt;h2&gt;核心指标&lt;/h2&gt;
+            &lt;table&gt;
+                &lt;tr&gt;&lt;th&gt;指标&lt;/th&gt;&lt;th&gt;值&lt;/th&gt;&lt;/tr&gt;
+                &lt;tr&gt;&lt;td&gt;文件数&lt;/td&gt;&lt;td&gt;{len(times)}&lt;/td&gt;&lt;/tr&gt;
+                &lt;tr&gt;&lt;td&gt;平均耗时&lt;/td&gt;&lt;td&gt;{avg_time:.0f}ms&lt;/td&gt;&lt;/tr&gt;
+                &lt;tr&gt;&lt;td&gt;峰值内存&lt;/td&gt;&lt;td&gt;{peak_memory:.0f}MB&lt;/td&gt;&lt;/tr&gt;
+                &lt;tr&gt;&lt;td&gt;内存增长&lt;/td&gt;&lt;td&gt;{memory_samples[-1] - memory_samples[0]:.0f}MB&lt;/td&gt;&lt;/tr&gt;
+            &lt;/table&gt;
+
+            &lt;h2&gt;每次操作耗时&lt;/h2&gt;
+            &lt;table&gt;
+                &lt;tr&gt;&lt;th&gt;序号&lt;/th&gt;&lt;th&gt;耗时(ms)&lt;/th&gt;&lt;th&gt;内存(MB)&lt;/th&gt;&lt;/tr&gt;
+                {''.join(
+                    f"&lt;tr&gt;&lt;td&gt;{i+1}&lt;/td&gt;&lt;td&gt;{t:.0f}&lt;/td&gt;&lt;td&gt;{m:.0f}&lt;/td&gt;&lt;/tr&gt;"
+                    for i, (t, m) in enumerate(zip(times, memory_samples))
+                )}
+            &lt;/table&gt;
+        &lt;/body&gt;
+        &lt;/html&gt;
+        """
+        with open("excel_perf_report.html", "w", encoding="utf-8") as f:
+            f.write(html)
+        print(f"性能报告已生成：excel_perf_report.html")
+
+if __name__ == "__main__":
+    test = ExcelPerformanceTest()
+    test.run()</code></pre>
+        <div class="callout">
+          <p>桌面应用性能测试「四件套」：<strong>资源监控</strong>（psutil 采内存/CPU/句柄）、<strong>内存泄漏检测</strong>（反复操作 + 趋势分析）、<strong>响应时间统计</strong>（N 次操作 + P50/P95/P99）、<strong>压力测试</strong>（批量操作 N 次 + 资源峰值）。配「准备文件 → 批量操作 → 资源监控 → 报告」完整链路，桌面应用性能「能测、能监控、能出报告」。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://psutil.readthedocs.io/" target="_blank" rel="noopener">psutil 官方文档</a></li>
+            <li><a href="https://docs.python.org/3/library/statistics.html" target="_blank" rel="noopener">Python statistics 官方文档</a></li>
+            <li><a href="https://openpyxl.readthedocs.io/" target="_blank" rel="noopener">openpyxl 官方文档（造数据）</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#pc-automation</span>
+          <span class="tag">#performance</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

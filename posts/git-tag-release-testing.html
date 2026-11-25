@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git Tag 与发布流程：测试工程师的版本管理 · 软件测试资料集</title>
+<meta name="description" content="轻量与附注标签怎么选，语义化版本如何决定回归范围，git describe 定位代码，CI 按 tag 发布与禁改规则。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-tag-release-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Git Tag 与发布流程：测试工程师的版本管理">
+<meta property="og:description" content="轻量与附注标签怎么选，语义化版本如何决定回归范围，git describe 定位代码，CI 按 tag 发布与禁改规则。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-tag-release-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Git Tag 与发布流程：测试工程师的版本管理">
+<meta name="twitter:description" content="轻量与附注标签怎么选，语义化版本如何决定回归范围，git describe 定位代码，CI 按 tag 发布与禁改规则。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Git Tag 与发布流程：测试工程师的版本管理","description":"轻量与附注标签怎么选，语义化版本如何决定回归范围，git describe 定位代码，CI 按 tag 发布与禁改规则。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-tag-release-testing.html","articleSection":"Git 版本控制","keywords":"git, tag, release","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>21 min read</span>
+        </div>
+        <h1>Git Tag 与发布流程：测试工程师的版本管理</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="git-tag-release-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>这篇解决什么问题</h2>
+        <p>线上出了问题，你要回答的第一个问题不是「哪里错了」，而是「当时测的是哪个版本」。如果你只能说「测的是 release 分支」，那这个答案几乎等于没说——分支是会往前走的，昨天测的状态今天已经无法用分支名指代。tag 就是为这个问题存在的：它是某一次提交的固定坐标，不会被任何后续提交推着走。</p>
+        <p>但 tag 也是最容易被滥用的一种 Git 对象。同一批人里，有人打轻量 tag，有人打附注 tag；有人从 feature 分支打发布 tag，有人打完发现漏提交又用 -f 重打；报告里写着 v1.4，仓库里却有五个 tag 都以 v1.4 开头。这些做法单看都不算错，凑在一起就让「版本」失去了唯一性，而测试的全部工作都建立在唯一性之上。</p>
+        <p>这篇按测试工程师的视角写：先说清 tag 与分支的本质差别，再讲两种 tag 的取舍、语义化版本如何决定<a class="ilink" href="ai-regression-scope.html">回归范围</a>、三个打标签的时机与责任人，然后是 git describe 定位代码、删改 tag 的风险、报告里的版本号写法，最后是 CI 基于 tag 发布和一份检查清单。文中仓库名、版本号和提交均为示例。</p>
+
+        <h2>分支会走，tag 不会</h2>
+        <p>Git 里的分支本质上是一个指向提交的可移动指针，每次提交它都跟着前移；tag 则是一个固定指向某个对象的引用，创建之后不再改变。这个差别在测试工作里的意义，比在任何其他角色那里都大：开发关心「接下来要改什么」，测试关心「刚才测的到底是哪一堆代码」。</p>
+        <p>举个真实会遇到的场景。release/1.4 分支在提测后又合进了三个修复提交，你今天复测通过，明天线上报了一个只在高并发下出现的错。你回想「昨天复测过这个功能」，但 release/1.4 这个分支名今天指向的已经不是昨天那份代码。只有一个打在昨天的 tag，才能把你带回当时的现场。这就是为什么发布流程必须产出 tag，而不是只产出分支名。</p>
+        <div class="code-head"><span>示意 — tag 钉住提交，分支继续前进</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>release/1.4:  A -- B -- C -- D -- E -- F
+                              |         |
+                        tag v1.4.1   tag v1.4.2
+                              ^         ^
+                        提测通过     上线发布
+
+# 分支 release/1.4 现在指向 F，还在往前走
+# tag v1.4.1 永远指向 C，不会因为 D、E、F 而改变</code></pre>
+        <p>还有一个容易被忽略的点：tag 属于引用，push 分支时不会顺带推上去。本地打完 tag 直接 git push，远端仓库里根本看不到它，CI 也不会触发。必须显式 git push origin v1.4.2 或者 git push --tags，这一点在第一次配发布流水线时几乎人人都会踩一次。</p>
+
+        <h2>轻量 tag 与附注 tag：什么时候必须用附注</h2>
+        <p>轻量 tag 只是一个指向提交的引用，本质上和分支的名字一样，只是不会移动。附注 tag 则是一个独立的 Git 对象，里面保存了打标签的人、时间、说明文字，还可以带签名。用 git cat-file -t 一看就分得清：前者返回 commit，后者返回 tag。这个差别看起来很小，实际影响却集中在三个地方。</p>
+        <p>第一是可追溯性。发布半年后追查「这个版本是谁在什么时候发的、当时说明里写了什么」，只有附注 tag 答得上来。轻量 tag 只能告诉你它指向哪个提交，除此之外什么都没有。第二是工具链兼容性。git describe 默认只认附注 tag，仓库里如果全是轻量 tag，describe 的输出会退化成裸的短 SHA，版本信息直接丢失。第三是签名，需要验签的发布流程只能基于附注 tag。</p>
+        <div class="code-head"><span>terminal — 两种 tag 的差别</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 轻量 tag：只有一个引用
+git tag v1.4.2-light
+git cat-file -t v1.4.2-light
+# commit
+
+# 附注 tag：独立对象，带打标签的人、时间和说明
+git tag -a v1.4.2 -m "release: 支付流程重构，需求 REQ-2041 / REQ-2087"
+git cat-file -t v1.4.2
+# tag
+
+# 看附注内容（轻量 tag 在这里只会显示提交本身）
+git show v1.4.2 --stat
+# tag v1.4.2
+# Tagger: release-bot &lt;release@example.com&gt;
+# Date:   Thu Nov 20 10:12:03 2026 +0800</code></pre>
+        <p>结论可以定得很硬：只要这个 tag 会进入发布流程、会出现在<a class="ilink" href="web-test-report.html">测试报告</a>里、会被 CI 用来出制品，就必须是附注 tag。轻量 tag 留给本地临时标记，比如在调试时给某个可疑提交起个名字，用完就删，不入库也不推送。团队里最好只保留一种命名与创建方式，混用是混乱的起点。</p>
+
+        <h2>v1.4.2 这三个数字，测试该怎么读</h2>
+        <p>语义化版本把版本号拆成三段：主版本、次版本、修订号。约定是主版本变更代表不兼容的改动，次版本代表向下兼容的新增功能，修订号代表向下兼容的问题修复。这套约定最初是为公开 API 设计的，内部服务往往执行得不严格，但对测试来说它依然是最快的回归范围初判依据。</p>
+        <p>修订号变化，通常意味着改动面小，回归可以聚焦在修复点本身加上相关主流程的冒烟。但要留一个心眼：所谓修复也可能动了公共组件，所以仍然要看一眼两个 tag 之间的 diff，确认改动文件清单和预期一致。次版本变化，说明有新功能进入，回归范围要包含新功能全量、受影响模块的旧功能、以及兼容性——老数据能否正常读取、老版本客户端能否继续工作，这两项最容易被漏掉。</p>
+        <p>主版本变化最危险，因为它允许不兼容。这时不能只跑功能回归，还要专门验证升级路径和回滚路径：老版本的数据结构在新版本上能否迁移，回滚之后新写入的数据会不会把老版本搞崩。这类问题在测试环境往往看不出来，因为测试环境的数据是干净的。</p>
+        <div class="code-head"><span>terminal — 用 diff 校准回归范围</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 先看两个版本之间的提交，判断是不是只有修复
+git log --oneline v1.4.1..v1.4.2
+
+# 再看改动文件，决定跑哪些模块
+git diff --stat v1.4.1 v1.4.2
+# src/payment/refund.py        | 46 ++++++---
+# src/common/money.py          | 12 ++--
+# tests/test_refund.py         | 88 ++++++++++++++
+
+# money.py 是公共模块，回归范围必须外扩到所有涉及金额的用例
+python -m pytest tests/payment tests/order tests/settlement -q</code></pre>
+        <p>这里必须强调一次：版本号只是线索，不是结论。数字由人决定，人会判断错，也会偷懒——一个改了公共工具的提交被打成修订号是常事。真正可信的依据永远是 diff 出来的文件清单，版本号只用来决定「从哪个粒度开始查」。</p>
+
+        <h2>在哪三个点打 tag，由谁打</h2>
+        <p>发布流程里的 tag 不该只有一个，而是三个节点各有一个。混在一起打，是版本失控的常见原因。</p>
+        <p>第一个是提测点。开发把待测代码合入 release 分支、构建出提测包的那一刻，打一个预发布 tag，比如 v1.4.2-rc.1。它的作用是给测试一个稳定的起点：后续无论分支怎么动，你都能回到提测时的状态复现问题。说明里要写清包含的需求单号和已知问题，这样两周后回看不用去翻聊天记录。</p>
+        <p>第二个是上线点。生产部署成功、验证通过之后，在同一个提交上打正式 tag，比如 v1.4.2。这里最容易出的错是「在部署之后又合了一个小改动再打 tag」，导致 tag 指向的代码和线上跑的代码不是同一份。正确做法是先确认部署产物的提交 SHA，再在那个 SHA 上打 tag，测试复核一遍。</p>
+        <p>第三个是热修点。线上出紧急问题，从出问题的那个 tag 拉出 hotfix 分支，修完打一个新的修订号，比如 v1.4.3。绝不允许在原 tag 上重打，这一点下一节会展开。责任划分上建议固定为：开发提交、测试确认、发布负责人执行打 tag 与推送。入口只有一个，否则同一天出现两个 v1.4.2 只是时间问题。</p>
+        <div class="code-head"><span>terminal — 三个节点的打标签命令</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 提测点：预发布 tag，说明里带需求单号
+git tag -a v1.4.2-rc.1 -m "rc: 支付重构提测，REQ-2041 / REQ-2087"
+git push origin v1.4.2-rc.1
+
+# 2. 上线点：先确认部署产物的提交，再打正式 tag
+git rev-parse --short HEAD
+git tag -a v1.4.2 -m "release: 2026-11-20 生产发布，构建号 20261120.3"
+git push origin v1.4.2
+
+# 3. 热修点：从出问题的 tag 拉分支，修完发新修订号
+git switch -c hotfix/v1.4.3 v1.4.2
+# ... 修复并合并 ...
+git tag -a v1.4.3 -m "hotfix: 修复退款金额四舍五入误差"
+git push origin v1.4.3</code></pre>
+        <p>三个节点的 tag 命名要能一眼区分：预发布带 -rc 后缀，正式版是纯三段数字，热修只加修订号。这样在 git tag -l 的输出里，谁是谁不需要再查文档。</p>
+
+        <h2>git describe：确认你测的到底是哪个版本</h2>
+        <p>从制品仓库下载一个包、解压、跑测试，跑完要写报告，第一件事就是确认这份代码对应哪个 tag。git describe 就是干这个的。它从当前提交往回找最近的附注 tag，输出形如 v1.4.2-7-g3ab9c1d：最近的可达 tag 是 v1.4.2，当前提交比它多七个提交，当前提交的短 SHA 是 3ab9c1d。</p>
+        <p>这个输出里最该被测试盯住的是后缀 -dirty。它表示工作区有未提交的改动，也就是说你正在测的代码并不存在于任何一个提交里。这种情况在本地调试时很常见，但如果它出现在 CI 打出正式包的时候，那就是严重问题：这个包无法被复现，出了问题也找不到对应的代码。</p>
+        <div class="code-head"><span>terminal — describe 的常见输出</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 正好停在 tag 上
+git describe --tags
+# v1.4.2
+
+# 比 tag 多了七个提交
+git describe --tags
+# v1.4.2-7-g3ab9c1d
+
+# 工作区有未提交改动，这个包不可复现
+git describe --tags --dirty
+# v1.4.2-7-g3ab9c1d-dirty
+
+# 仓库里同时有 rc 与正式 tag 时，用 --match 限定范围
+git describe --tags --match 'v1.4.*'</code></pre>
+        <p>一个常见误判：仓库里既有 v1.4.2 又有 v1.4.2-rc.1，describe 会挑「最近可达」的那个，可能挑到 rc，也可能跳过 rc 直接给正式版，取决于提交拓扑。所以发布流水线里不要裸用 describe，一定要加 --match 限定命名空间，或者干脆以 CI 传入的 tag 变量为准，describe 只用于人工核对。</p>
+
+        <h2>tag 与分支的关系：快照不会前进</h2>
+        <p>很多人把 release 分支和版本号混为一谈，说出「线上是 release/1.4」这样的话。这句话是不完整的，因为分支一直在动。tag 打下去之后，release 分支照样可以继续合提交——修 bug、合回主干、甚至误合一个功能。这些动作都不会改变 tag 指向的位置，这正是 tag 的价值，也是它容易被人误解的地方。</p>
+        <div class="code-head"><span>示意 — 打完 tag 之后分支仍在前进</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>release/1.4:  ... -- C(tag v1.4.2) -- D -- E
+                        ^
+                   线上实际运行的代码
+
+# D、E 是 tag 之后合进 release/1.4 的提交
+# 它们存在于分支上，但不存在于 v1.4.2 里
+# 所以「线上是 release/1.4」这个说法没有信息量</code></pre>
+        <p>实践上建议在打正式 tag 之后冻结 release 分支的写操作。要修问题就开 hotfix 分支，修完发新 tag，再按需合回主干。这样分支和 tag 的关系始终清晰：每个 tag 对应一次发布，每次发布对应一个 tag，中间不会插入来历不明的提交。如果团队坚持在 release 分支上继续提交，那至少要保证每次发布都有新 tag，绝不能用「分支上最新」代替版本号。</p>
+        <p>还有一类情况要特别说明：多个环境。预发和生产往往不是同一个 tag，测试环境可能还跑着 rc。这时候报告里的版本号必须写清环境，否则「v1.4.2 验证通过」会被误解成生产已验证。版本号与环境标识是两个维度，缺一个都构不成完整的坐标。</p>
+
+        <h2>删 tag 与重打 tag：已发布版本禁止重打</h2>
+        <p>最常见的错误操作是这样的：打完 v1.4.2，发现漏合了一个提交，于是 git tag -f v1.4.2 重新打，再强推上去。本地看起来一切正常，但已经拉过这个 tag 的机器、CI 的缓存、制品仓库里的包、别人 fork 的仓库，全都还指向旧提交。同一个版本号在不同机器上代表不同的代码，这是最难查的一类不一致。</p>
+        <p>它带来的连锁反应很具体：git describe 在不同机器上给出不同结果；制品仓库里同名版本的包内容与 tag 对不上；测试报告里写「v1.4.2 已修复」，看报告的人 checkout 下来复现不了。修复成本远高于重新发一个修订号，所以规则应该是：已推送的 tag 只增不改。需要修就发 v1.4.3。</p>
+        <p>如果确实打错了而且还没发布，可以删，但必须走完整流程：删本地、删远端、通知所有人重新 fetch，并且确认没有制品引用了它。更彻底的做法是在服务端禁止更新 tag——GitLab 有受保护 tag 的设置，GitHub 可以通过 ruleset 限制，也能用仓库配置拒绝非快进的引用更新。</p>
+        <div class="code-head"><span>terminal — 删除与保护</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 仅限「确认未发布」的场景
+git tag -d v1.4.2
+git push origin :refs/tags/v1.4.2
+
+# 通知所有人清理本地残留，否则本地仍会看到旧 tag
+git fetch --prune --tags
+
+# 服务端拒绝任何对已有 tag 的更新（本地裸仓库示例）
+git config receive.denyNonFastForwards true
+
+# 更稳妥的是在托管平台上把 v* 设为受保护 tag，只允许发布账号创建</code></pre>
+        <div class="callout warn"><p>看到「重打一下 tag 就好了」这种提议，先问一句：这个版本有没有出现在任何一份测试报告、任何一个制品、任何一台同事的机器上。只要有一个答案是肯定的，就只能发新版本号。</p></div>
+
+        <h2>测试报告里的版本号怎么写才可追溯</h2>
+        <p>报告里只写 v1.4.2 是不够的，因为同一个版本号可能对应多次构建——同一天重新打的包、同一个 tag 在不同流水线上产出的不同制品。只写短 SHA 也不行，因为没人记得住。可追溯的写法是三段组合：应用版本、代码坐标、构建标识。</p>
+        <p>应用版本就是给人看的 v1.4.2；代码坐标是 tag 加短 SHA，用于精确定位；构建标识是流水线号或制品 ID，用于找回当初那个包。再加一个环境标识，四个字段基本可以覆盖所有追溯需求。写成模板固定下来，比每次自由发挥可靠得多。</p>
+        <div class="code-head"><span>python — 生成构建信息并写进报告</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+import pathlib
+import subprocess
+
+
+def build_info(tag: str, env: str) -&gt; dict:
+    sha = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain"],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip() != ""
+    return {
+        "app_version": tag,
+        "commit": sha,
+        "dirty": dirty,
+        "env": env,
+        "build": pathlib.Path("BUILD_NUMBER").read_text().strip(),
+    }
+
+
+info = build_info(tag="v1.4.2", env="staging")
+pathlib.Path("allure-results", "environment.properties").write_text(
+    "\n".join(f"{k}={v}" for k, v in info.items()), encoding="utf-8",
+)
+print(json.dumps(info, ensure_ascii=False))</code></pre>
+        <p>更高价值的一句话在失败用例的备注里：在 v1.4.2 (3ab9c1d) 复现，在 v1.4.1 不复现。这一行同时给出了现象、坐标和对比基线，读报告的人不需要再来问你任何问题。反过来，如果报告里所有失败都只写「复现」，那这份报告的价值就只剩下一个红点。</p>
+
+        <h2>CI 基于 tag 触发构建与发布</h2>
+        <p>把 tag 接进流水线，最直接的好处是「发布动作可审计」：每一次生产制品都对应一个 tag，每一个 tag 都能查到是谁在什么时候推的。常见配置是按 tag 命名规则触发发布任务，普通分支推送只跑测试不发布。这里有两个细节值得提前处理。</p>
+        <p>第一是校验来源。仅凭 tag 存在就发布并不安全，因为任何人都能从任意分支打一个 v9.9.9 推上来。发布任务里应该校验两件事：tag 名符合语义化格式，且该提交在允许的分支上（比如 main 或 release）。第二是拉取深度。基于 tag 的构建如果用浅克隆，describe 会拿不到历史，版本信息就退化成短 SHA，所以发布任务要显式 fetch 完整历史或至少拉取相关 tag。</p>
+        <div class="code-head"><span>yaml — 按 tag 触发发布（GitHub Actions 片段）</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>name: release
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # describe 需要完整历史
+      - name: 校验 tag 与来源分支
+        run: |
+          git fetch origin main release/* --quiet
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "tag 必须打在 main 或其祖先上"; exit 1
+          fi
+      - name: 版本信息
+        run: |
+          git describe --tags --match "v*.*.*" &gt; VERSION
+          cat VERSION
+      - name: 构建与上传制品
+        run: ./scripts/build.sh --version "$(cat VERSION)"</code></pre>
+        <p>还有一条常被忽略的原则：制品不要用 latest 之类的浮动标签。浮动标签在排查问题时等于没有版本——你不知道三天前那个 latest 到底是谁。用 tag 名作为制品版本，配合不可变的仓库策略，才能真正做到「报告里的版本号能点回一个包，包能点回一段代码」。</p>
+
+        <h2>检查清单</h2>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>通过标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>tag 类型</td><td>发布用附注 tag，git cat-file -t 返回 tag</td></tr>
+            <tr><td>指向正确</td><td>tag 的提交 SHA 与生产部署产物的 SHA 一致</td></tr>
+            <tr><td>命名规范</td><td>正式 vX.Y.Z，预发布带 -rc.N，热修只加修订号</td></tr>
+            <tr><td>未被改写</td><td>已推送的 tag 无 force 更新，服务端开启保护</td></tr>
+            <tr><td>报告可追溯</td><td>报告含版本、tag、短 SHA、构建号、环境五项</td></tr>
+            <tr><td>CI 触发</td><td>仅 tag 触发发布，且校验来源分支与命名格式</td></tr>
+            <tr><td>本地核对</td><td>git describe 输出无 -dirty 后缀</td></tr>
+          </tbody>
+        </table>
+        <p>最后给一个判断标准：如果一个版本号不能把「测试报告、制品包、一段代码」三者串成一条线，那它只是个标签，还不是版本。测试工程师把这条线守住，后面所有的回归范围判断、问题追溯、发布评审才有落脚点。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://git-scm.com/book/en/v2/Git-Basics-Tagging" target="_blank" rel="noopener">Pro Git：Git Basics - Tagging — git-scm.com</a></li>
+            <li><a href="https://git-scm.com/docs/git-tag" target="_blank" rel="noopener">git-tag 命令手册 — git-scm.com</a></li>
+            <li><a href="https://git-scm.com/docs/git-describe" target="_blank" rel="noopener">git-describe 命令手册 — git-scm.com</a></li>
+            <li><a href="https://semver.org/lang/zh-CN/" target="_blank" rel="noopener">语义化版本 2.0.0 中文版 — semver.org</a></li>
+            <li><a href="https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#push" target="_blank" rel="noopener">push 事件与 tag 过滤 — GitHub Docs</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#git</span>
+          <span class="tag">#tag</span>
+          <span class="tag">#release</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

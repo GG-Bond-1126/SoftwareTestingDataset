@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web 等待策略：告别 time.sleep · 软件测试资料集</title>
+<meta name="description" content="为什么 time.sleep 是 Web 自动化的定时炸弹…">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-wait-strategies.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Web 等待策略：告别 time.sleep">
+<meta property="og:description" content="为什么 time.sleep 是 Web 自动化的定时炸弹…">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-wait-strategies.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Web 等待策略：告别 time.sleep">
+<meta name="twitter:description" content="为什么 time.sleep 是 Web 自动化的定时炸弹…">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Web 等待策略：告别 time.sleep","description":"为什么 time.sleep 是 Web 自动化的定时炸弹…","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-wait-strategies.html","articleSection":"Web 自动化","keywords":"selenium, wait-strategy, web-automation","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>12 min read</span>
+        </div>
+        <h1>Web 等待策略：告别 time.sleep</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-wait-strategies">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<figure class="article-figure">
+  <svg viewBox="0 0 720 380" width="100%" role="img" aria-labelledby="fig-web-wait-strategies-1-title" xmlns="http://www.w3.org/2000/svg">
+    <title id="fig-web-wait-strategies-1-title">等待策略决策流程：先判断元素是否会出现，会出现再看状态是否变化，分别落到 auto-wait、显式条件等待；不会出现则看是否固定时长，落到轮询或固定 sleep</title>
+    <defs>
+      <marker id="fig-wait-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--text-faint)"/>
+      </marker>
+    </defs>
+    <rect x="280" y="22" width="160" height="34" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.4"/>
+    <text x="360" y="44" fill="var(--text)" font-size="15" font-family="inherit" text-anchor="middle">要等某个结果</text>
+    <path d="M 360 56 L 360 80" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-wait-arrow)"/>
+    <path d="M 360 80 L 500 122 L 360 164 L 220 122 Z" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.4"/>
+    <text x="360" y="127" fill="var(--text)" font-size="15" font-family="inherit" text-anchor="middle">元素会出现吗？</text>
+    <text x="208" y="116" fill="var(--text-faint)" font-size="11.5" font-family="inherit" text-anchor="end">否</text>
+    <text x="512" y="116" fill="var(--text-faint)" font-size="11.5" font-family="inherit">是</text>
+    <path d="M 220 122 H 178 V 188" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-wait-arrow)"/>
+    <path d="M 500 122 H 538 V 188" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-wait-arrow)"/>
+    <path d="M 178 188 L 288 228 L 178 268 L 68 228 Z" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.4"/>
+    <text x="178" y="233" fill="var(--text)" font-size="15" font-family="inherit" text-anchor="middle">是固定时长吗？</text>
+    <path d="M 538 188 L 648 228 L 538 268 L 428 228 Z" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.4"/>
+    <text x="538" y="233" fill="var(--text)" font-size="15" font-family="inherit" text-anchor="middle">状态会变吗？</text>
+    <text x="60" y="222" fill="var(--text-faint)" font-size="11.5" font-family="inherit" text-anchor="end">是</text>
+    <text x="296" y="222" fill="var(--text-faint)" font-size="11.5" font-family="inherit">否</text>
+    <text x="420" y="222" fill="var(--text-faint)" font-size="11.5" font-family="inherit" text-anchor="end">否</text>
+    <text x="656" y="222" fill="var(--text-faint)" font-size="11.5" font-family="inherit">是</text>
+    <path d="M 68 228 H 90 V 292" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-wait-arrow)"/>
+    <path d="M 288 228 H 270 V 292" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-wait-arrow)"/>
+    <path d="M 428 228 H 450 V 292" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-wait-arrow)"/>
+    <path d="M 648 228 H 630 V 292" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-wait-arrow)"/>
+    <rect x="12" y="292" width="156" height="64" rx="10" fill="rgba(230,180,80,0.14)" stroke="var(--amber)" stroke-width="1.4"/>
+    <text x="90" y="314" fill="var(--amber)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">固定 sleep</text>
+    <text x="90" y="334" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">只等倒计时</text>
+    <text x="90" y="350" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">误用会拖慢套件</text>
+    <rect x="192" y="292" width="156" height="64" rx="10" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.4"/>
+    <text x="270" y="314" fill="var(--cyan)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">轮询</text>
+    <text x="270" y="334" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">自定义条件函数</text>
+    <text x="270" y="350" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">JS 状态/网络空闲</text>
+    <rect x="372" y="292" width="156" height="64" rx="10" fill="rgba(61,220,132,0.12)" stroke="var(--accent)" stroke-width="1.4"/>
+    <text x="450" y="314" fill="var(--accent)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">auto-wait</text>
+    <text x="450" y="334" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">locator 自带等待</text>
+    <text x="450" y="350" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">无需手写 sleep</text>
+    <rect x="552" y="292" width="156" height="64" rx="10" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.4"/>
+    <text x="630" y="314" fill="var(--cyan)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">显式条件等待</text>
+    <text x="630" y="334" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">等可见/可点击</text>
+    <text x="630" y="350" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">内置 EC 轮询</text>
+  </svg>
+  <figcaption>图 1 · 先问元素会不会出现，再问它会不会变；只有倒计时这类固定时长的事才配用 sleep</figcaption>
+</figure>
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Playwright（推荐）
+pip install playwright pytest
+playwright install chromium
+# 验证
+python -c "from playwright.sync_api import sync_playwright; \
+  pw = sync_playwright().start(); \
+  b = pw.chromium.launch(); \
+  print('环境就绪'); b.close(); pw.stop()"</code></pre>
+<div class="code-head"><span>python — 第一个脚本</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True)
+    page = browser.new_page()
+    page.goto("https://httpbin.org/html")
+    print(f"标题：{page.title()}")
+    browser.close()</code></pre>
+
+<h2>基础应用：表单填写 + 断言 + 截图</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>from playwright.sync_api import sync_playwright, expect
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=False)
+    page = browser.new_page()
+    page.goto("https://the-internet.herokuapp.com/login")
+    
+    page.fill("#username", "tomorrow")
+    page.fill("#password", "secret")
+    page.click("button[type=submit]")
+    
+    expect(page.locator(".flash")).to_contain_text("You logged in")
+    page.screenshot(path="result.png")
+    browser.close()</code></pre>
+
+<h2>项目进阶：PO + 数据驱动 + CI/CD</h2>
+<div class="code-head"><span>python — PO 框架</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>class LoginPage:
+    URL = "https://the-internet.herokuapp.com/login"
+    def __init__(self, page):
+        self.page = page
+    def open(self):
+        self.page.goto(self.URL)
+    def login(self, u, p):
+        self.page.fill("#username", u)
+        self.page.fill("#password", p)
+        self.page.click("button[type=submit]")
+    def flash(self):
+        return self.page.locator(".flash").inner_text()
+
+import pytest
+@pytest.mark.parametrize("u, p, msg", [("tomorrow","secret","You logged in")])
+def test_login(u, p, msg):
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pl:
+        b = pl.chromium.launch()
+        pg = b.new_page()
+        lp = LoginPage(pg)
+        lp.open(); lp.login(u, p)
+        assert msg in lp.flash()
+        b.close()</code></pre>
+
+        <h2>为什么 time.sleep 是「定时炸弹」</h2>
+        <div class="code-head"><span>python — 反例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import time
+
+driver.get("https://app.example.com")
+time.sleep(3)   # ← 定时炸弹
+driver.find_element(By.ID, "result").click()
+
+# 问题：
+# 1. 网络慢 → 3 秒不够 → 用例挂
+# 2. 网络快 → 3 秒太久 → 用例浪费时间（200 个用例 * 3s = 10 分钟）
+# 3. 不同环境（CI vs 本地）耗时不同 → 同一套代码在不同机器表现不同
+# 4. 页面有"加载动画" → 元素已渲染但还在动画 → 点击无效</code></pre>
+        <div class="callout warn">
+          <p><strong>time.sleep 的唯一合理用法</strong>：等待「固定时间才能完成」的事（如等倒计时结束）。其他场景（等元素出现、等 AJAX 完成）都用显式等待。</p>
+        </div>
+
+        <h2>显式等待（WebDriverWait）</h2>
+        <p>显式等待 = 「等条件满足，最多等 N 秒」。Selenium 的 <code>WebDriverWait</code> + <code>expected_conditions</code> 是核心。</p>
+        <div class="code-head"><span>python — 5 种常用 expected_conditions</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+
+driver = webdriver.Chrome()
+wait = WebDriverWait(driver, 10)   # 默认等 10s，可配置
+
+# 1. 元素出现（存在，不一定可见）
+el = wait.until(EC.presence_of_element_located((By.ID, "result")))
+
+# 2. 元素可见（存在 + 可见，可交互）
+el = wait.until(EC.visibility_of_element_located((By.ID, "result")))
+
+# 3. 元素可点击（可见 + enabled，最常用）
+el = wait.until(EC.element_to_be_clickable((By.ID, "btn")))
+
+# 4. 元素消失（反例：等"加载提示"消失）
+wait.until(EC.invisibility_of_element_located((By.ID, "loading")))
+
+# 5. 元素存在（多个匹配，至少 1 个）
+elements = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".item")))
+
+# 6. 文字出现（等页面包含某文字）
+wait.until(EC.text_to_be_present_in_element((By.ID, "msg"), "成功"))
+
+# 7. URL 变化（等跳转完成）
+wait.until(EC.url_changes("https://app.example.com/login"))
+
+# 8. 标题变化
+wait.until(EC.title_contains("仪表盘"))
+
+# 9. 元素处于某状态（如 disabled）
+wait.until(EC.element_to_be_enabled((By.ID, "submit")))
+wait.until(EC.element_to_be_selected((By.CSS_SELECTOR, "#checkbox")))</code></pre>
+
+        <div class="callout">
+          <p>显式等待的本质：<strong>「轮询直到条件满足或超时」</strong>。默认 0.5s 轮询一次，10s 内最多等 20 次。可以自定义轮询间隔：</p>
+          <pre><code>wait = WebDriverWait(driver, 10, poll=1)   # 每秒轮询 1 次</code></pre>
+        </div>
+
+        <h2>隐式等待（全局兜底）</h2>
+        <div class="code-head"><span>python — 隐式等待</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>driver.implicitly_wait(5)   # 全局：所有 find_element 最多等 5s
+
+# 隐式等待 vs 显式等待
+# 隐式：全局生效，所有 find_element 都等（简单但不够灵活）
+# 显式：针对特定元素，等特定条件（灵活但代码多）
+
+# 实际项目：两者混用
+# 隐式 5s（兜底）+ 显式等待（关键操作）
+driver.implicitly_wait(5)
+wait = WebDriverWait(driver, 10)
+el = wait.until(EC.element_to_be_clickable((By.ID, "btn")))   # 显式等"可点击"</code></pre>
+        <div class="callout warn">
+          <p><strong>隐式等待 + 显式等待冲突</strong>：如果设了 <code>implicitly_wait(10)</code>，<code>invisibility_of_element_located</code> 会等「10s × 10 = 100s」（因为元素不存在，隐式等待每次都等 10s 才报 Timeout）。建议：用显式等待就关掉隐式（<code>implicitly_wait(0)</code>）。</p>
+        </div>
+
+        <h2>AJAX 等待（最常见的实际场景）</h2>
+        <p>Web 应用大量用 AJAX 异步加载。「点按钮 → 等接口返回 → 等 DOM 更新」三步，Selenium 的默认等待（页面加载）不够。</p>
+        <div class="code-head"><span>python — AJAX 等待策略</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 场景：点"提交" → 等接口返回 → 等"提交成功"文字出现
+
+# 策略 1：等"结果元素"出现（最常用）
+driver.find_element(By.ID, "submit").click()
+wait.until(EC.presence_of_element_located((By.ID, "success-msg")))
+assert "提交成功" in driver.find_element(By.ID, "success-msg").text
+
+# 策略 2：等"加载提示"消失（反例）
+driver.find_element(By.ID, "submit").click()
+wait.until(EC.invisibility_of_element_located((By.ID, "loading")))
+# 加载提示消失 = 数据已渲染
+
+# 策略 3：等 JS 变量（接口已返回）
+wait.until(
+    lambda d: d.execute_script("return window.appData") is not None
+)
+
+# 策略 4：等网络空闲（没有未完成的请求）
+def wait_for_ajax(driver, timeout=30):
+    """等所有 AJAX 请求完成"""
+    start = time.time()
+    while time.time() - start < timeout:
+        ready_state = driver.execute_script("return document.readyState")
+        ajax_count = driver.execute_script(
+            "return jQuery.active"   # jQuery 在用的请求数
+        )
+        if ready_state == "complete" and ajax_count == 0:
+            return True
+        time.sleep(0.5)
+    raise TimeoutError("AJAX 等待超时")
+
+driver.find_element(By.ID, "submit").click()
+wait_for_ajax(driver)
+# 此时可以安全断言</code></pre>
+
+        <h2>动态内容等待（懒加载 / 虚拟滚动）</h2>
+        <p>很多页面「滚动加载」（懒加载）或「虚拟滚动」（只渲染可见区域），元素不在 DOM 里 = 定位不到。需要「先滚动，再等」。</p>
+        <div class="code-head"><span>python — 懒加载等待</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 场景：列表有 100 条，滚动加载，找"第 80 条"
+
+def scroll_to_element(driver, locator, timeout=10):
+    """滚动到元素出现（懒加载）"""
+    start = time.time()
+    while time.time() - start < timeout:
+        elements = driver.find_elements(*locator)
+        if elements:
+            driver.execute_script(
+                "arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});",
+                elements[0]
+            )
+            time.sleep(0.5)   # 等滚动完成
+            elements = driver.find_elements(*locator)
+            if elements:
+                return elements[0]
+        # 滚到底部（触发懒加载）
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
+        time.sleep(0.5)
+    raise TimeoutError("元素没出现（懒加载失败）")
+
+# 用法
+el = scroll_to_element(driver, (By.CSS_SELECTOR, ".item:nth-child(80)"))</code></pre>
+
+        <h2>自定义等待函数（实战最常用）</h2>
+        <p>Selenium 内置的 expected_conditions 不够用时，自定义：</p>
+        <div class="code-head"><span>python — 自定义等待</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.by import By
+
+def wait_for_condition(driver, condition, timeout=10, interval=0.5):
+    """通用等待：等 condition 返回 truthy"""
+    def _check(driver):
+        return condition(driver) or False
+    return WebDriverWait(driver, timeout, poll=interval).until(_check)
+
+# 用法 1：等"某个元素的某个属性"
+wait_for_condition(
+    driver,
+    lambda d: d.find_element(By.ID, "btn").get_attribute("disabled") is None,
+    timeout=10
+)
+
+# 用法 2：等"列表加载完成"（不再变化）
+def list_stable(driver):
+    el = driver.find_element(By.ID, "list")
+    current = el.get_attribute("data-count")
+    return current  # 返回计数，wait_for_condition 等它不再变
+
+# 实例：等"图表加载完成"（canvas 有内容）
+wait_for_condition(
+    driver,
+    lambda d: d.execute_script(
+        "return document.querySelector('#chart canvas').getContext('2d').getImageData(0,0,1,1).data[3] > 0;"
+    )
+)</code></pre>
+
+        <div class="callout">
+          <p>等待策略「三不」原则：<strong>① 不用 time.sleep 等元素</strong>；<strong>② 不混用隐式等待 + 显式等待</strong>（用显式就关掉隐式）；<strong>③ 不「等」不存在的条件</strong>（如等「加载提示消失」，但页面根本没加载提示 → 超时）。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://selenium-python.readthedocs.io/waits.html" target="_blank" rel="noopener">Selenium Python — 等待文档</a></li>
+            <li><a href="https://www.selenium.dev/documentation/webdriver/waiting/" target="_blank" rel="noopener">Selenium 官方 — 等待</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#selenium</span>
+          <span class="tag">#wait-strategy</span>
+          <span class="tag">#web-automation</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

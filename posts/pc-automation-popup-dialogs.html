@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC 自动化中的弹窗与对话框处理 · 软件测试资料集</title>
+<meta name="description" content="弹窗检测、自动处理、对话框输入、多弹窗队列，配自动处理 Excel 弹窗完整案例。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-popup-dialogs.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="PC 自动化中的弹窗与对话框处理">
+<meta property="og:description" content="弹窗检测、自动处理、对话框输入、多弹窗队列，配自动处理 Excel 弹窗完整案例。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-popup-dialogs.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="PC 自动化中的弹窗与对话框处理">
+<meta name="twitter:description" content="弹窗检测、自动处理、对话框输入、多弹窗队列，配自动处理 Excel 弹窗完整案例。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"PC 自动化中的弹窗与对话框处理","description":"弹窗检测、自动处理、对话框输入、多弹窗队列，配自动处理 Excel 弹窗完整案例。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-popup-dialogs.html","articleSection":"PC 自动化","keywords":"pc-automation, popup, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>9 min read</span>
+        </div>
+        <h1>PC 自动化中的弹窗与对话框处理</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="pc-automation-popup-dialogs">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 PC 自动化工具
+pip install pyautogui pynput uiautomation pywinauto opencv-python
+# 验证
+python -c "import pyautogui; print(pyautogui.size())"</code></pre>
+<div class="code-head"><span>python — 验证环境</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui
+# 获取屏幕尺寸（验证）
+print(f"屏幕尺寸：{pyautogui.size()}")
+print("PC 自动化环境就绪 ✓")</code></pre>
+
+<h2>基础应用：自动操作桌面应用</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui, subprocess, time
+
+# 启动记事本
+subprocess.Popen(["notepad.exe"])
+time.sleep(1)
+
+# 输入 + 保存
+pyautogui.write("Hello, PC Automation!")
+time.sleep(0.3)
+pyautogui.hotkey("ctrl", "s")
+time.sleep(0.5)
+
+# 截图
+pyautogui.screenshot("result.png")
+print("基础操作完成 ✓")</code></pre>
+
+<h2>项目进阶：pytest + 多场景 + CI</h2>
+<div class="code-head"><span>python — pytest fixture</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># conftest.py
+import pytest, subprocess, time
+import uiautomation as auto
+
+@pytest.fixture
+def notepad():
+    subprocess.Popen(["notepad.exe"])
+    time.sleep(1)
+    win = auto.WindowControl(searchDepth=1, subTitle="无标题 - 记事本")
+    assert win.Exists(5)
+    yield win
+    auto.press_keys("alt+f4")
+
+# test_notepad.py
+def test_type(notepad):
+    import pyautogui
+    pyautogui.write("测试内容")
+    pyautogui.hotkey("ctrl", "s")
+    time.sleep(0.5)</code></pre>
+
+        <h2>弹窗检测：先知道「有没有弹窗」</h2>
+        <p>处理弹窗的第一步是「检测到弹窗」。三种检测方式：</p>
+        <div class="code-head"><span>python — 弹窗检测</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import uiautomation as auto
+import time
+
+def detect_popup(image_paths, confidence=0.9):
+    """检测弹窗（图像识别）。
+
+    Args:
+        image_paths: 参考图列表（多个弹窗特征图）
+        confidence: 置信度
+
+    Returns:
+        找到的弹窗位置 (x, y)，没找到返回 None
+    """
+    for path in image_paths:
+        location = pyautogui.locateOnScreen(path, confidence=confidence)
+        if location:
+            center = pyautogui.center(location)
+            print(f"  检测到弹窗：{path}")
+            return center
+    return None
+
+def detect_dialog(control_titles, timeout=3):
+    """检测对话框（控件树）。
+
+    Args:
+        control_titles: 对话框标题列表
+        timeout: 等待时间（秒）
+
+    Returns:
+        对话框控件，没找到返回 None
+    """
+    for title in control_titles:
+        dialog = auto.WindowControl(searchDepth=1, subTitle=title)
+        if dialog.Exists(timeout):
+            print(f"  检测到对话框：{title}")
+            return dialog
+    return None
+
+# 使用：检测"是否保存"弹窗
+popup_images = [
+    "popups/unsaved_changes.png",   # "有未保存的更改，是否保存？"
+    "popups/confirm_close.png",     # "确认关闭？"
+]
+location = detect_popup(popup_images, confidence=0.9)
+if location:
+    print(f"  弹窗位置：{location}")</code></pre>
+
+        <h2>自动处理弹窗：检测 + 点击</h2>
+        <div class="code-head"><span>python — 自动处理</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import time
+
+def handle_popup(popup_config, timeout=10):
+    """自动处理弹窗（检测 + 点击指定按钮）。
+
+    Args:
+        popup_config: {
+            "detect_images": ["popups/unsaved.png"],   # 检测图
+            "click_image": "buttons/dont_save.png",    # 点击的按钮图
+            "fallback_action": "press_esc",             # 兜底操作
+            "timeout": 10                               # 等待弹窗超时
+        }
+
+    Returns:
+        处理成功返回 True，没弹窗返回 False
+    """
+    detect_images = popup_config.get("detect_images", [])
+    click_image = popup_config.get("click_image")
+    fallback = popup_config.get("fallback_action", "press_esc")
+    timeout = popup_config.get("timeout", 10)
+
+    # 1. 等弹窗出现（轮询 + 超时）
+    start = time.time()
+    popup_location = None
+    while time.time() - start < timeout:
+        for path in detect_images:
+            location = pyautogui.locateOnScreen(path, confidence=0.85)
+            if location:
+                popup_location = pyautogui.center(location)
+                break
+        if popup_location:
+            break
+        time.sleep(0.5)
+
+    if not popup_location:
+        print(f"  没弹窗（{timeout}s）")
+        return False
+
+    # 2. 点击"不要保存"按钮
+    if click_image:
+        click_location = pyautogui.locateOnScreen(click_image, confidence=0.85)
+        if click_location:
+            pyautogui.click(pyautogui.center(click_location))
+            print(f"  点击了：{click_image}")
+            time.sleep(1)
+            return True
+
+    # 3. 兜底操作（按 ESC）
+    if fallback == "press_esc":
+        pyautogui.press("esc")
+        print("  按 ESC 关闭弹窗")
+        time.sleep(1)
+        return True
+
+    return False
+
+# 使用：处理"是否保存"弹窗
+config = {
+    "detect_images": ["popups/unsaved_changes.png"],
+    "click_image": "buttons/dont_save.png",
+    "fallback_action": "press_esc",
+    "timeout": 10,
+}
+handle_popup(config)</code></pre>
+
+        <h2>对话框输入：在弹窗里填数据</h2>
+        <div class="code-head"><span>python — 对话框输入</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import pyperclip
+import uiautomation as auto
+import time
+
+def fill_dialog(dialog_config):
+    """在对话框里填数据。
+
+    Args:
+        dialog_config: {
+            "dialog_title": "另存为",
+            "fields": [
+                {"label": "文件名", "value": "test.xlsx", "input_type": "text"},
+                {"label": "保存位置", "value": "桌面", "input_type": "combo"},
+            ],
+            "confirm_button": "保存(S)"
+        }
+    """
+    title = dialog_config["dialog_title"]
+    fields = dialog_config["fields"]
+    confirm_btn = dialog_config.get("confirm_button")
+
+    # 1. 找对话框（控件树）
+    dialog = auto.WindowControl(searchDepth=1, subTitle=title)
+    if not dialog.Exists(5):
+        print(f"  对话框没找到：{title}")
+        return False
+
+    # 2. 填每个字段
+    for field in fields:
+        label = field["label"]
+        value = field["value"]
+        input_type = field.get("input_type", "text")
+
+        if input_type == "text":
+            # 找文本框（按 label 定位）
+            input_ctrl = dialog.child_window(
+                control_type="Edit",
+                title_re=f".*{label}.*"
+            )
+            if input_ctrl.Exists(3):
+                input_ctrl.set_edit_text(str(value))
+                print(f"  填写 {label}：{value}")
+
+        elif input_type == "combo":
+            # 找下拉框
+            combo_ctrl = dialog.child_window(
+                control_type="ComboBox",
+                title_re=f".*{label}.*"
+            )
+            if combo_ctrl.Exists(3):
+                combo_ctrl.select_item(value)
+                print(f"  选择 {label}：{value}")
+
+    # 3. 点确认按钮
+    if confirm_btn:
+        btn = dialog.child_window(control_type="Button", title=confirm_btn)
+        if btn.Exists(3):
+            btn.click()
+            print(f"  点击 {confirm_btn}")
+            time.sleep(1)
+
+    return True
+
+# 使用：填写"另存为"对话框
+config = {
+    "dialog_title": "另存为",
+    "fields": [
+        {"label": "文件名", "value": "test_report.xlsx", "input_type": "text"},
+        {"label": "保存类型", "value": "Excel 工作簿", "input_type": "combo"},
+    ],
+    "confirm_button": "保存(S)",
+}
+fill_dialog(config)</code></pre>
+
+        <h2>多弹窗队列：一个接一个处理</h2>
+        <div class="code-head"><span>python — 多弹窗队列</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import time
+
+def handle_popup_queue(queue, timeout_each=10):
+    """处理弹窗队列（按顺序，一个接一个）。
+
+    Args:
+        queue: 弹窗配置列表（按出现顺序）
+            [
+                {"detect": "popups/warning.png", "action": "press_esc"},
+                {"detect": "popups/confirm.png", "action": "click_yes.png"},
+                {"detect": "popups/success.png", "action": "click_ok.png"},
+            ]
+        timeout_each: 每个弹窗等待超时（秒）
+
+    Returns:
+        全部处理成功返回 True
+    """
+    for i, config in enumerate(queue):
+        detect_image = config.get("detect")
+        action = config.get("action")
+
+        # 等弹窗出现
+        start = time.time()
+        location = None
+        while time.time() - start < timeout_each:
+            if detect_image:
+                location = pyautogui.locateOnScreen(detect_image, confidence=0.85)
+                if location:
+                    break
+            time.sleep(0.5)
+
+        if not location:
+            print(f"  弹窗 {i+1} 没出现（{timeout_each}s）")
+            continue
+
+        print(f"  弹窗 {i+1} 出现：{detect_image}")
+
+        # 执行操作
+        if action == "press_esc":
+            pyautogui.press("esc")
+        elif action.startswith("click_"):
+            # action 格式："click_yes.png" → 找 "yes" 按钮点击
+            target = action.replace("click_", "").replace(".png", "_btn.png")
+            target_loc = pyautogui.locateOnScreen(target, confidence=0.85)
+            if target_loc:
+                pyautogui.click(pyautogui.center(target_loc))
+            else:
+                pyautogui.press("enter")   # 兜底：按 Enter
+        time.sleep(1)
+
+    return True
+
+# 使用：处理 3 个弹窗（警告 → 确认 → 成功）
+queue = [
+    {"detect": "popups/warning.png", "action": "press_esc"},
+    {"detect": "popups/confirm.png", "action": "click_yes.png"},
+    {"detect": "popups/success.png", "action": "click_ok.png"},
+]
+handle_popup_queue(queue, timeout_each=10)
+
+print("✅ 弹窗队列处理完成")</code></pre>
+
+        <h2>弹窗处理「三大原则」</h2>
+        <div class="code-head"><span>三大原则</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 检测优先（先知道"有没有弹窗"，再决定"怎么处理"）
+# - 图像识别检测（通用）
+# - 控件树检测（Windows，精准）
+# - 不要"盲点"（没检测到就点，可能点到别处）
+
+# 2. 处理 + 兜底（检测到了怎么处理 + 没检测到怎么办）
+# - 处理：点击指定按钮（"不要保存"、"确认"、"取消"）
+# - 兜底：按 ESC / Enter（通用关闭键）
+# - 超时：最多等 N 秒（避免死等）
+
+# 3. 队列化（一个接一个处理，不并发）
+# - 弹窗是"模态"的（必须处理当前才能下一个）
+# - 按顺序处理，每个超时 N 秒
+# - 处理完一个再处理下一个</code></pre>
+        <div class="callout">
+          <p>PC 自动化「弹窗处理」核心思路：<strong>检测（图像识别/控件树）→ 处理（点击按钮）→ 兜底（ESC/Enter）→ 队列（一个接一个）</strong>。脚本「卡住」90% 是因为「弹窗没处理」，把弹窗配置好（检测图 + 点击按钮 + 兜底操作），脚本就能「自动跑通」。</p>
+        </div>
+
+        <h2>案例：自动处理 Excel 弹窗</h2>
+        <p>把上面串起来，写一个「打开 Excel → 处理弹窗 → 保存 → 关闭」的完整案例：</p>
+        <div class="code-head"><span>python — 完整案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import pyperclip
+import subprocess
+import time
+import uiautomation as auto
+
+class ExcelPopupTest:
+    """Excel 弹窗处理测试"""
+
+    def start_excel(self):
+        """启动 Excel。"""
+        import platform
+        if platform.system() == "Windows":
+            subprocess.Popen(["excel.exe"])
+        else:
+            subprocess.Popen(["libreoffice", "--calc"])
+        time.sleep(5)
+
+    def create_workbook(self):
+        """新建工作簿 + 输入数据。"""
+        pyautogui.hotkey("ctrl", "n")   # 新建
+        time.sleep(2)
+
+        # 输入数据（剪贴板）
+        pyperclip.copy("测试数据")
+        pyautogui.hotkey("ctrl", "v")
+        time.sleep(0.5)
+
+    def save_with_popup(self):
+        """保存（处理"另存为"弹窗）。"""
+        pyautogui.hotkey("ctrl", "s")   # 保存
+        time.sleep(1)
+
+        # 处理"另存为"对话框（控件树）
+        dialog = auto.WindowControl(searchDepth=1, subTitle="另存为")
+        if dialog.Exists(5):
+            # 输入文件名
+            filename_edit = dialog.child_window(control_type="Edit", auto_id="1001")
+            if filename_edit.Exists(3):
+                filename_edit.set_edit_text("test_excel.xlsx")
+                print("  输入文件名：test_excel.xlsx")
+
+            # 点保存
+            save_btn = dialog.child_window(control_type="Button", title="保存(S)")
+            if save_btn.Exists(3):
+                save_btn.click()
+                print("  点击保存")
+                time.sleep(2)
+
+    def close_with_popup(self):
+        """关闭（处理"是否保存"弹窗）。"""
+        pyautogui.hotkey("ctrl", "w")   # 关闭工作簿
+        time.sleep(1)
+
+        # 处理"是否保存"弹窗（图像识别）
+        popup_location = pyautogui.locateOnScreen(
+            "popups/unsaved_changes.png",
+            confidence=0.9
+        )
+        if popup_location:
+            print("  检测到未保存弹窗")
+            # 点"不保存"
+            dont_save_loc = pyautogui.locateOnScreen(
+                "buttons/dont_save.png",
+                confidence=0.85
+            )
+            if dont_save_loc:
+                pyautogui.click(pyautogui.center(dont_save_loc))
+                print("  点击不保存")
+            else:
+                pyautogui.press("esc")   # 兜底
+                print("  按 ESC 关闭")
+            time.sleep(1)
+
+    def run(self):
+        """完整流程。"""
+        print("=== Excel 弹窗处理测试 ===")
+        self.start_excel()
+        self.create_workbook()
+        self.save_with_popup()
+        self.close_with_popup()
+        print("✅ 测试完成")
+
+if __name__ == "__main__":
+    test = ExcelPopupTest()
+    test.run()</code></pre>
+        <div class="callout">
+          <p>PC 自动化「弹窗处理」完整链路：<strong>检测</strong>（图像识别/控件树）→ <strong>处理</strong>（点击指定按钮）→ <strong>兜底</strong>（ESC/Enter）→ <strong>队列</strong>（多弹窗按顺序处理）。把「弹窗配置」写进测试脚本，脚本就能「自动跑通」，不卡住。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://pyautogui.readthedocs.io/" target="_blank" rel="noopener">pyautogui 官方文档（图像识别）</a></li>
+            <li><a href="https://github.com/yinkaisheng/Python-UIAutomation" target="_blank" rel="noopener">uiautomation 官方仓库（控件树）</a></li>
+            <li><a href="https://pywinauto.readthedocs.io/" target="_blank" rel="noopener">pywinauto 官方文档（对话框）</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#pc-automation</span>
+          <span class="tag">#popup</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

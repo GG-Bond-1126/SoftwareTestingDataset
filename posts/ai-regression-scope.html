@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 圈回归范围：改动影响面分析 · 软件测试资料集</title>
+<meta name="description" content="用 diff、接口变更、依赖图与历史回归记录给足上下文，让 AI 圈出受影响模块与必测用例。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-regression-scope.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="AI 圈回归范围：改动影响面分析">
+<meta property="og:description" content="用 diff、接口变更、依赖图与历史回归记录给足上下文，让 AI 圈出受影响模块与必测用例。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-regression-scope.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AI 圈回归范围：改动影响面分析">
+<meta name="twitter:description" content="用 diff、接口变更、依赖图与历史回归记录给足上下文，让 AI 圈出受影响模块与必测用例。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"AI 圈回归范围：改动影响面分析","description":"用 diff、接口变更、依赖图与历史回归记录给足上下文，让 AI 圈出受影响模块与必测用例。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-regression-scope.html","articleSection":"落地实践","keywords":"回归范围, 影响面分析, llm","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>12 min read</span>
+        </div>
+        <h1>AI 圈回归范围：改动影响面分析</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="ai-regression-scope">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <figure class="article-figure">
+          <svg viewBox="0 0 720 360" width="100%" role="img" aria-labelledby="fig-scope-1-title" xmlns="http://www.w3.org/2000/svg" font-family="inherit">
+            <title id="fig-scope-1-title">回归范围决策树：从改动文件出发，先判断是否核心链路，再判断是否涉及数据模型，分别落到全量回归、影响面回归、冒烟回归三条出口</title>
+            <defs>
+              <marker id="fig-scope-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 Z" fill="var(--text-faint)"/>
+              </marker>
+            </defs>
+            <text x="28" y="26" font-size="12.5" fill="var(--text-dim)">先判核心链路，再判数据模型，最后定回归范围</text>
+
+            <rect x="24" y="148" width="120" height="60" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.4"/>
+            <text x="84" y="174" font-size="15" fill="var(--text)" text-anchor="middle">改动文件</text>
+            <text x="84" y="194" font-size="12.5" fill="var(--text-dim)" text-anchor="middle">diff + 依赖图</text>
+
+            <line x1="144" y1="178" x2="176" y2="178" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-scope-arrow)"/>
+
+            <polygon points="180,178 240,132 300,178 240,224" fill="var(--panel)" stroke="var(--border-strong)" stroke-width="1.4"/>
+            <text x="240" y="183" font-size="12.5" fill="var(--text)" text-anchor="middle">核心链路？</text>
+
+            <path d="M240 132 V76 H516" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-scope-arrow)"/>
+            <text x="250" y="122" font-size="11.5" fill="var(--text-dim)">是</text>
+
+            <line x1="300" y1="178" x2="332" y2="178" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-scope-arrow)"/>
+            <text x="306" y="170" font-size="11.5" fill="var(--text-dim)">否</text>
+
+            <polygon points="336,178 406,132 476,178 406,224" fill="var(--panel)" stroke="var(--border-strong)" stroke-width="1.4"/>
+            <text x="406" y="183" font-size="12.5" fill="var(--text)" text-anchor="middle">涉及数据模型？</text>
+
+            <line x1="476" y1="178" x2="516" y2="178" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-scope-arrow)"/>
+            <text x="488" y="170" font-size="11.5" fill="var(--text-dim)">是</text>
+
+            <path d="M406 224 V280 H516" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-scope-arrow)"/>
+            <text x="416" y="246" font-size="11.5" fill="var(--text-dim)">否</text>
+
+            <rect x="520" y="48" width="184" height="56" rx="10" fill="rgba(230,180,80,0.14)" stroke="var(--amber)" stroke-width="1.4"/>
+            <text x="540" y="72" font-size="15" fill="var(--amber)">全量回归</text>
+            <text x="540" y="92" font-size="12.5" fill="var(--text-dim)">核心链路被改动</text>
+
+            <rect x="520" y="150" width="184" height="56" rx="10" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.4"/>
+            <text x="540" y="174" font-size="15" fill="var(--cyan)">影响面回归</text>
+            <text x="540" y="194" font-size="12.5" fill="var(--text-dim)">接口或表有变更</text>
+
+            <rect x="520" y="252" width="184" height="56" rx="10" fill="rgba(61,220,132,0.12)" stroke="var(--accent)" stroke-width="1.4"/>
+            <text x="540" y="276" font-size="15" fill="var(--accent)">冒烟回归</text>
+            <text x="540" y="296" font-size="12.5" fill="var(--text-dim)">局部改动无外溢</text>
+
+            <text x="28" y="336" font-size="12.5" fill="var(--text-faint)">硬规则：有代码改动的模块，不允许整体跳过</text>
+          </svg>
+          <figcaption>图 1 · 先把改动判成核心链路、数据模型、局部改动三类，再决定全量、影响面还是冒烟。</figcaption>
+        </figure>
+
+        <h2>范围圈错的代价，两头都疼</h2>
+        <p>我们组的接口加 UI 用例一共 1240 条，全量跑一遍 6 小时 20 分钟，四台执行机并行。按一周两个发布窗口算，回归吃掉一半以上的机器时间。更麻烦的是人：1240 条结果里真正要看的失败，往往被环境噪音盖住，看两小时还没看到重点。</p>
+        <p>于是开始砍用例。砍的依据通常是「这次改的是优惠券，订单应该没事」。去年一次发版就栽在这里：改的是券核销逻辑，回归只跑了券相关的 210 条，漏掉订单退款链路。两者通过券状态回滚耦合，退款时券没有回滚，线上 47 分钟不可用，影响 1800 多笔订单。事后复盘，漏测不是执行不力，是范围圈错了。</p>
+        <p>另一头也疼。为了不出事干脆全量跑，机器排队，紧急修复只能跳过回归直接上线，风险反而更大。这个问题的根子不是跑得慢，而是没有一份能解释「为什么这些必须跑、那些可以不跑」的依据。人凭印象拍，拍完还无法复盘。</p>
+        <p>后来我把这件事交给 AI，但没有让它去读 1240 条用例。它只做一件事：根据改动、依赖关系和历史数据，把影响面翻译成模块级结论。三个月下来，范围确定从 50 分钟降到 18 分钟，三个版本累计零漏测。</p>
+
+        <h2>这个 skill 只做一件事：把改动翻译成范围</h2>
+        <p>适用的情况有四类：发版前定回归范围；微服务拆分后说不清一个改动影响哪些下游；全量跑不动只能砍用例但又砍得没依据；需要把结论落成可核对的清单，方便复盘。</p>
+        <p>不适用的情况也要写清楚。改动只集中在配置或文案、没有代码逻辑变化，不需要这一套；依赖关系图缺失且短期补不齐，先补图，否则分析出来的都是猜测；发布窗口极紧、改动风险极高，直接全量回归，不要用裁剪结果去赌。</p>
+        <p>它不产出执行脚本，也不决定执行顺序。范围、用例决策、跳过理由、待确认项是它的全部产出。怎么编排流水线、怎么分配执行机，是工程侧的事，混进来只会让 skill 越来越重。</p>
+        <p>还有一个边界必须钉死：模型只判模块级影响，不逐条判用例。它看不到用例里的测试数据和断言细节，逐条判断等于猜。模块级几十个条目，人还核得动；用例级上千条，没人核得完，最后只能照单全收，等于没有判断。</p>
+
+        <h2>上下文怎么给：五类材料，缺一类就少一层依据</h2>
+        <p>范围分析的输入不是一句话，而是五份材料。少给哪一份，结论就少一层依据，缺的那层会变成猜测。</p>
+        <table>
+          <thead><tr><th>材料</th><th>作用</th><th>截取范围</th><th>缺失后果</th></tr></thead>
+          <tbody>
+            <tr><td>代码 diff</td><td>确定改了哪些文件、接口、表</td><td>三点 diff，剔除锁文件与纯格式化改动</td><td>影响面只能靠猜</td></tr>
+            <tr><td>接口变更清单</td><td>把代码改动翻译成对外契约变化</td><td>只要新增、删除、字段变更的接口</td><td>上下游判断断链</td></tr>
+            <tr><td>依赖关系</td><td>找谁调用它、它调用谁</td><td>模块到接口、接口到表、服务到服务，两跳以内</td><td>只能按模块名联想</td></tr>
+            <tr><td>历史缺陷分布</td><td>给高风险模块加权</td><td>近 90 天，按模块与根因聚合到条数</td><td>高风险模块被平均掉</td></tr>
+            <tr><td>上次回归结果</td><td>复用耗时数据与失败模式</td><td>失败用例、跳过用例、分模块耗时</td><td>取舍没有时间预算</td></tr>
+          </tbody>
+        </table>
+        <p>顺序很重要。先给 diff 和接口变更，再给依赖和历史，最后给发布窗口与可用回归时长。反过来先给结论，模型会顺着你的结论去找理由，这是我们前两个月最常见的问题，也是最难发现的问题。</p>
+        <p>每份材料第一行写来源标记，包含路径、版本或 commit、导出时间。没有来源标记的材料宁可不给，也不要混进去。一旦模型引用了它，复核时你根本不知道它读的是哪一版。</p>
+        <p>材料总长控制在两万字以内。超了按模块拆，一轮只处理一个模块。diff 超过 600 行时，先给文件级统计，再对受影响模块给函数级片段，不要把整个补丁倒进去。</p>
+        <div class="code-head"><span>提示词 — regression-scope</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>你是回归范围分析助手。只依据我给出的材料输出，不得补充材料之外的业务规则、接口、阈值或历史数据。
+
+本次任务：
+- 版本：2026.11.23 发版
+- 基线：release/2026.10
+- 发布窗口：21:00 到 23:00
+- 可用回归时长：90 分钟
+
+材料清单（按顺序给出）：
+1. current/diff.patch：三点 diff，只含本次改动的 hunk
+2. current/api-changes.md：接口变更清单
+3. current/deps.yaml：依赖图，两跳以内
+4. current/case-index.csv：用例编号、模块、优先级、历史失败率
+5. history/regressions/2026-10-28.md：上次回归结果
+6. history/defects/2026-Q3.csv：近 90 天缺陷分布
+
+要求：
+1. 先给影响面摘要：改动文件数、涉及接口数、涉及表数、受影响模块
+2. 每个受影响模块给出必测用例集，按用例编号列
+3. 可跳过用例必须写理由，理由只能来自依赖图、历史数据或接口无调用方
+4. 有代码改动的模块不允许整体跳过
+5. 可跳过用例占比不超过 40%
+6. 缺什么材料、影响哪条结论、需要谁提供，统一放进待确认清单</code></pre>
+        <p>这段提示词里没有一句「请你认真分析」。真正约束输出的是材料清单和六条要求，尤其是第三条和第四条。前者堵住了主观跳过，后者堵住了「改动小所以整块不跑」。</p>
+
+        <h2>上下文怎么装：一份目录胜过一段描述</h2>
+        <p>材料不要随手贴在对话里，按固定目录存放，每次只挂载本次需要的部分。目录结构本身就是上下文的一部分，模型能据此判断哪份是本次、哪份是历史、哪份已过期。</p>
+        <div class="code-head"><span>目录结构 — qa-ai-context/regression-scope</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>qa-ai-context/regression-scope/
+├── current/
+│   ├── diff.patch              三点 diff，基线 release/2026.10
+│   ├── api-changes.md          本次接口变更清单
+│   ├── deps.yaml               依赖图导出，含版本与导出时间
+│   ├── case-index.csv          用例编号、模块、优先级、历史失败率
+│   └── task.md                 发版说明、改动意图、窗口与可用时长
+└── history/
+    ├── regressions/
+    │   ├── 2026-10-28.md       上次回归：范围、耗时、失败与漏测
+    │   ├── 2026-10-14.md       上一次回归
+    │   └── index.md            历次回归索引，含版本与漏测条数
+    ├── defects/
+    │   ├── 2026-Q3.csv         近 90 天缺陷，含模块与根因分类
+    │   └── rootcause-taxonomy.md  根因分类口径
+    └── deprecated/
+        ├── deps-2025.yaml      旧依赖图，仅作对比
+        └── api-2024.md         旧版接口文档，禁止作为依据</code></pre>
+        <p>三层各有用处。current 放本次材料，history 放可复用的历史，deprecated 放明确过期的文档。为什么用目录而不是聊天里随手贴？因为引用必须可核对。结论里写 history/regressions/2026-10-28.md 第 2 节，任何人能打开原文；写「上次的经验」，没人能复核，也没人敢签字。</p>
+        <p>current 里的 task.md 最容易被忽略，但它决定了取舍尺度。同样一次改动，可用回归时长 90 分钟和 4 小时，结论完全不同。不给这个数，模型只能给一份「全都建议跑」的清单，等于把问题原样退回来。</p>
+        <p>目录名不要改。改了之后所有历史引用全部失效，这比没有目录更糟，因为你会误以为引用还是对的。</p>
+
+        <h2>历史文档怎么挂：回归记录、缺陷库、旧接口文档</h2>
+        <p>历史文档不是越多越好，挂错比不挂更危险。我们按三类分开管，每类的引用方式和过期处理都不一样。</p>
+        <table>
+          <thead><tr><th>历史文档</th><th>挂在哪</th><th>怎么引用</th><th>过期怎么处理</th></tr></thead>
+          <tbody>
+            <tr><td>历史回归记录</td><td>history/regressions/</td><td>版本号加小节名</td><td>只读最新三份，更早只算趋势</td></tr>
+            <tr><td>历史缺陷库</td><td>history/defects/</td><td>缺陷编号加根因分类</td><td>按季度归档，只给分类与次数</td></tr>
+            <tr><td>旧版接口文档</td><td>history/deprecated/</td><td>不作为依据，只做版本对比</td><td>首行标失效版本与替代文件</td></tr>
+          </tbody>
+        </table>
+        <p>回归记录的复用有三条规则。第一，只读最新三份，更早的只用来算漏测趋势，不能当本次跳过理由。第二，上次跳过且通过的用例，这次不能自动跳过，因为改动不同，依据必须重新取；这条规则拦下过我们最隐蔽的一类漏测。第三，上次失败的用例默认进必测集，除非接口已删除且有依赖图确认无调用方。</p>
+        <p>缺陷库不给完整描述，只给模块、<a class="ilink" href="ai-defect-rootcause.html">根因</a>分类、次数、最近日期。给完整描述，模型会去复述那个具体 bug；给分类和次数，它才会抽象成风险权重。把「并发未加锁导致超发」出现 4 次这条写进去，远比在提示词里写「请重视并发」有效。</p>
+        <p>旧版接口文档一律进 deprecated，首行写三件事：状态、失效版本、替代文件。skill 不得引用，除非你明确要求做版本对比。我们踩过一次，模型引用了 2024 年的接口文档，把已经下线的字段当成必测点，白跑了两小时才有人发现。</p>
+
+        <h2>输出规范：四块内容，少一块都不算完成</h2>
+        <p>第一块是影响面摘要：改动文件数、涉及接口数、涉及表数、受影响模块列表。这块用来让人三十秒内知道这次改动的规模。</p>
+        <p>第二块是用例决策表：用例编号、模块、决策（必测 / 可选 / 跳过）、理由。决策只能取这三个值，不接受「视情况」。</p>
+        <p>第三块是跳过理由。理由只能来自三种证据：依赖图显示无调用方、历史数据显示该模块从未受影响、接口已删除且有变更清单佐证。写「改动很小」或「开发说没问题」的一律退回，这两种说法在过去一年里贡献了我们大部分漏测。</p>
+        <p>第四块是待确认清单：缺什么、影响哪条结论、需要谁提供，三列都要填。没有待确认项时写「无」，但不能省略这一节，因为它本身就是一个信号：是真的没有缺口，还是根本没检查。</p>
+        <table>
+          <thead><tr><th>字段</th><th>取值</th><th>示例</th></tr></thead>
+          <tbody>
+            <tr><td>用例编号</td><td>用例库原编号</td><td>TC-ORD-0217</td></tr>
+            <tr><td>模块</td><td>与代码模块名一致</td><td>order-refund</td></tr>
+            <tr><td>决策</td><td>必测 / 可选 / 跳过</td><td>必测</td></tr>
+            <tr><td>理由</td><td>依赖图、历史数据、接口无调用方</td><td>deps.yaml 两跳内命中券状态回滚</td></tr>
+          </tbody>
+        </table>
+        <p>两条硬规则：有代码改动的模块不允许整体跳过；可跳过用例占比不超过 40%。超过 40% 不是模型发挥得好，而是依赖图或历史数据不可信，先补数据再谈取舍。</p>
+        <p>最后一条，结论必须落到用例编号。只给一张模块清单，执行阶段还是靠人挑，等于这一步没做。</p>
+
+        <h2>冲突和过期文档怎么处理</h2>
+        <p>冲突不自行取舍，这是 skill 第一条硬性约束的延伸。文档与代码不一致、两处规则互相矛盾，都把两种说法并列，标明冲突点和需要确认的问题。</p>
+        <p>裁定顺序我们定成三级：current 与 history 冲突以 current 为准；current 内部冲突以代码和接口文档为准；仍然冲突，进待确认清单。注意这是给人看的顺序，模型不能自己挑一个然后当结论，因为它无法判断哪份才是最新发布的版本。</p>
+        <p>过期标记必须写在文件首行，不要只写在文件名里。文件名带 old、旧、bak，搜索时照样会被命中，模型也分不清哪个是正式版。首行写「状态：已过期」加失效版本和替代文件路径，才有可能被正确排除。</p>
+        <p>还有个小细节：deprecated 目录下的文件不要放进默认挂载范围。我们一开始只是加标记，结果模型还是读到了，因为它看到目录就顺手读了。后来改成默认只挂 current 和 history 的两个子目录，需要对比时才手动加。</p>
+
+        <h2>踩过的四个坑</h2>
+        <ul>
+          <li><strong>先给结论再给材料</strong>：模型顺着结论编理由，输出看起来很顺，其实一条证据都对不上。改成材料在前、任务说明在后。</li>
+          <li><strong>依赖图三个月没更新</strong>：下游漏了两个服务，直到预发才发现。现在每份依赖图都写导出时间，超过 30 天自动进待确认清单。</li>
+          <li><strong>把改动小当跳过理由</strong>：一句话砍掉 80 条用例，其中 12 条涉及退款。现在只认依赖图和历史数据。</li>
+          <li><strong>跨模块合并用例</strong>：库存和优惠券都有「不足无法领取」，验证路径完全不同，合并就是漏测。去重只在模块内做。</li>
+          <li><strong>一次喂整个仓库</strong>：上下文放不下，模型只读了开头几百行就下结论。按模块拆分，两跳以内。</li>
+        </ul>
+
+        <h2>效果与判断标准</h2>
+        <p>用三个版本做对照，都是同一条业务线，用例库没变，只是把范围确定的方式换了。</p>
+        <table>
+          <thead><tr><th>指标</th><th>改前</th><th>改后</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>范围确定耗时</td><td>50 分钟</td><td>18 分钟</td><td>含人工复核</td></tr>
+            <tr><td>回归用例数</td><td>1240 条</td><td>760 条</td><td>三个版本平均</td></tr>
+            <tr><td>漏测缺陷</td><td>2 起</td><td>0 起</td><td>三个版本累计</td></tr>
+            <tr><td>跳过理由可核对率</td><td>30%</td><td>100%</td><td>能指到文件与行号</td></tr>
+          </tbody>
+        </table>
+        <p>判断标准很土但很准：把范围清单给一个没参与这次发版的同学，看他能不能在 10 分钟内指出「这条跳过不该跳」。能指出来，说明理由写得够具体；只能回你一句「感觉差不多」，说明你在用模型给的印象做决策，迟早还会漏。</p>
+
+        <div class="callout warn">
+          <p>这个 skill 的第一条硬性约束是：只依据引用文档与当前上下文输出，不许按想法自由发挥；信息不足的部分必须进入「待确认清单」，不许编造。</p>
+        </div>
+        <h2>Skill 完整展示</h2>
+        <p>这个 skill 放在 Claude Code 的 <code>~/.claude/skills/skill-regression-scope/SKILL.md</code>；Trae 用户级目录为 <code>C:\Users\你的用户名\.trae\skills\skill-regression-scope\SKILL.md</code>，项目级放 <code>.trae/skills/</code>。目录名要和 front matter 的 name 一致，重启会话后加载。</p>
+        <div class="code-head"><span>markdown — SKILL.md</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>---
+name: regression-scope
+description: 根据代码改动与依赖关系圈定回归范围。解析 git diff 得到变更文件、接口与表，结合调用链和历史缺陷分布，输出受影响模块、必测用例集与可跳过理由，并生成 pytest 标记文件用于按范围执行。
+---
+
+# 回归范围分析：从改动到用例选择
+
+## 硬性约束（优先级最高，与其他章节冲突时以本节为准）
+
+1. 只能依据三类信息输出：用户提供的需求文档 / 接口文档 / 代码 / 日志原文、当前会话上下文、本 skill「输入」一节所列的文件。禁止凭想象补充业务规则、字段名、接口地址、阈值、状态码、版本号或历史数据。
+2. 每条产出都要可回溯，必须标注来源：文档章节或条款、文件路径与行号、日志片段、接口字段。标不出来源的条目不得进入正式产出。
+3. 信息不足时不许编造填补。缺失项一律进入「待确认清单」，逐条写清：缺什么、影响哪条结论、需要谁提供。
+4. 凡是基于经验补出的内容，必须以「推断：」开头，并写明依据与置信度（高 / 中 / 低）。置信度为低的推断不能当结论用。
+5. 禁止虚构引用：不编造文档条款号、版本号、链接、指标数值、报错原文。引用原文时逐字摘录并注明位置。
+6. 资料互相矛盾时（文档与代码不一致、两处规则冲突）不要自行取舍，把两种说法并列，标明冲突点和需要确认的问题。
+7. 输出前逐条自检：这条有来源吗？没有就移到「待确认清单」。自检不通过不许输出。
+
+## 待确认清单（输出必带）
+
+无论信息是否充足，输出末尾都保留这一节；没有待确认项时写「无」，不许省略该节。每行格式：
+
+| 序号 | 缺失或不确定的内容 | 影响 | 需要谁提供 |
+
+## 适用场景
+
+- 每次发版前要靠人拍脑袋决定跑哪些用例，经常漏测。
+- 全量回归要 6 小时，跑不完，只能砍用例，但砍得没有依据。
+- 微服务拆分后，一个改动影响哪些下游服务说不清。
+- 需要把回归范围结论落成可执行的 pytest 标记，而不是一张口头清单。
+
+以下情况不要用：
+
+- 改动集中在纯配置或文案，没有代码逻辑变化。
+- 依赖关系图本身缺失且短期内无法补齐，此时先补图再做范围分析。
+- 发布窗口极紧且改动风险极高，应直接全量回归。
+
+## 输入
+
+必需：
+
+1. git diff，包含基线分支与目标分支，建议用三点比较。
+2. 依赖关系图，至少包含模块到接口、接口到表、服务到服务的调用关系。
+3. 用例清单，包含用例编号、覆盖模块、优先级、历史失败率。
+
+建议补充：
+
+4. 近 90 天缺陷分布，含模块与根因分类。
+5. 变更说明或 PR 描述，用于校正模型对改动意图的理解。
+6. 上次回归的耗时数据，用于评估取舍空间。
+
+输入缺失时：依赖图缺失的部分按「未知影响」处理，默认全选该模块用例，不要默认跳过。
+
+## 上下文与历史文档规范
+
+本节规定每次调用前要准备哪些材料、怎么截取、历史文档放在哪里。材料不齐时按「输入缺失」处理，不要用经验补。
+
+### 本次任务需要的材料
+
+| 材料 | 必需 | 截取范围 | 格式 |
+| --- | --- | --- | --- |
+| 代码改动 | 是 | 三点 diff，保留全部 hunk，剔除锁文件、生成物与纯格式化文件 | unified diff，首行写基线分支与目标 commit |
+| 接口变更清单 | 是 | 只保留新增、删除、字段变更的接口，最多 60 条 | 表格：方法 / 路径 / 变更类型 / 关联模块 |
+| 依赖关系 | 是 | 模块到接口、接口到表、服务到服务，最多两跳 | 表格或 YAML，注明导出时间与版本 |
+| 历史缺陷分布 | 是 | 近 90 天，按模块与根因聚合到条数 | 表格：模块 / 根因分类 / 次数 / 最近一次日期 |
+| 上次回归结果 | 建议 | 只取失败用例、跳过用例与分模块耗时 | 表格：用例编号 / 结果 / 耗时 / 失败原因 |
+| 用例清单 | 是 | 只保留编号、模块、优先级、历史失败率四列 | CSV 或 Markdown 表 |
+
+截取规则：
+
+1. 单轮材料总长控制在 20000 字以内，超出时按模块拆成多轮，每轮只处理一个模块。
+2. diff 超过 600 行时，先给文件级统计，再对受影响模块给函数级 hunk。
+3. 每份材料第一行写来源标记，格式为：来源：相对路径 | 版本或 commit | 导出时间。
+4. 不要贴整个仓库目录树，只给两跳以内的目录。
+
+### 历史文档怎么挂
+
+固定目录如下，根路径按自己的仓库替换：
+
+- qa-ai-context/regression-scope/
+  - current/
+    - diff.patch：三点 diff，基线为 release/2026.10
+    - api-changes.md：本次接口变更清单
+    - deps.yaml：依赖图导出，含版本与导出时间
+    - case-index.csv：用例编号、模块、优先级、历史失败率
+    - task.md：发版说明、改动意图、发布窗口与可用回归时长
+  - history/
+    - regressions/
+      - 2026-10-28.md：上次回归的范围、耗时、失败与漏测
+      - 2026-10-14.md：上一次回归
+      - index.md：历次回归索引，含版本、耗时、漏测条数
+    - defects/
+      - 2026-Q3.csv：近 90 天缺陷，含模块与根因分类
+      - rootcause-taxonomy.md：根因分类口径
+    - deprecated/
+      - deps-2025.yaml：旧依赖图，仅作对比
+      - api-2024.md：旧版接口文档，禁止作为依据
+
+引用与维护规则：
+
+1. 引用格式：结论里写相对路径加小节名，例如 history/regressions/2026-10-28.md 第 2 节；不要写「上次的经验」这类无法核对的来源。
+2. 回归记录只读最新三份。更早的记录只用于统计漏测趋势，不能作为本次跳过用例的理由。
+3. 上次跳过且通过的用例，不能因为「上次也没事」再次跳过；改动不同，依据必须重新取。
+4. 过时文档放进 deprecated，首行写：状态：已过期 | 失效版本：2026.07 | 替代文件：current/deps.yaml。skill 不得引用，除非用户明确要求做版本对比。
+5. 冲突裁定：current 与 history 冲突以 current 为准；current 内部冲突以代码与接口文档为准；仍然冲突时把两种说法并列，写进待确认清单。
+
+## 执行步骤
+
+1. 解析 diff，提取变更文件、变更函数、涉及的接口路径与数据库表名。
+2. 按依赖图向上找调用方，向下找被调用方，得到一跳与两跳影响面。
+3. 用历史缺陷分布加权，最近有缺陷的模块提高优先级。
+4. 把受影响模块映射到用例集，逐条标注必测、可选中、可跳过。
+5. 给每条可跳过用例写明理由，理由必须来自依赖图或历史数据，不接受「感觉不会影响」。
+6. 输出结论后用规则做一次交叉检查：有代码改动的模块不允许整体跳过。
+7. 生成 pytest 标记文件与命令行，交给 CI 直接执行。
+8. 上线后统计漏测情况，把漏测用例补进必测集并回写依赖图。
+
+## 输出格式
+
+1. 影响面摘要：改动文件数、涉及接口数、涉及表数、受影响模块列表。
+2. 用例决策表：用例编号、模块、决策（必测/可选/跳过）、理由。
+3. 风险提示：依赖图缺失、跨服务调用未覆盖、数据变更不可逆。
+4. 执行命令：pytest 标记表达式，或带用例列表的文件路径。
+
+结论必须能落到命令，只给文字结论视为未完成。
+
+## 质量检查清单
+
+- 每个改动文件都能映射到至少一个模块，没有未归属文件。
+- 每个涉及的表都有对应的数据校验用例。
+- 可跳过用例占比不超过 40%，超过说明依赖图或历史数据不可信。
+- 每条跳过理由可追溯到具体证据，例如「该接口无调用方，依赖图 v3 确认」。
+- 生成的 pytest 命令能直接执行，标记名与用例库一致。
+- 风险提示不为空，至少列出一条不确定性。
+- 漏测复盘有记录，且对应规则已更新。
+
+## 反例
+
+- 只看改了哪些文件，不看谁调用了这些文件，导致下游服务漏测。
+- 把「改动很小」当成跳过理由。
+- 跳过理由写成「开发说没问题」。
+- 生成的标记文件里混入已删除的用例编号，pytest 直接报错。
+- 依赖图三个月没更新，仍然拿来当唯一依据。
+- 只输出一张模块清单，没有用例级决策，执行阶段仍然靠人挑。</code></pre>
+        <div class="callout">
+          <p>下载完整 skill 文件：<a href="../assets/downloads/skill-regression-scope.md" download>skill-regression-scope.md</a>。放到 <code>~/.claude/skills/skill-regression-scope/SKILL.md</code> 即可被自动加载。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://git-scm.com/docs/git-diff" target="_blank" rel="noopener">git-diff Documentation — Git</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/mark.html" target="_blank" rel="noopener">How to mark test functions with attributes — pytest</a></li>
+            <li><a href="https://martinfowler.com/articles/continuousIntegration.html" target="_blank" rel="noopener">Continuous Integration — Martin Fowler</a></li>
+            <li><a href="https://www.istqb.org/certifications/certified-tester-foundation-level" target="_blank" rel="noopener">ISTQB Certified Tester Foundation Level — ISTQB</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#回归范围</span>
+          <span class="tag">#影响面分析</span>
+          <span class="tag">#llm</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>移动端 Web 测试：响应式 + PWA · 软件测试资料集</title>
+<meta name="description" content="视口与断点、触摸延迟、键盘遮挡、PWA 离线与真机自动化取舍，写给一线测试的 H5 验收手册。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-mobile-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="移动端 Web 测试：响应式 + PWA">
+<meta property="og:description" content="视口与断点、触摸延迟、键盘遮挡、PWA 离线与真机自动化取舍，写给一线测试的 H5 验收手册。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-mobile-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="移动端 Web 测试：响应式 + PWA">
+<meta name="twitter:description" content="视口与断点、触摸延迟、键盘遮挡、PWA 离线与真机自动化取舍，写给一线测试的 H5 验收手册。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"移动端 Web 测试：响应式 + PWA","description":"视口与断点、触摸延迟、键盘遮挡、PWA 离线与真机自动化取舍，写给一线测试的 H5 验收手册。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-mobile-testing.html","articleSection":"Web 自动化","keywords":"mobile-web, responsive, pwa","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>19 min read</span>
+        </div>
+        <h1>移动端 Web 测试：响应式 + PWA</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-mobile-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>移动端 Web 的问题不在「屏幕小」</h2>
+        <p>把桌面页面缩到 375 像素宽，只是把问题放大了，并没有制造新问题。真正让 H5 在手机上出事的，是四件桌面端不存在的事：视口是可变且会被缩放和键盘改写的，输入靠手指而不是鼠标指针，页面经常处在<a class="ilink" href="app-weak-network-testing.html">弱网</a>和省电状态，还有一个介于网页和原生之间的 PWA 外壳。这四件事各自都能让一条在 Chrome 桌面端全绿的用例，在 iPhone 上稳定失败。</p>
+        <p>所以移动端 Web 的验收不能只做「换个窗口尺寸截图」。合理的拆分是三层：渲染层看布局与视口，交互层看触摸、手势、键盘，运行层看网络、缓存、离线与安装。三层用的工具不同，能在模拟器上做的只有第一层和部分第二层，剩下的必须上真机。本文按这个顺序展开，每个结论都给出可复现的验证方法。</p>
+
+        <h2>三个视口：先搞清你在测哪一层</h2>
+        <p>移动浏览器里有三套宽度。布局视口是 CSS 布局参照的宽度，由 <code>meta viewport</code> 决定；视觉视口是用户实际看到的窗口，随双指缩放与软键盘变化；理想视口是设备物理宽度除以像素比。绝大多数「手机上像桌面缩小版」的故障，<a class="ilink" href="ai-defect-rootcause.html">根因</a>是页面没声明 viewport，浏览器退回默认的 980 像素布局视口再整体缩放。</p>
+        <p>标准声明是三段：<code>width=device-width</code> 让布局视口等于设备宽度，<code>initial-scale=1</code> 禁止初始缩放，<code>viewport-fit=cover</code> 让页面延伸到刘海区域，否则安全区填充无从谈起。要特别注意 <code>user-scalable=no</code> 这种写法，它会让低视力用户无法放大页面，属于无障碍问题，很多团队在评审时才发现。</p>
+        <p>排查时不要靠肉眼判断。用下面的脚本把三套宽度、缩放比例、页面偏移一次打出来，能立刻区分是布局视口错了、还是用户缩放了、还是键盘顶起了视觉视口。这组数字也是提缺陷时最有说服力的证据，比一张截图管用得多。</p>
+        <div class="code-head"><span>javascript — 一次打全视口状态</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>const meta = document.querySelector('meta[name="viewport"]');
+const vv = window.visualViewport;
+console.table({
+  metaContent: meta ? meta.content : '(缺失)',
+  layoutWidth: document.documentElement.clientWidth,
+  visualWidth: vv ? Math.round(vv.width) : null,
+  visualHeight: vv ? Math.round(vv.height) : null,
+  scale: vv ? vv.scale.toFixed(2) : null,
+  offsetTop: vv ? Math.round(vv.offsetTop) : null,
+  dpr: window.devicePixelRatio,
+  horizontalScroll:
+    document.documentElement.scrollWidth &gt; document.documentElement.clientWidth,
+});</code></pre>
+
+        <h2>断点验证：模拟器与真机怎么分工</h2>
+        <p>断点测试的核心不是拖窗口，而是验证「断点两侧布局是否按设计切换，以及有没有横向溢出」。常见断点是 320、375、414、768、1024、1280，边界值要各测一次（767 与 768 是两套布局）。只测中间值，最容易漏掉卡在临界宽度上的溢出。</p>
+        <p>模拟器的价值是快和可重复：视口、像素比、触摸能力都能精确设定，适合进 CI 每次提交跑。局限也明确：它用的是桌面内核，字体回退、软键盘、动量滚动、iOS 安全区都与真机不同。真机真实但不可并行、不稳定，适合发版前抽检。经验值是模拟器覆盖八成布局问题，真机专门抓剩下那些最贵的。</p>
+        <p>验证横向溢出不要只判断 <code>scrollWidth</code>，那个数字会告诉你「有溢出」，但不会告诉你是谁溢出的。把越界元素列出来，缺陷单里直接带上元素与所在宽度，开发几乎不用复现就能定位，通常是一个写死宽度的卡片或一段不会换行的长英文串。</p>
+        <div class="code-head"><span>python — 按断点扫溢出元素</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+from playwright.sync_api import sync_playwright
+
+BREAKPOINTS = [320, 360, 375, 414, 768, 1024, 1280]
+URL = "https://staging.example.com/"
+
+
+@pytest.mark.parametrize("width", BREAKPOINTS)
+def test_no_horizontal_overflow(width):
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        ctx = browser.new_context(
+            viewport={"width": width, "height": 800},
+            has_touch=width &lt; 768,
+            is_mobile=width &lt; 768,
+            device_scale_factor=3,
+        )
+        page = ctx.new_page()
+        page.goto(URL, wait_until="networkidle")
+
+        offenders = page.evaluate("""() => {
+            const docW = document.documentElement.clientWidth;
+            return [...document.querySelectorAll('body *')]
+                .filter(el => el.getBoundingClientRect().right &gt; docW + 1)
+                .slice(0, 10)
+                .map(el => el.tagName + '.' + (el.className || ''));
+        }""")
+
+        assert not offenders, f"{width}px 下溢出元素: {offenders}"
+        browser.close()</code></pre>
+
+        <h2>触摸事件：300 毫秒延迟与手势冲突</h2>
+        <p>三百毫秒点击延迟的来历是双击缩放。早期浏览器在收到 <code>touchend</code> 后要等一段时间，确认用户不是要双击放大，才派发 <code>click</code>。声明了 <code>width=device-width</code> 的现代浏览器已经不再等待，但内嵌 WebView、iframe 里没带 viewport 的页面、以及部分老版本安卓仍然存在这段延迟，表现为按钮「点了半天没反应」。</p>
+        <p>解法不是到处绑 <code>touchstart</code>，那会破坏键盘与无障碍语义，还会让滚动误触发点击。正确做法是给可点击元素加 <code>touch-action: manipulation</code>，明确告诉浏览器这块区域不需要双击缩放；或者在滚动容器上设 <code>overscroll-behavior: contain</code>，阻止滚动穿透。判断有没有修好，用 Event Timing 接口看 click 的处理耗时，比秒表可靠。</p>
+        <p>手势冲突是另一个高频问题：轮播图左滑与页面横滑打架，下拉刷新与列表滚动抢事件。根因通常是 <code>touchmove</code> 里无条件 <code>preventDefault</code>，或组件没声明 <code>touch-action</code>，浏览器只能按默认逻辑猜。测试要覆盖「从卡片中间滑」和「从屏幕边缘滑」两种起点，边缘手势常被系统接管，模拟器测不出来。</p>
+        <div class="code-head"><span>python — 检查 touch-action 与慢点击</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    ctx = browser.new_context(**p.devices["iPhone 13"])
+    page = ctx.new_page()
+    page.goto("https://staging.example.com/")
+
+    page.tap(".buy-btn")
+
+    # 没声明 touch-action 的可点区域，在老 WebView 里会有 300ms 延迟风险
+    risky = page.evaluate("""() => [...document.querySelectorAll('button, .card, .carousel')]
+        .filter(el => getComputedStyle(el).touchAction === 'auto')
+        .map(el => el.className)
+        .slice(0, 10)""")
+    print("待确认区域:", risky)
+
+    slow = page.evaluate("""() => performance.getEntriesByType('event')
+        .filter(e => e.name === 'click' &amp;&amp; e.duration &gt; 100)
+        .map(e => Math.round(e.duration))""")
+    print("超过 100ms 的点击:", slow)
+    browser.close()</code></pre>
+
+        <h2>五类布局 Bug：成因与验证方式</h2>
+        <p>横向滚动条排第一。成因多是写死的宽度、<code>100vw</code> 叠加滚动条、长单词或长链接不换行、以及绝对定位元素超出父容器。验证方式就是上一节的越界元素扫描，比手动拖动可靠。第二是键盘顶起：输入框获得焦点后软键盘弹出，安卓会压缩视口，iOS 则把整个页面往上推，底部固定按钮就跑到键盘后面去了。</p>
+        <p>第三是 <code>position: fixed</code> 的错位。iOS 在键盘弹出、页面惯性滚动时对 fixed 元素的重绘时机与安卓不同，表现为底部工具栏漂在半空或遮住输入框。第四是安全区：iPhone 的底部横条与刘海会压住内容，必须用 <code>env(safe-area-inset-bottom)</code> 给固定栏补内边距，并且 meta 里带上 <code>viewport-fit=cover</code>，两者缺一不可。第五是动态视口单位：手机浏览器地址栏收起会改变可视高度，用 <code>100vh</code> 做全屏的页面会被裁掉一截，应改用 <code>100dvh</code> 或 <code>100svh</code>。</p>
+        <p>这五类问题的共同点是「桌面端完全正常」。验收要有硬性规则：任何含输入框或底部操作栏的页面，必须在真机上走一遍「聚焦、输入、收起键盘、继续点击」的完整链路，截静态图发现不了。</p>
+        <div class="code-head"><span>python — 底部固定栏遮挡自检</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>layout = page.evaluate("""() => {
+    const bar = document.querySelector('.submit-bar');
+    const rect = bar.getBoundingClientRect();
+    const bodyPad = parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
+    return {
+        barHeight: Math.round(rect.height),
+        bodyPadding: Math.round(bodyPad),
+        position: getComputedStyle(bar).position,
+        bottomGap: Math.round(window.innerHeight - rect.bottom),
+        coveredByBar: bodyPad + 1 &lt; rect.height,
+    };
+}""")
+assert layout["position"] == "fixed"
+assert not layout["coveredByBar"], f"固定栏可能压住正文: {layout}"</code></pre>
+
+        <h2>PWA 的五个检查项</h2>
+        <p>PWA 不是框架，是一组能力的组合。验收按五项确认：manifest 可解析且字段完整、Service Worker 注册并激活、离线时有可用页面、安装入口按平台预期出现、新版本发布后有更新提示。任何一项缺失，用户看到的就是「和普通网页没区别」。</p>
+        <p>manifest 的关键字段是 <code>name</code>、<code>short_name</code>、<code>start_url</code>、<code>display</code> 和图标；图标至少要有 192 与 512 两个尺寸，缺 512 在部分安卓机型上不出现安装横幅。缓存策略要分类型：静态资源 cache-first，接口 network-first 或 stale-while-revalidate，绝不能把登录态接口缓存成永不过期，否则换账号后会看到别人的数据。</p>
+        <p>更新是 PWA 最容易翻车的地方。默认的 Service Worker 会一直用旧的缓存，用户刷新十次还是旧页面。必须显式处理 <code>skipWaiting</code> 与 <code>controllerchange</code>，并在界面上给出「有新版本，点击刷新」的提示。测试方法是：发布新构建后不清理缓存直接访问，观察是否出现更新提示、点击后内容是否真的换了。iOS Safari 直到较近的版本才支持安装后的 Web Push，且没有安装提示事件，这块要单列验收。</p>
+        <div class="code-head"><span>python — manifest、SW 与离线三联检</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>with sync_playwright() as p:
+    browser = p.chromium.launch()
+    ctx = browser.new_context(**p.devices["Pixel 7"])
+    page = ctx.new_page()
+    page.goto("https://staging.example.com/")
+
+    manifest = page.evaluate("""async () => {
+        const link = document.querySelector('link[rel=manifest]');
+        if (!link) return null;
+        const res = await fetch(link.href);
+        return res.ok ? await res.json() : null;
+    }""")
+    assert manifest and manifest.get("start_url"), "manifest 缺失或不可解析"
+    sizes = {icon.get("sizes") for icon in manifest.get("icons", [])}
+    assert {"192x192", "512x512"} &lt;= sizes, f"图标尺寸不足: {sizes}"
+
+    active = page.evaluate("""async () => {
+        const reg = await navigator.serviceWorker.getRegistration();
+        return Boolean(reg &amp;&amp; reg.active);
+    }""")
+    assert active, "Service Worker 未激活"
+
+    ctx.set_offline(True)
+    page.reload()
+    assert page.locator(".offline-banner").is_visible()
+    ctx.set_offline(False)
+    browser.close()</code></pre>
+
+        <h2>弱网、省电与低端机</h2>
+        <p>弱网不是「慢一点」，而是会暴露一串只在特定时序下出现的问题：请求超时阈值设得太短导致重试风暴，骨架屏与真实内容打架，图片懒加载在滚动停止后才触发导致大片空白。用 CDP 把下行限制到 400 kbps、延迟 300 毫秒，接近国内地铁里的 4G 体验，跑一遍主流程，很多「偶现」问题会变成必现。</p>
+        <p>省电模式的影响更隐蔽。iOS 低电量模式会降低动画帧率、推迟定时器，安卓省电策略可能直接限制后台网络。依赖 <code>setInterval</code> 轮询的页面会明显变慢，依赖动画结束事件推进流程的页面可能卡住。打开省电模式走一遍支付流程，比重装十次 App 有用。</p>
+        <p>低端机的瓶颈在内存与主线程。一台 3GB 内存的安卓机打开含大量图片的长列表，很容易触发页面重载，用户看到的是「莫名其妙回到首页」。这类问题只能真机验证，模拟器有无限的 CPU 和内存，永远复现不了。</p>
+        <div class="code-head"><span>python — 弱网与首屏耗时采样</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>cdp = ctx.new_cdp_session(page)
+cdp.send("Network.enable")
+cdp.send("Network.emulateNetworkConditions", {
+    "offline": False,
+    "latency": 300,                              # 往返延迟 300ms
+    "downloadThroughput": 400 * 1024 // 8,       # 400 kbps
+    "uploadThroughput": 400 * 1024 // 8,
+})
+
+page.goto("https://staging.example.com/", wait_until="load")
+lcp = page.evaluate("""() => new Promise((resolve) =&gt; {
+    new PerformanceObserver((list) =&gt; {
+        const last = list.getEntries().at(-1);
+        resolve(Math.round(last.startTime));
+    }).observe({ type: 'largest-contentful-paint', buffered: true });
+})""")
+print("弱网下 LCP(ms):", lcp)   # 记录趋势，不作为固定阈值</code></pre>
+
+        <h2>H5、原生与小程序的边界</h2>
+        <p>同一个功能放在 H5 还是原生里，测试成本差一个量级。H5 的优势是发版快、跨平台、可回滚；劣势是性能受 WebView 限制、系统能力要靠桥接、离线能力弱。原生在动画、相机、蓝牙、推送这些场景无可替代。<a class="ilink" href="app-miniprogram-testing.html">小程序</a>则是另一套运行时，包体积、域名白名单、权限模型都由平台规定，不能简单当作「套壳 H5」来测。</p>
+        <p>边界判断有个实用办法：看这个功能是否依赖系统能力或高频交互。依赖相机、定位、蓝牙、后台推送的，放原生；以内容展示、表单、活动页为主的，放 H5；需要社交裂变、平台流量入口的，放小程序。落到测试上就是三套验收清单，不能拿 H5 的清单去覆盖小程序，否则一定会漏掉授权弹窗、分包加载与审核版本差异。</p>
+        <p>混合应用还要关注容器。WebView 的内核版本由 App 决定，不是用户浏览器版本；同一份 H5 在系统浏览器里正常，在 App 内嵌页里可能因容器禁用某些 API 而失败。提缺陷时务必写清容器版本，否则开发按 Chrome 最新版排查，方向从一开始就错了。</p>
+
+        <h2>自动化取舍：模拟器、真机与云真机</h2>
+        <p>模拟器的优势是免费、可并行、可进 CI，适合跑布局巡检、断点回归、PWA 基础检查这类确定性强的用例。它跑的是桌面内核加设备模拟，字体、滚动、键盘、系统手势都不是真的。真机的优势是真实，但设备要人管、无法大规模并行、稳定性差，适合发版前的人工抽检和疑难问题复现。云真机在两者之间：真实的设备与系统，按需租用，能进流水线，代价是费用与网络延迟。</p>
+        <p>建议按覆盖面分配：模拟器承担七成自动化用例，云真机承担两成关键链路（登录、支付、PWA 安装），剩下一成留给本地真机做探索性测试。别追求所有用例都上真机，维护成本会吞掉收益；也别只跑模拟器，那样等于没测 iOS。</p>
+        <p>还有一点必须说清：Playwright 的 WebKit 不等于 iOS Safari。它共用 WebKit 内核，但缺少 iOS 的系统级行为，安全区、滚动回弹、键盘、安装流程都不一致。要验证这些，只有真机或云真机。</p>
+        <div class="code-head"><span>yaml — 双内核布局巡检</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>jobs:
+  mobile-web:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install pytest pytest-playwright
+      - run: playwright install --with-deps ${{ matrix.project }}
+      - run: pytest tests/mobile_web -q
+          --browser=${{ matrix.project }}
+          --browser-channel=${{ matrix.project == 'chromium' &amp;&amp; 'chrome' || '' }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: traces-${{ matrix.project }}
+          path: test-results</code></pre>
+
+        <h2>iOS Safari 与 Android Chrome 差异清单</h2>
+        <p>两家的差异不是细节，而是会改变验收结论的项。最典型的是视口高度：Safari 地址栏随滚动收起展开，<code>100vh</code> 在加载时按展开状态计算，底部内容会被裁；Chrome 也有同类问题，但地址栏行为不同，裁切位置不一样。全屏布局必须用动态视口单位，并在两端各测一次。</p>
+        <p>安装与推送差异更大。Chrome 支持 <code>beforeinstallprompt</code>，可自定义安装引导；Safari 没有这个事件，只能提示用户点分享按钮添加到主屏幕。推送方面，Safari 要求先把站点安装到主屏幕，权限模型与 Chrome 完全不同。日期选择器、聚焦缩放、橡皮筋回弹、文件上传的相机选项，各家行为也各不相同。</p>
+        <p>把这份清单固化成验收表，比记住结论更有用。每次发版按表逐项打勾，新同学也能在半小时内完成两端的基础验收。</p>
+        <table>
+          <thead>
+            <tr><th>检查点</th><th>iOS Safari</th><th>Android Chrome</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>安装引导</td><td>无安装事件，需手动添加到主屏幕</td><td>支持 beforeinstallprompt，可自定义按钮</td></tr>
+            <tr><td>推送通知</td><td>需先安装到主屏幕，权限更严格</td><td>网页可直接申请通知权限</td></tr>
+            <tr><td>视口高度</td><td>地址栏收展改变高度，100vh 易裁切</td><td>同类问题，但折叠时机不同</td></tr>
+            <tr><td>输入框聚焦</td><td>字号小于 16px 会自动放大页面</td><td>一般不缩放，键盘压缩视口</td></tr>
+            <tr><td>滚动行为</td><td>整页橡皮筋回弹，fixed 重绘延迟</td><td>多为局部回弹，行为相对稳定</td></tr>
+            <tr><td>存储限制</td><td>长期未访问站点可能被清理存储</td><td>配额较宽，清理策略不同</td></tr>
+          </tbody>
+        </table>
+
+        <h2>上线前检查清单</h2>
+        <p>最后给一份可以直接贴进发版单的清单。它不追求穷举，只保证每次发版覆盖那些「漏掉就会线上出丑」的项。其余部分交给探索性测试，别指望表格覆盖所有边界。</p>
+        <ul>
+          <li>三个视口数值已采集，<code>meta viewport</code> 含 <code>viewport-fit=cover</code></li>
+          <li>320 到 1280 各断点无横向溢出，越界元素已记录</li>
+          <li>真机上完成过「聚焦输入、弹出键盘、收起、再点击」的完整链路</li>
+          <li>底部固定栏与安全区叠加正确，正文未被遮挡</li>
+          <li>弱网（400 kbps / 300 ms）下主流程可完成，无重试风暴</li>
+          <li>PWA 五项逐条通过，更新提示在真机上验证过</li>
+          <li>iOS Safari 与 Android Chrome 差异清单已逐项打勾</li>
+        </ul>
+        <div class="callout warn"><p>一个常见误判：在 Chrome 设备模式里看到「iPhone 12 Pro」就以为测了 iOS。那只是把视口和像素比改成 iPhone，内核仍是 Chromium。凡是涉及安全区、软键盘、安装引导、系统手势的结论，都必须来自真机。</p></div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Visual_Viewport_API" target="_blank" rel="noopener">Visual Viewport API — MDN</a></li>
+            <li><a href="https://web.dev/articles/viewport" target="_blank" rel="noopener">配置 viewport 与移动端布局 — web.dev</a></li>
+            <li><a href="https://web.dev/learn/pwa/service-workers" target="_blank" rel="noopener">Service Worker 与缓存策略 — web.dev</a></li>
+            <li><a href="https://developer.mozilla.org/en-US/docs/Web/Manifest" target="_blank" rel="noopener">Web App Manifest 字段说明 — MDN</a></li>
+            <li><a href="https://playwright.dev/python/docs/emulation" target="_blank" rel="noopener">设备与网络模拟 — Playwright Docs</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#mobile-web</span>
+          <span class="tag">#responsive</span>
+          <span class="tag">#pwa</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

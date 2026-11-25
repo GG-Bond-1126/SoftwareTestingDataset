@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APP 兼容性测试：系统版本 / 分辨率 / 厂商 ROM · 软件测试资料集</title>
+<meta name="description" content="用用户占比乘风险剪裁兼容矩阵，覆盖 Android 与 iOS 版本变更、屏幕形态、厂商 ROM 差异与缺陷取证。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-compatibility-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="APP 兼容性测试：系统版本 / 分辨率 / 厂商 ROM">
+<meta property="og:description" content="用用户占比乘风险剪裁兼容矩阵，覆盖 Android 与 iOS 版本变更、屏幕形态、厂商 ROM 差异与缺陷取证。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-compatibility-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="APP 兼容性测试：系统版本 / 分辨率 / 厂商 ROM">
+<meta name="twitter:description" content="用用户占比乘风险剪裁兼容矩阵，覆盖 Android 与 iOS 版本变更、屏幕形态、厂商 ROM 差异与缺陷取证。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"APP 兼容性测试：系统版本 / 分辨率 / 厂商 ROM","description":"用用户占比乘风险剪裁兼容矩阵，覆盖 Android 与 iOS 版本变更、屏幕形态、厂商 ROM 差异与缺陷取证。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-compatibility-testing.html","articleSection":"APP 自动化","keywords":"compatibility, app-testing, android","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>21 min read</span>
+        </div>
+        <h1>APP 兼容性测试：系统版本 / 分辨率 / 厂商 ROM</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="app-compatibility-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>谁需要这篇，它解决什么问题</h2>
+        <p>如果你接手一个在线跑了两三年的 App，老板问「我们到底支持哪些机型」，而你手上只有发布说明里一句 Android 8 以上，这篇就是写给你的。兼容性测试的两个极端很常见：只在自己的开发机上点两下就发版，或者列一张两千个组合的矩阵然后没人执行。前者把风险转给用户，后者把工作量转给测试自己。</p>
+        <p>兼容性缺陷往往只在某个厂商的某个 ROM 版本上出现，开发本地复现不了，日志里也没有堆栈，唯一证据是用户截图。所以核心不是多测几台，而是用有限设备覆盖住会出问题的那部分用户。下面按可执行路线展开：划边界、剪矩阵、拆版本变更、看屏幕与语言、查厂商 ROM、补资源耗尽场景，最后给取证模板和检查清单。</p>
+
+        <h2>先定支持边界：最低版本不是拍脑袋</h2>
+        <p>最低版本由三个输入决定。第一是后台真实的版本分布，不是第三方统计站的全球数据，同一个 App 在不同城市的分布可能差出两个大版本。第二是技术依赖：targetSdk 要求、三方 SDK 的下限、想用的新 API。第三是支持成本：多一个大版本就多一行回归，长尾机型的适配工时往往高于它带来的收入。</p>
+        <p>算笔账。假设 Android 9 及以下只占活跃用户 2.4%（示例值），而为了它每次发版多跑一轮老系统回归、多维护一套分支，成本约占总测试工时 15%。把 minSdk 提到 10，让商店直接过滤，比让用户装上再闪退体面。边界要写进发布说明、商店描述和客服话术，三处口径一致，每季度用后台数据复核一次。</p>
+
+        <h2>兼容性矩阵：用用户占比乘风险剪裁</h2>
+        <p>系统版本、厂商、分辨率做笛卡尔积，8 乘 50 乘 5 就是两千个组合。这个数字只能证明全量测试不可行，真正能做的是给候选设备打分，按预算取头部。</p>
+        <p>评分用「用户占比的平方根乘风险系数」。开平方是为了压住头部机型的垄断，避免占比 30% 的机型挤掉全部长尾，而长尾里往往藏着最脏的 ROM 问题。风险系数由业务和测试共同评估，支付、登录、推送给高值。矩阵强制保留最低和最新版本各一台，同一厂商同一大版本只留一台。</p>
+        <p>预算控制在十到十五台真机，其余用云测补。上线后把崩溃和客诉机型反填进来，保留两成机动名额。矩阵要随版本分布、大促和新 ROM 重算。</p>
+        <p>取舍是自建还是云测。自建随时调试、能刷机能抓完整日志，但采购维护贵、机型更新慢；云测机型全、按分钟计费，但调试受限、私有包上传要走合规。常见组合是核心十台自建，长尾用云。</p>
+
+        <div class="code-head"><span>python — 按占比与风险挑选机型</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import csv
+from dataclasses import dataclass
+
+
+@dataclass
+class Device:
+    model: str
+    vendor: str
+    os_version: str
+    share: float   # 后台活跃用户占比，示例值
+    risk: float    # 业务风险系数 1.0 到 3.0，人工评估
+
+
+def score(device: Device) -&gt; float:
+    # 开平方压住头部机型，避免占比 30% 的机型挤掉全部长尾
+    return device.share ** 0.5 * device.risk
+
+
+def pick(devices, budget=12, must_have=("Android 15", "iOS 18")):
+    chosen = [d for d in devices if d.os_version in must_have]
+    for device in sorted(devices, key=score, reverse=True):
+        if len(chosen) &gt;= budget:
+            break
+        if device in chosen:
+            continue
+        same_branch = any(
+            c.vendor == device.vendor
+            and c.os_version.split(".")[0] == device.os_version.split(".")[0]
+            for c in chosen
+        )
+        if same_branch:
+            continue
+        chosen.append(device)
+    return chosen
+
+
+with open("device_share.csv", encoding="utf-8") as fp:
+    pool = [
+        Device(row["model"], row["vendor"], row["os_version"],
+               float(row["share"]), float(row["risk"]))
+        for row in csv.DictReader(fp)
+    ]
+
+for item in pick(pool):
+    print(f"{item.vendor:8} {item.model:16} {item.os_version:9} {score(item):.2f}")</code></pre>
+
+        <h2>Android 版本行为变更：四个最容易翻车的开关</h2>
+        <p>Android 的兼容问题八成集中在 targetSdk 与设备版本的交叉点。targetSdk 决定按哪套规则运行，设备版本决定系统提供什么能力。设备升级是被动的，targetSdk 被商店推着抬，两条线一交叉就出现只在某个区间复现的问题。</p>
+        <table>
+          <thead>
+            <tr><th>版本</th><th>关键行为变更</th><th>最典型的失败表现</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Android 10</td><td>分区存储可临时豁免、后台定位拆成独立权限</td><td>公共目录读写失败、后台定位被拒</td></tr>
+            <tr><td>Android 11</td><td>分区存储强制、一次性权限与权限自动重置</td><td>老路径迁移失败、撤销权限后功能静默</td></tr>
+            <tr><td>Android 12</td><td>模糊定位、蓝牙新权限、PendingIntent 可变性</td><td>精确定位降级、蓝牙扫描拿不到结果</td></tr>
+            <tr><td>Android 13</td><td>通知运行时权限、细分媒体权限</td><td>通知不弹、相册只能看到部分图片</td></tr>
+            <tr><td>Android 14</td><td>前台服务类型强制、部分照片访问</td><td>前台服务启动被拒、选图范围异常</td></tr>
+            <tr><td>Android 15</td><td>edge-to-edge 强制、前台服务超时</td><td>状态栏遮挡内容、后台任务被中断</td></tr>
+          </tbody>
+        </table>
+        <p>分区存储是典型一课。Android 10 引入，targetSdk 29 可临时豁免；11 起强制，豁免失效。表现不是崩溃，而是读写公共目录抛 EACCES，或写进去的图库看不到。后台定位在 10 拆成独立权限，12 又分精确与模糊，只给模糊时功能静默降级。通知在 13 变成运行时权限，不申请就永远不弹。前台服务类型在 14 强制声明，少写一个 type 直接抛 MissingForegroundServiceTypeException。</p>
+        <p>每个涉及权限的版本至少覆盖三条路径：首次拒绝、使用中撤销、自动重置后再次进入。只测首次安装是最常见的漏测。</p>
+
+        <div class="code-head"><span>shell — 权限与前台服务验证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 设备系统版本与包的 targetSdk
+adb shell getprop ro.build.version.sdk
+adb shell dumpsys package com.demo.app | grep -E "targetSdk|versionName"
+
+# 查看运行时权限的当前状态
+adb shell dumpsys package com.demo.app | grep -A3 "runtime permissions"
+
+# 撤销通知权限，模拟用户手动关闭
+adb shell pm revoke com.demo.app android.permission.POST_NOTIFICATIONS
+
+# 模拟系统把长期未使用的应用置为不活跃并重置权限（Android 11+）
+adb shell am set-inactive com.demo.app true
+
+# 前台服务被拒时，ActivityManager 会留下明确日志
+adb logcat -d -s ActivityManager:W | grep -i "foreground service"</code></pre>
+
+        <h2>iOS：版本能力差异与机型安全区</h2>
+        <p>iOS 差异集中在系统入口和隐私弹窗。iOS 14 的 ATT 弹窗只出现一次，拒绝后无法再唤起；16 起读剪贴板会弹系统提示，自动识别口令变得尴尬；17 要求隐私清单，缺失在开发期不报错，只在提审被拒。</p>
+        <p>机型适配的核心是几何。4.7 寸没有刘海，安全区更窄；灵动岛顶部多一块不可用区域；iPad 上可能以分屏、侧拉或台前调度出现，窗口尺寸随时变化。用安全区约束而不是写死状态栏高度。</p>
+        <p>一台小屏、一台主流、一台 iPad 能覆盖绝大多数几何问题；版本差异用模拟器补，但相机、定位、通知、生物识别必须真机。</p>
+
+        <h2>屏幕与形态：分辨率、DPI、异形屏、折叠屏、平板</h2>
+        <p>布局用 dp 不用像素。360dp 宽的布局在 1080p 和 1440p 上都能铺满，真正决定形态的是最小宽度和密度。密度决定 1dp 对应多少像素，也决定切图取哪一档；高分屏图标发糊，多半是只放了一套低密度图。</p>
+        <p>异形屏看三处：刘海挖孔、状态栏高度、底部手势条。全屏播放、地图、扫码页最容易被挡。折叠屏的展开不是旋转，而是配置变更，Activity 可能重建，滚动位置和输入内容会丢。平板分屏同理，窗口跨过 sw600dp，布局要自动切换。</p>
+        <p>不用逐机型手点，把长列表、表单、底部导航、弹窗、键盘、横屏视频各过一遍，在最小宽度、最大宽度、大字体三种条件下各看一次。</p>
+
+        <div class="code-head"><span>shell — 屏幕、密度与形态切换</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 当前窗口与密度
+adb shell wm size
+adb shell wm density
+
+# 模拟平板或折叠屏展开后的窗口（示例值，按目标机型调整）
+adb shell wm size 1768x2208
+adb shell wm density 320
+
+# 观察窗口变化是否触发 Activity 重建
+adb logcat -c
+adb shell wm size 2208x1840
+adb logcat -d | grep -E "onConfigurationChanged|com.demo.app"
+
+# 还原，避免影响后续用例
+adb shell wm size reset
+adb shell wm density reset</code></pre>
+
+        <h2>大字体、暗黑模式与多语言</h2>
+        <p>大字体最容易被忽略。调到 1.3 甚至 2.0 倍后，标题截断、按钮换行撑高、底部导航挤在一起。<a class="ilink" href="ai-defect-rootcause.html">根因</a>多是固定 dp 高度或写死宽高。测试要从系统设置改，不是 App 内开关。</p>
+        <p>暗黑模式两类问题：颜色硬编码；图片与 WebView 没有深色版本，被厂商强制深色反转成黑底黑字。force dark 会反转未适配的自绘控件，不崩溃，只让用户截图投诉。</p>
+        <p>多语言与 RTL 是另一维。德语俄语词长是中文两三倍，按钮最先撑破；阿拉伯语要整体镜像，箭头、进度条、轮播方向都要翻；泰语行高更高，固定行高会裁字。日期货币格式走系统本地化。</p>
+        <p>镜像方式有取舍：系统自动镜像成本低，但自定义绘制不会翻转；手工两套布局精确，但每次改 UI 都要改两遍。</p>
+
+        <div class="code-head"><span>shell — 字体、深色与 RTL 开关</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 系统字体放大到 1.3 倍，模拟设置里的字体大小
+adb shell settings put system font_scale 1.3
+
+# 切换深色模式
+adb shell cmd uimode night yes
+
+# 强制 RTL 布局，验证镜像是否正确
+adb shell settings put global debug.force_rtl 1
+
+# 检查当前语言与地区
+adb shell getprop persist.sys.locale</code></pre>
+
+        <h2>厂商 ROM：四个高危差异点</h2>
+        <p>厂商 ROM 改的不是 API 而是行为。第一类保活与自启动：华为、小米、OPPO、vivo 各有启动管理，默认限制关联启动和后台驻留，推送通道被清后消息要等下次打开。第二类后台限制：除系统级的后台启动 Activity 限制，厂商还拦截后台弹窗、限制后台定位，前台服务有时要用户手动确认。</p>
+        <p>第三类权限弹窗二次确认，原生授权一次就结束，ROM 可能再弹自家确认框，或把通知、悬浮窗、自启动收进权限管理页。拒绝后不再弹，功能静默失效。第四类深色实现差异，强制深色会把 WebView 和自绘控件一起反转。</p>
+        <p>还有两个高频点：手势导航的侧滑返回区与横滑抽屉冲突；分屏小窗下 Activity 重建导致白屏。这两类问题在原生系统不一定复现，必须上对应品牌真机。取证先拿设备指纹：型号、ROM 版本、构建指纹、API 级别。</p>
+
+        <div class="code-head"><span>shell — ROM 指纹与后台受限验证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 设备指纹：判断具体是哪家 ROM
+adb shell getprop ro.product.model
+adb shell getprop ro.build.version.release
+adb shell getprop ro.build.fingerprint
+adb shell getprop ro.miui.ui.version.name    # 小米
+adb shell getprop ro.build.version.emui      # 华为
+
+# 打入受限待机分组，近似模拟厂商省电策略
+adb shell am set-standby-bucket com.demo.app restricted
+
+# 观察进程是否还活着、推送连接是否还在
+adb shell dumpsys activity processes | grep com.demo.app
+adb logcat -d -t 50 -s PushService:V</code></pre>
+
+        <h2>低内存与低存储：不是慢，是崩</h2>
+        <p>低内存的典型表现不是慢，而是回来就没了。用户填了一半地址，切去微信再回来，页面被重建，输入全丢；或切回时白屏几秒。根因是后台进程被回收而没做状态恢复，大图列表和多路视频会加速这个过程。</p>
+        <p>测试手段三个：开发者选项的不保留活动；低内存模拟器或低配真机；反复切前后台并同时开大应用。观察 onTrimMemory 的级别和恢复后的状态。</p>
+        <p>低存储是另一条线。剩余几百兆（示例值）时，下载、解压、数据库写入、拍照保存会集中失败。升级尤其危险，下载加解压需要接近两倍临时空间，空间不足会升级失败甚至留下损坏的数据库。实现必须给出可读提示和恢复路径。</p>
+
+        <div class="code-head"><span>shell — 低内存与低存储模拟</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 不保留活动：每次离开页面即销毁，暴露状态恢复问题
+adb shell settings put global always_finish_activities 1
+
+# 关注 TOTAL 与 Java Heap，确认是否存在大图常驻
+adb shell dumpsys meminfo com.demo.app
+
+# 主动回收后台进程，再切回前台看恢复情况
+adb shell am kill com.demo.app
+
+# 低存储：先看剩余空间，再用模拟器磁盘配额压到临界值
+adb shell df -h /data
+
+# 记得还原，否则后续用例都会被销毁页面
+adb shell settings put global always_finish_activities 0</code></pre>
+
+        <h2>兼容性缺陷的取证与归档</h2>
+        <p>兼容缺陷最贵的不是修，是复现。开发在自己手机上跑十次都正常，因为没有那台设备、那个 ROM、那个权限状态。取证第一原则：任何一项都不能靠回忆补。型号、ROM、构建指纹、API、屏幕与密度、字体缩放、深色、语言、网络，是基础字段。</p>
+        <p>第二原则记第一次出现，当前版本只能说明问题还在，首次出现的构建号才能定位是哪次改动引入的。第三原则附件齐全：截图、录屏、logcat、最小步骤，并写清复现率。</p>
+        <p>归档按机型与 ROM 建目录，附件用用例名加时间命名，缺陷单放链接。半年后回看，能快速判断是机型特例还是普遍回归。</p>
+
+        <div class="code-head"><span>python — 兼容性缺陷记录模板</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+from datetime import datetime
+from pathlib import Path
+
+record = {
+    "case": "checkout_coupon_apply",
+    "first_bad_build": "5.8.2 (20261112)",
+    "current_build": "5.8.4 (20261121)",
+    "device": {
+        "model": "Redmi K60",
+        "rom": "MIUI 14.0.6",
+        "fingerprint": "Redmi/k60/mondrian:13/TKQ1.221114.001/V14.0.6.0:user/release-keys",
+        "api": 33,
+        "screen": "1220x2712",
+        "density": 440,
+        "font_scale": 1.0,
+        "dark_mode": True,
+        "locale": "zh-CN",
+        "network": "5G",
+    },
+    "steps": [
+        "登录后进入结算页",
+        "输入优惠券 MOCK10 并点击使用",
+        "返回订单页查看应付金额",
+    ],
+    "expected": "应付金额扣减 10 元",
+    "actual": "金额未变，按钮恢复为可点击状态",
+    "repro": "6/10",
+    "attachments": ["01-fail.png", "02-run.mp4", "logcat.txt"],
+}
+
+stamp = datetime.now().strftime("%Y%m%d%H%M")
+path = Path("compat_bugs") / f'{record["case"]}_{stamp}.json'
+path.parent.mkdir(exist_ok=True)
+path.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")</code></pre>
+
+        <h2>常见坑与排查</h2>
+        <p><strong>现象</strong>：CI 上一条版本判断用例直接报 <code>TypeError: '&gt;=' not supported between instances of 'str' and 'int'</code>。<strong>原因</strong>：capabilities 里的 platformVersion 是字符串，直接和数字比较。<strong>解法</strong>：先切分取主版本再转 int，不要用字符串比大小，字典序里 9 是大于 10 的。</p>
+        <p><strong>现象</strong>：功能在测试机上全部正常，上线后低端机大量白屏。<strong>原因</strong>：测试设备全是 12GB 内存的旗舰，低端 3GB 机型加载大图时 OOM。<strong>解法</strong>：矩阵里至少保留一台低配机，或用低内存模拟器跑主流程。</p>
+        <p><strong>现象</strong>：权限功能在部分用户那里完全不工作，日志无异常。<strong>原因</strong>：Android 11 的权限自动重置，加上二次拒绝后系统不再弹窗，代码没有检查 shouldShowRequestPermissionRationale。<strong>解法</strong>：所有权限点都要有拒绝后引导去设置的兜底路径。</p>
+        <p><strong>现象</strong>：某品牌手机上自绘的图表变成黑底黑字。<strong>原因</strong>：ROM 的强制深色对未适配控件做了颜色反转。<strong>解法</strong>：在主题里声明不跟随强制深色，或给自绘控件显式指定颜色。另一类高频问题是折叠屏展开后页面错位、输入内容丢失，原因是没有处理配置变更导致 Activity 重建，解法是声明 configChanges 并手动适配，或用 ViewModel 保存状态。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>把兼容性验证压缩成一张表放进发版流程，任意一项不通过就不进灰度。它保证不了零缺陷，但能保证每次发版都清楚风险落在哪里。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>通过标准</th><th>覆盖范围</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>最低版本安装启动</td><td>冷启动无崩溃，首屏可交互</td><td>最低支持版本</td></tr>
+            <tr><td>权限全路径</td><td>首次拒绝、撤销、自动重置后均有兜底</td><td>Android 10 及以上</td></tr>
+            <tr><td>通知可达</td><td>申请权限后能收到，通道未被默认关闭</td><td>Android 13 及以上</td></tr>
+            <tr><td>后台任务</td><td>前台服务类型声明完整，后台不被静默清理</td><td>Android 12 到 15</td></tr>
+            <tr><td>屏幕形态</td><td>小屏、大屏、折叠、分屏布局均可用</td><td>全部机型</td></tr>
+            <tr><td>字体与深色</td><td>1.3 到 2.0 倍字体不截断，深色可读</td><td>全部机型</td></tr>
+            <tr><td>语言与 RTL</td><td>长词不撑破，镜像方向正确</td><td>目标语言</td></tr>
+            <tr><td>厂商 ROM</td><td>保活、权限、深色、手势四项通过</td><td>华为、小米、OPPO、vivo</td></tr>
+            <tr><td>低资源</td><td>低内存可恢复，低存储有明确提示</td><td>低配机与模拟器</td></tr>
+            <tr><td>取证归档</td><td>每个失败都带设备指纹与附件</td><td>全部用例</td></tr>
+          </tbody>
+        </table>
+        <p>表格每一项都对应一个可复现的失败场景；有人以用户少为由要求跳过时，回到矩阵看占比和风险分，而不是凭感觉放过。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://developer.android.com/about/versions/11/behavior-changes-11" target="_blank" rel="noopener">Android 11 行为变更：分区存储与权限 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/about/versions/13/behavior-changes-13" target="_blank" rel="noopener">Android 13 行为变更：通知权限与媒体权限 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/about/versions/14/changes/fgs-types-required" target="_blank" rel="noopener">Android 14 前台服务类型强制要求 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/training/data-storage/shared/media" target="_blank" rel="noopener">访问共享存储中的媒体文件 — Android Developers</a></li>
+            <li><a href="https://developer.apple.com/documentation/bundleresources/privacy_manifest_files" target="_blank" rel="noopener">Privacy Manifest Files — Apple Developer</a></li>
+            <li><a href="https://developer.android.com/guide/topics/large-screens/get-started-with-large-screens" target="_blank" rel="noopener">Large screens 适配入门 — Android Developers</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#compatibility</span>
+          <span class="tag">#app-testing</span>
+          <span class="tag">#android</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

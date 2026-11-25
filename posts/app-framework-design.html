@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APP 自动化测试设计：PO 模式 + 数据驱动 · 软件测试资料集</title>
+<meta name="description" content="移动端 PO 差异、五层分层、业务动作设计、YAML 数据驱动、账号池与并发 driver 管理，附目录树与检查清单。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-framework-design.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="APP 自动化测试设计：PO 模式 + 数据驱动">
+<meta property="og:description" content="移动端 PO 差异、五层分层、业务动作设计、YAML 数据驱动、账号池与并发 driver 管理，附目录树与检查清单。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-framework-design.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="APP 自动化测试设计：PO 模式 + 数据驱动">
+<meta name="twitter:description" content="移动端 PO 差异、五层分层、业务动作设计、YAML 数据驱动、账号池与并发 driver 管理，附目录树与检查清单。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"APP 自动化测试设计：PO 模式 + 数据驱动","description":"移动端 PO 差异、五层分层、业务动作设计、YAML 数据驱动、账号池与并发 driver 管理，附目录树与检查清单。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-framework-design.html","articleSection":"APP 自动化","keywords":"app-automation, page-object, appium","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>22 min read</span>
+        </div>
+        <h1>APP 自动化测试设计：PO 模式 + 数据驱动</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="app-framework-design">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+
+        <h2>这篇文章写给谁</h2>
+        <p>大多数团队的 App 自动化都停在这个状态：Appium 装好了，登录、下单、查订单各写了一版脚本，跑也能跑。但每加一个页面，就要从旧文件里复制一段定位代码；产品把按钮文案从「立即购买」改成「马上抢」，十几个文件跟着改；某天开始回归任务的成功率从九成掉到六成，没人说得清是产品坏了还是脚本坏了。这篇写给正卡在这个阶段的一线测试工程师，目标是把一堆能跑的脚本，整理成三个月后还敢动手改的框架。</p>
+        <p>我不打算从「什么是 <a class="ilink" href="web-playwright-pagemodel.html">Page Object</a>」讲起，这个概念你早就知道了。真正难的是它在移动端的落地细节：一个界面该切成几个页面对象，页面对象对外暴露点击还是暴露业务动作，数据驱动的数据放 YAML 还是数据库，四台设备同时跑的时候 driver 怎么分。这些决定没有唯一答案，但每一种都有明确的代价，下面逐条拆开讲。</p>
+        <p>阅读前提：你会写 pytest，了解 Appium 的基本调用，手边至少有一台真机或模拟器。文中出现的耗时、比例都标注为示例值，来自一个中等规模电商 App 的实践，你的项目数字一定不同，请关注方法而不是数字本身。</p>
+
+        <h2>移动端 PO 和 Web PO 为什么不是一回事</h2>
+        <p>Web 的一个 page 对应一个 URL，路由切换时 DOM 被整体替换，边界天然清晰。移动端没有这个前提。一个所谓的页面往往由一个 Activity 承载多个 Fragment，底部导航切 Tab 时 Activity 不变、Fragment 换掉；一个商品详情页可能同时挂着半屏的规格选择浮层、顶部的营销横幅、底部的加购栏。这三块在代码里属于完全不同的模块，在用户眼里却是同一个页面。</p>
+        <p>更麻烦的是弹窗。首次启动的隐私协议、系统级的权限申请、版本升级提示、运营配置的签到浮层，这些都不在你的页面跳转链路里，却会随时盖在页面上。如果页面对象假定「进入这个页面，目标控件立刻可点」，那么任何一次弹窗出现都会让用例失败，而失败信息通常只是一句 element not found，从堆栈里看不出真正原因。</p>
+        <p>第三个差异是元素的生命周期。Web 元素在 DOM 里相对稳定，移动端列表用 RecyclerView 复用 ViewHolder，同一个 resource-id 会同时出现在屏幕上的多行里；滑动之后原来的元素对象直接失效，必须重新查找。所以移动端页面对象不能缓存 element 引用，只能缓存定位表达式，这是一个必须从一开始就遵守的约束。</p>
+        <p>结论：移动端的 PO 边界应该按「用户能感知的一个操作单元」来切，而不是按 Activity 类名或代码目录来切。登录是一个单元，商品详情连同规格浮层是一个单元，订单列表是一个单元。如果一个 Activity 里存在两个差异很大的界面状态，就拆成两个页面对象，把共用的部分放进 components。</p>
+
+        <h2>分层怎么切：五层职责与依赖方向</h2>
+        <table>
+          <thead>
+            <tr><th>层</th><th>该放什么</th><th>不该放什么</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>cases 用例</td><td>业务场景编排、断言、参数化入口</td><td>定位表达式、sleep、driver 初始化</td></tr>
+            <tr><td>pages 页面对象</td><td>一个界面单元的元素与业务动作</td><td>跨页面流程编排、临时测试数据</td></tr>
+            <tr><td>components 组件</td><td>弹窗、底部导航、日期选择器等跨页面复用块</td><td>具体业务断言</td></tr>
+            <tr><td>utils 工具</td><td>driver 工厂、配置加载、日志、接口客户端</td><td>任何业务语义</td></tr>
+            <tr><td>data 数据</td><td>YAML 用例、账号池、夹具数据</td><td>定位信息、可执行代码</td></tr>
+          </tbody>
+        </table>
+        <p>分层的目的只有一个：让变化只影响一层。产品挪了按钮位置，只动 pages；换了测试环境，只动 utils 和配置；加了新场景，只加 data。如果一次改动同时要动三层，说明分层切错了，这时候该回头改结构，而不是继续加 if 判断。</p>
+        <p>依赖方向必须单向：cases 依赖 pages，pages 依赖 components 与 utils，data 被 cases 读取。pages 绝对不能 import cases，utils 不能 import pages。这条规则听起来教条，但它是最快的分层健康检查——出现反向 import 的地方，往往就是把业务逻辑塞进了工具类，后面会越长越胖。</p>
+        <p>要不要单独留一层 business 业务层？小项目不需要，它只让调用链多跳一次，调试时多翻一个文件。等出现「同一串页面动作在五个用例里重复」时再抽，而且放在 cases 同级，不要塞回 pages，否则页面对象又变成了流程编排器。</p>
+
+        <h2>页面对象该暴露什么：业务动作优先</h2>
+        <p>最常见的错误写法是把基类的 find、click 直接透传给用例。看起来方便，实际上把定位细节泄漏到了用例里，定位一改，几十个用例文件都要动，PO 就白做了。下面这种代码在评审时应该被打回：</p>
+        <div class="code-head"><span>python — 反面写法</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>class LoginPage(BasePage):
+    def input_username(self, text):
+        self.driver.find_element(AppiumBy.ID, "com.demo.app:id/et_user").send_keys(text)
+
+    def input_password(self, text):
+        self.driver.find_element(AppiumBy.ID, "com.demo.app:id/et_pwd").send_keys(text)
+
+
+def test_login(driver):
+    page = LoginPage(driver, "com.demo.app")
+    page.input_username("qa_admin")
+    page.input_password("Passw0rd!")
+    # 定位直接写在用例里，按钮一改这里全废
+    driver.find_element(AppiumBy.ID, "com.demo.app:id/btn_login").click()</code></pre>
+        <p>正确做法是页面对象对外只暴露业务动作，返回下一个页面对象；点击、输入、滑动这类原子操作留在基类里作为内部实现。用例读起来应该像一句话：用管理员账号登录，得到首页。这样一来，定位变化被关在 pages 里，用例表达的是业务意图，review 的人也不需要具备 Appium 知识。</p>
+        <p>断言放哪，有两种做法，各有代价。放在页面对象里（例如 assert_error），用例最薄，但页面对象承担了测试职责，同一页面在不同用例里期望不一致时会打架；放在用例里，断言更灵活，但要求页面对象提供查询方法而不是直接 assert。我倾向前者用于「页面固有约束」，例如错误提示必定出现在输入框下方；后者用于「场景期望」，例如这次登录应该成功。实际项目混用是常态，关键是团队内统一，而不是每人一套。</p>
+        <p>另一个原则是：一个业务动作只做一次页面跳转。login() 里不要顺手把首页的引导弹窗也关掉，否则用例想单独验证引导弹窗时就没有入口了。这类附带动作应该放进 components 的 PopupHandler，由用例显式决定要不要调用。</p>
+        <div class="code-head"><span>python — pages/login_page.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>class LoginPage(BasePage):
+    # 关键控件要求开发加 contentDescription / accessibilityIdentifier，
+    # 这样 iOS 与 Android 可以用同一套定位表达式
+    ACCOUNT = (AppiumBy.ACCESSIBILITY_ID, "loginAccount")
+    PASSWORD = (AppiumBy.ACCESSIBILITY_ID, "loginPassword")
+    SUBMIT = (AppiumBy.ACCESSIBILITY_ID, "loginSubmit")
+    ERROR = (AppiumBy.ACCESSIBILITY_ID, "loginError")
+
+    def wait_ready(self):
+        self.find_visible(self.SUBMIT)
+        return self
+
+    def login_as(self, account, password):
+        self.type(self.ACCOUNT, account)
+        self.type(self.PASSWORD, password)
+        self.tap(self.SUBMIT)
+        return HomePage(self.driver, self.package)
+
+    def error_text(self):
+        return self.find_visible(self.ERROR).text</code></pre>
+        <p>如果暂时推动不了开发加无障碍标识，就按平台在类属性里分支，分支只允许出现在一个地方（页面的类属性区），用例里绝不能再出现 platformName 判断。把平台差异集中管理，是双端一套代码能不能撑过三个版本的关键。</p>
+
+        <h2>数据驱动：YAML 管场景，夹具管实体</h2>
+        <p>数据驱动最容易被做成「把参数塞进 parametrize 列表」。一开始没问题，用例涨到八十条之后，参数散落在十几个 py 文件里，没人敢删任何一条，因为谁也说不清它还有没有用。我的做法是：场景参数放 YAML，测试实体（用户、商品、优惠券）放夹具或通过接口现场创建，两者不混在一起。</p>
+        <p>判断标准很简单：如果这条数据需要跨用例复用、需要被非开发同学 review 业务含义，放 YAML；如果只在本用例有效、用完即弃（随机手机号、临时订单），就现场造。YAML 里禁止出现定位表达式和坐标，那是 pages 的职责，混进来以后数据文件就变成了第二种代码。</p>
+        <div class="code-head"><span>yaml — data/login_cases.yaml</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>- id: login_ok
+  title: 正确账号密码登录成功
+  account: "${account.admin.user}"
+  password: "${account.admin.password}"
+  expect: home
+  tags: [p0, smoke]
+
+- id: login_wrong_pwd
+  title: 密码错误时停留在登录页并提示
+  account: "${account.admin.user}"
+  password: "wrong_password"
+  expect: error
+  expect_text: 账号或密码错误
+  tags: [p0]
+
+- id: login_empty_pwd
+  title: 密码为空时提交按钮不可点
+  account: "${account.admin.user}"
+  password: ""
+  expect: submit_disabled
+  tags: [p1]</code></pre>
+        <p>注意 ${} 占位符：账号密码不进仓库，写在环境配置或 CI secret 里，加载时替换。把真实密码明文提交进 Git，是这类框架最常见的安全事故，而且往往是在半年后做代码审计时才被发现。</p>
+        <div class="code-head"><span>python — utils/case_loader.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+import re
+
+import yaml
+
+PLACEHOLDER = re.compile(r"\$\{([^}]+)\}")
+
+
+def _resolve(value, context):
+    if isinstance(value, str):
+        return PLACEHOLDER.sub(lambda m: str(context[m.group(1)]), value)
+    if isinstance(value, dict):
+        return {k: _resolve(v, context) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_resolve(v, context) for v in value]
+    return value
+
+
+def load_cases(path, context):
+    raw = yaml.safe_load(pathlib.Path(path).read_text(encoding="utf-8"))
+    cases, seen = [], set()
+    for item in raw:
+        missing = {"id", "title"} - item.keys()
+        if missing:
+            raise ValueError(f"{path} 缺少字段：{sorted(missing)}")
+        if item["id"] in seen:
+            raise ValueError(f"用例 id 重复：{item['id']}")
+        seen.add(item["id"])
+        cases.append(_resolve(item, context))
+    return cases</code></pre>
+        <p>挂载时用 conftest 里的 pytest_generate_tests 统一注入，用例文件只剩一行<a class="ilink" href="python-decorators.html">装饰器</a>；新增场景只改 YAML，代码零改动。代价是 IDE 的跳转能力变弱，失败时要回 YAML 看参数——所以 id 必须语义化，login_wrong_pwd 比 case_3 有用得多，失败报告里看 id 就知道测的是什么。</p>
+
+        <h2>配置与环境切换、账号池</h2>
+        <p>配置分三层合并，优先级从低到高：default.yaml 放超时、重试、端口这些不随环境变化的项；env 目录下按环境放域名、包名、接口地址；环境变量或命令行参数作为 CI 注入的覆盖项。合并只做一次，结果放进一个不可变对象，避免不同模块调用 get_config() 时拿到不同快照，排查时互相矛盾。</p>
+        <p>环境标识必须写进报告和日志。半年后有人问某条用例当时为什么通过，只有知道跑的是测试环境还是预发、装的包是哪个构建号，这个答案才有意义。构建号要写构建号，不要只写版本名，同版本的第三次构建和第一次是完全不同的东西。</p>
+        <p>账号池是移动端特有的麻烦：很多业务不允许同一账号多端同时在线。四条用例并发共用一个账号，后登录的会把前面的踢下线，表现为随机跳回登录页，而失败信息里只有一句找不到首页控件。做法是在配置里维护一组账号，按 worker 独占分配，用完归还；池子不够时宁可排队，也不要共享。</p>
+        <div class="code-head"><span>python — utils/account_pool.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import queue
+
+
+class AccountPool:
+    def __init__(self, accounts):
+        self._free = queue.Queue()
+        for account in accounts:
+            self._free.put(account)
+
+    def acquire(self, timeout=120):
+        # 池子耗尽时阻塞等待，而不是回退成共享账号
+        return self._free.get(timeout=timeout)
+
+    def release(self, account):
+        self._free.put(account)
+
+
+# conftest.py 中用 worker 维度隔离
+import pytest
+
+
+@pytest.fixture
+def account(pool):
+    item = pool.acquire()
+    try:
+        yield item
+    finally:
+        pool.release(item)</code></pre>
+
+        <h2>并发执行下的 driver 管理</h2>
+        <p>并发有三层：pytest 进程层、Appium server 层、设备层，三层必须一一对应。最常见的错误是所有 worker 连同一个端口，Appium 会按顺序串行处理 session 创建，看起来并发了，实际在排队，还容易出现 session 被覆盖，日志里出现两个用例交替的调用记录。</p>
+        <p>两种可行结构。其一是每台设备起一个 Appium server，端口 4723、4725 递增，worker 按序号取端口，隔离性好、排障简单，适合自建设备池；其二是单个 server 承载多 session，靠 server 内部调度，部署省事，但一台设备卡住时日志会混在一起，定位问题要多花不少时间。我们选前者，代价是要维护一个端口与设备的映射表。</p>
+        <p>driver 的生命周期按用例隔离，不要跨用例复用。复用能省掉几秒启动时间，但会把上一条用例的弹窗、登录态、页面栈带进下一条，失败原因极难定位，省下的时间会在排查上加倍还回去。如果启动时间确实是瓶颈，用深链或指定 Activity 直达目标页，而不是复用 driver。</p>
+        <div class="code-head"><span>python — utils/driver_factory.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from appium import webdriver
+from appium.options.android import UiAutomator2Options
+from appium.options.ios import XCUITestOptions
+
+
+class DriverFactory:
+    def __init__(self, config):
+        self.config = config
+
+    def build(self, device):
+        options = self._options_for(device)
+        url = f"http://127.0.0.1:{device['port']}"
+        return webdriver.Remote(url, options=options)
+
+    def _options_for(self, device):
+        if device["platform"] == "Android":
+            opts = UiAutomator2Options()
+            opts.udid = device["udid"]
+            opts.app_package = self.config["app_package"]
+            opts.app_activity = self.config["launch_activity"]
+            opts.new_command_timeout = 300
+            opts.set_capability("noReset", True)
+            return opts
+
+        opts = XCUITestOptions()
+        opts.udid = device["udid"]
+        opts.bundle_id = self.config["bundle_id"]
+        opts.new_command_timeout = 300
+        return opts</code></pre>
+        <p>三个容易漏的 capability 值得单独说：new_command_timeout 默认 60 秒，长用例或打断点调试时 session 会被服务端回收，表现为中途所有操作报 invalid session id；noReset 决定是否保留应用数据，回归环境通常设为 True 并自己控制清理时机；autoGrantPermissions 只对 Android 6 以上有效，iOS 的系统权限弹窗还得靠 XCUITest 的 alert 处理或预置权限。</p>
+
+        <h2>目录树与基类</h2>
+        <p>目录不需要复杂。下面这棵树是能跑三年的最小集合，每多加一层，通常说明职责没讲清，而不是层数不够。特别注意 data 与 config 的区分：data 是业务数据，config 是运行参数，混在一起以后，改环境会误伤用例数据。</p>
+        <div class="code-head"><span>tree — 推荐目录结构</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>app-auto/
+├── config/
+│   ├── default.yaml            # 超时、重试、端口
+│   ├── env/
+│   │   ├── test.yaml           # 测试环境域名、包名
+│   │   └── staging.yaml
+│   └── devices.yaml            # udid 与端口映射
+├── data/
+│   ├── login_cases.yaml
+│   └── accounts.yaml           # 只放用户名，密码走 secret
+├── pages/
+│   ├── base_page.py
+│   ├── login_page.py
+│   ├── home_page.py
+│   └── order_list_page.py
+├── components/
+│   ├── popup_handler.py        # 隐私协议、升级提示
+│   └── bottom_nav.py
+├── utils/
+│   ├── driver_factory.py
+│   ├── config_loader.py
+│   ├── case_loader.py
+│   └── logger.py
+├── tests/
+│   ├── conftest.py
+│   ├── test_login.py
+│   └── test_order.py
+└── reports/</code></pre>
+        <div class="code-head"><span>python — pages/base_page.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from appium.webdriver.common.appiumby import AppiumBy
+from appium.webdriver.webdriver import WebDriver
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+
+
+class BasePage:
+    def __init__(self, driver: WebDriver, package: str):
+        self.driver = driver
+        self.package = package
+        # 移动端渲染慢于 Web，默认等待放宽到 20 秒
+        self.wait = WebDriverWait(driver, 20, poll_frequency=0.5)
+
+    def find_visible(self, locator):
+        return self.wait.until(EC.visibility_of_element_located(locator))
+
+    def find_clickable(self, locator):
+        return self.wait.until(EC.element_to_be_clickable(locator))
+
+    def find_all(self, locator):
+        return self.driver.find_elements(*locator)
+
+    def tap(self, locator):
+        self.find_clickable(locator).click()
+
+    def type(self, locator, text):
+        element = self.find_visible(locator)
+        element.clear()
+        element.send_keys(text)
+
+    def swipe_by_ratio(self, start, end, duration=400):
+        width, height = self.driver.get_window_size().values()
+        x = width // 2
+        self.driver.swipe(x, int(height * start), x, int(height * end), duration)
+
+    def wait_gone(self, locator, timeout=10):
+        return WebDriverWait(self.driver, timeout).until(
+            EC.invisibility_of_element_located(locator)
+        )
+
+    def screenshot(self, name):
+        self.driver.get_screenshot_as_file(f"reports/{name}.png")</code></pre>
+        <p>基类里真正值得下功夫的只有三件事：等待、手势、截图。等待一律用<a class="ilink" href="web-wait-strategies.html">显式等待</a>，禁止 sleep，sleep 短了会 flaky、长了会拖慢全量；手势按屏幕比例换算，不要写死像素，否则换分辨率就失效；截图文件名带上用例 id 与设备短名，失败时不用再问是在哪台机器上挂的。</p>
+        <p>反过来，基类里不该有业务方法。一旦出现 login、is_vip 这类名字，就说明分层开始腐化，接下来每个人都会顺手往里塞两个方法，一年后它必然是几百行的上帝类，谁也说不清改一行会影响什么。</p>
+
+        <h2>什么时候不该上 PO</h2>
+        <p>PO 有确定成本：多一层抽象、多一次跳转，新人入职要先读基类才能改用例。有三种情况，直接写线性脚本更划算。一是一次性任务，比如只为复现一个线上 bug 写的临时代码，跑完就删，套 PO 纯属浪费。二是页面少且不做回归，只有三五个页面、只跑一两次的验收脚本，抽象收益低于阅读成本。三是强视觉场景，游戏、地图、视频播放器这类控件层级几乎不可读，只能靠图像匹配或坐标，PO 的定位层根本没有着力点，这时候该换图像辨识方案。</p>
+        <p>还有一种看起来该上、实际不该上的情况：团队只有一个人维护、用例不到三十条、版本节奏两周一次。此时引入完整分层，维护框架的时间会超过写用例本身。可以只做 BasePage 加 YAML 用例两步，等用例涨到八十条以上、出现第二个维护者，再补 components 与并发。</p>
+        <p>给一个土办法做判断：当你开始复制粘贴第二遍定位代码，就该抽 PO 了；当你开始复制粘贴第二遍页面对象里的业务流程，说明切分粒度错了，该往上抽一层，而不是继续往页面对象里堆方法。抽象是被重复逼出来的，不是一开始设计出来的。</p>
+
+        <h2>常见坑与排查</h2>
+        <p><strong>症状</strong>：单条用例在本地跑 8 秒，全量跑时每条 25 秒。<strong>原因</strong>：页面对象的 open 方法里每次调用 launch_app，把应用重启了一遍，还顺带等了一次开屏广告。<strong>处理</strong>：open 只做就绪等待，不负责启动；启动由 driver 创建时带上 app 或 activity 参数完成，需要回首页时用 navigate_back 或深链，而不是重启。</p>
+        <p><strong>症状</strong>：本地必过，CI 上随机挂，日志停在某个 click 之后没有下文。<strong>原因</strong>：元素被键盘或系统弹窗遮挡，坐标点在弹窗上，click 执行成功但点错了目标。<strong>处理</strong>：点击前先 hide_keyboard，并用 popup_handler 统一处理已知弹窗；click 之后加一条「期望控件消失或新页面就绪」的断言，让错误落在真正发生的位置。</p>
+        <p><strong>症状</strong>：改一个按钮的 resource-id，要改四十多个文件。<strong>原因</strong>：定位表达式被写进了 YAML 和用例，页面对象只是转发。<strong>处理</strong>：定位只允许出现在 pages 的类属性区；加一条 CI 检查，在 tests 与 data 目录里 grep find_element，命中即失败。</p>
+        <p><strong>症状</strong>：四台设备并行，总有一两条用例莫名跳回登录页。<strong>原因</strong>：账号池被共享，后登录的设备把前面的踢下线。<strong>处理</strong>：账号按 worker 独占，池子不足时排队；同时在用例开头断言当前已登录账号，出错时能立刻看出是被顶号而不是页面问题。</p>
+
+        <h2>上线前检查清单</h2>
+        <table>
+          <thead>
+            <tr><th>项</th><th>判断标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>定位归属</td><td>tests 与 data 目录内不再出现 find_element 与坐标</td></tr>
+            <tr><td>等待策略</td><td>全仓库 grep sleep 命中数为 0，或全部有注释说明原因</td></tr>
+            <tr><td>依赖方向</td><td>pages 不 import tests，utils 不 import pages</td></tr>
+            <tr><td>数据安全</td><td>仓库内无明文密码，账号来自 secret 或环境变量</td></tr>
+            <tr><td>并发隔离</td><td>账号与 driver 均按 worker 独占，池子不足时排队</td></tr>
+            <tr><td>失败可读</td><td>失败报告包含用例 id、环境、构建号、设备与截图</td></tr>
+            <tr><td>单条耗时</td><td>单条用例稳定在 15 秒以内（示例值，按业务复杂度调整）</td></tr>
+          </tbody>
+        </table>
+        <p>最后留一句判断标准：如果一套框架需要原作者在场才能改用例，那它就还没成为框架，只是一堆脚本。合格的框架应该让一个刚入职两周、只读过基类的同学，独立加上一条登录场景的用例，而不用问你任何问题。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://appium.io/docs/en/latest/guides/caps/" target="_blank" rel="noopener">Appium Capabilities 指南 — Appium</a></li>
+            <li><a href="https://www.selenium.dev/documentation/test_practices/encouraged/page_object_models/" target="_blank" rel="noopener">Page object models 设计说明 — Selenium</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/parametrize.html" target="_blank" rel="noopener">pytest 参数化文档 — pytest Docs</a></li>
+            <li><a href="https://pytest-xdist.readthedocs.io/en/stable/" target="_blank" rel="noopener">pytest-xdist 并发执行 — pytest-xdist</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#app-automation</span>
+          <span class="tag">#page-object</span>
+          <span class="tag">#appium</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

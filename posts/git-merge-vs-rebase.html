@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git 合并 vs 变基：测试工程师该选哪个 · 软件测试资料集</title>
+<meta name="description" content="讲清 merge 与 rebase 对提交图的影响、公共分支禁改历史、快进与 no-ff 取舍与 reflog 救援。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-merge-vs-rebase.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Git 合并 vs 变基：测试工程师该选哪个">
+<meta property="og:description" content="讲清 merge 与 rebase 对提交图的影响、公共分支禁改历史、快进与 no-ff 取舍与 reflog 救援。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-merge-vs-rebase.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Git 合并 vs 变基：测试工程师该选哪个">
+<meta name="twitter:description" content="讲清 merge 与 rebase 对提交图的影响、公共分支禁改历史、快进与 no-ff 取舍与 reflog 救援。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Git 合并 vs 变基：测试工程师该选哪个","description":"讲清 merge 与 rebase 对提交图的影响、公共分支禁改历史、快进与 no-ff 取舍与 reflog 救援。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-merge-vs-rebase.html","articleSection":"Git 版本控制","keywords":"git, rebase, merge","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>21 min read</span>
+        </div>
+        <h1>Git 合并 vs 变基：测试工程师该选哪个</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="git-merge-vs-rebase">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <figure class="article-figure">
+          <svg viewBox="0 0 720 344" width="100%" role="img" aria-labelledby="fig-git-1-title" xmlns="http://www.w3.org/2000/svg">
+            <title id="fig-git-1-title">同一组提交在 merge 与 rebase 下的提交图对比：merge 新增合并提交、原提交哈希不变且历史分叉；rebase 把提交重放到新基点，生成新哈希并丢弃旧提交；已推送的分支 rebase 会带来重复提交与哈希失效</title>
+            <defs>
+              <marker id="fig-git-1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--text-faint)"/>
+              </marker>
+            </defs>
+
+            <rect x="24" y="36" width="324" height="216" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="40" y="64" font-family="inherit" font-size="15" fill="var(--text)">merge：多一个合并提交</text>
+            <text x="38" y="98" font-family="inherit" font-size="11.5" fill="var(--text-faint)">main</text>
+            <text x="38" y="198" font-family="inherit" font-size="11.5" fill="var(--text-faint)">feature</text>
+
+            <line x1="76" y1="118" x2="142" y2="118" stroke="var(--text-faint)" stroke-width="1.4"/>
+            <line x1="142" y1="118" x2="208" y2="118" stroke="var(--text-faint)" stroke-width="1.4"/>
+            <line x1="208" y1="118" x2="296" y2="118" stroke="var(--text-faint)" stroke-width="1.4"/>
+            <line x1="142" y1="118" x2="224" y2="186" stroke="var(--text-faint)" stroke-width="1.4"/>
+            <line x1="224" y1="186" x2="296" y2="186" stroke="var(--text-faint)" stroke-width="1.4"/>
+            <line x1="296" y1="186" x2="296" y2="118" stroke="var(--text-faint)" stroke-width="1.4"/>
+
+            <circle cx="76" cy="118" r="13" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.2"/>
+            <text x="76" y="122" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text)">A</text>
+            <circle cx="142" cy="118" r="13" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.2"/>
+            <text x="142" y="122" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text)">B</text>
+            <circle cx="208" cy="118" r="13" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.2"/>
+            <text x="208" y="122" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text)">E</text>
+            <circle cx="224" cy="186" r="13" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.2"/>
+            <text x="224" y="190" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text)">C</text>
+            <circle cx="296" cy="186" r="13" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.2"/>
+            <text x="296" y="190" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text)">D</text>
+            <circle cx="296" cy="118" r="13" fill="rgba(61,220,132,0.12)" stroke="var(--accent)" stroke-width="1.4"/>
+            <text x="296" y="122" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--accent)">M</text>
+
+            <text x="38" y="238" font-family="inherit" font-size="11.5" fill="var(--text-dim)">C、D 不变，M 两个父</text>
+
+            <rect x="372" y="36" width="324" height="216" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="388" y="64" font-family="inherit" font-size="15" fill="var(--text)">rebase：提交被重放</text>
+            <text x="386" y="98" font-family="inherit" font-size="11.5" fill="var(--text-faint)">main</text>
+            <text x="386" y="198" font-family="inherit" font-size="11.5" fill="var(--text-faint)">feature</text>
+
+            <line x1="424" y1="118" x2="490" y2="118" stroke="var(--text-faint)" stroke-width="1.4"/>
+            <line x1="490" y1="118" x2="556" y2="118" stroke="var(--text-faint)" stroke-width="1.4"/>
+            <line x1="556" y1="131" x2="556" y2="173" stroke="var(--text-faint)" stroke-width="1.4"/>
+            <line x1="556" y1="186" x2="624" y2="186" stroke="var(--text-faint)" stroke-width="1.4"/>
+
+            <circle cx="424" cy="118" r="13" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.2"/>
+            <text x="424" y="122" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text)">A</text>
+            <circle cx="490" cy="118" r="13" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.2"/>
+            <text x="490" y="122" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text)">B</text>
+            <circle cx="556" cy="118" r="13" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.2"/>
+            <text x="556" y="122" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text)">E</text>
+            <circle cx="556" cy="118" r="19" fill="none" stroke="var(--amber)" stroke-width="1.2" stroke-dasharray="3 3"/>
+            <circle cx="556" cy="186" r="13" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.4"/>
+            <text x="556" y="190" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--cyan)">C'</text>
+            <circle cx="624" cy="186" r="13" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.4"/>
+            <text x="624" y="190" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--cyan)">D'</text>
+
+            <text x="580" y="114" font-family="inherit" font-size="11.5" fill="var(--amber)">已推送 = 风险位</text>
+            <text x="386" y="238" font-family="inherit" font-size="11.5" fill="var(--text-dim)">C、D 变不可达，只剩 reflog</text>
+
+            <rect x="24" y="272" width="672" height="56" rx="10" fill="rgba(230,180,80,0.14)" stroke="var(--amber)" stroke-width="1.4"/>
+            <text x="40" y="296" font-family="inherit" font-size="12.5" fill="var(--amber)">已推送不要 rebase：强推后同一改动出现两个哈希</text>
+            <text x="40" y="316" font-family="inherit" font-size="11.5" fill="var(--text-dim)">缺陷单与报告里的 sha 全部失效，同事 pull 后多出重复提交</text>
+          </svg>
+          <figcaption>图 1 · merge 保留分叉，rebase 重写哈希；已推送的分支别动</figcaption>
+        </figure>
+        <h2>谁该读这篇，以及为什么背口诀不管用</h2>
+        <p>假设你维护一套 pytest 加 Appium 的自动化用例，仓库里有四五个人同时提交。某天早上执行 <code>git pull</code>，终端返回 <code>fatal: Not possible to fast-forward, aborting</code>；或者推分支时被拒，提示远端有你没有的提交；再或者同事在群里问，你是不是把 develop 变基了，他那边凭空多出十几条重复提交。这些都不是罕见事故，它们的共同点是：只记住了「自己的分支可以 rebase，公共分支只能 merge」这句话，却没想过这句话为什么成立。</p>
+        <p>会 add、commit、push、开分支提 MR，这些技能大部分人都有。但一个提交在图上处于什么位置、哈希由什么决定、重写之后旧提交去了哪里，这三个问题很少人想过。不理解这一层，遇到冲突、强制推送、回滚这些真正要命的时刻，口诀一条也用不上。</p>
+        <p>下面按提交图、公共历史为什么不能改、合并策略怎么选、冲突与提交整理、出事怎么救的顺序展开。读完至少能回答三个问题：这条分支能不能 rebase；这次合入用 <code>--no-ff</code> 还是 squash；同事强推覆盖了我的提交，怎么捞回来。</p>
+
+        <h2>提交图：merge 与 rebase 各自改了哪一部分</h2>
+        <p>先立一个前提，后面所有现象都由它推出：Git 的提交是不可变对象，哈希由内容算出，内容包含目录树、父提交、作者信息、提交信息和时间戳。父提交换一个，算出来的哈希必然不同。所谓重写历史，本质就是「用相同或相近的补丁，在另一个父提交上重新生成一批新提交」。</p>
+        <p>merge 做的事是造一个新提交，把两条线连起来。这个提交有第一个父（你当前所在分支的末端）和第二个父（被合进来的分支末端）。原有提交一个字节都没动，哈希全部不变，历史呈现为分叉再汇合。好处是拓扑完整：你能看出这批改动从哪条分支来、什么时候进来、和哪些改动一起进来。</p>
+        <p>rebase 做的事是把一串提交在另一个基点上重放。Git 逐个取出每个提交相对其父的补丁，依次应用到新基底上，于是 C 变成 C'、D 变成 D'。因为父提交从 A 换成了 B，哈希全变，原来的 C、D 变成不可达对象，只有 reflog 还指着它们，直到垃圾回收把它们清掉。</p>
+        <p>两个后果值得单独记住。第一是冲突次数：merge 只在最后汇合时解一次冲突，rebase 每搬一个提交都可能冲突一次，五个提交最多解五次。第二是时间：rebase 保留原作者和作者时间，但提交者变成你、提交时间变成当下，所以同一条提交在 <code>git log</code> 里会出现两个不同的日期，某些按提交者时间排序的工具，显示顺序会和你以为的不一样。</p>
+        <div class="code-head"><span>text — 两种操作对图的影响</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 初始：main 停在 B，feature 从 B 拉出 C、D
+main:     A --- B
+feature:  A --- B --- C --- D
+
+# 方式一：git checkout main && git merge feature
+main:     A --- B --- C --- D --- M
+                   \_____________/
+# C、D 的哈希不变，M 是有两个父的合并提交
+
+# 方式二：main 上又多了 E，然后在 feature 上 git rebase main
+main:     A --- B --- E
+feature:  A --- B --- E --- C' --- D'
+# C、D 的补丁被重放成 C'、D'，哈希全变，C、D 不可达</code></pre>
+
+        <h2>为什么已推送的公共分支禁止 rebase</h2>
+        <p>这条规则几乎所有教程都会写，但很少讲清代价。设 main 上有个提交 X，你 rebase 之后强推，远端变成 X'。同事本地还有 X，他手上的分支也基于 X。两边内容看起来一样，哈希不同，Git 认为这是两条互不相干的历史。</p>
+        <p>他执行 pull 时，Git 找不到共同祖先，只能做一次真正的合并，于是他的历史里同时出现 X 和 X'，两份内容相同、哈希不同的提交并排躺着。如果他配了 <code>pull.rebase</code>，情况更麻烦：Git 会把他本地那些提交重新应用到 X' 上，生成一批重复提交，下次他 push 时这些重复提交又被推回远端，等于把污染扩散给所有人。</p>
+        <p>报错通常长这样：<code>! [rejected] main -&gt; main (non-fast-forward)</code>，伴随一句 <code>Updates were rejected because the tip of your current branch is behind</code>。新手最常见的处理是补一个 <code>--force</code>，把同事的工作直接覆盖掉。这是协作里代价最高的事故之一，因为被覆盖的提交如果对方本地也做过清理，就真的找不回来了。</p>
+        <p>对测试团队还有一层额外成本：commit 哈希是对外的追溯锚点。缺陷单上写「在 3f2a9c1 上复现」，<a class="ilink" href="web-test-report.html">测试报告</a>归档里存着构建对应的哈希，CI 产物也按哈希命名。哈希一旦被重写，这些引用全部指向不存在的对象，事后想 diff 出「那次发版到底改了什么」就只能靠猜。判断标准从来不是分支叫什么名字，而是有没有别人基于它提交过：<code>git branch -r --contains &lt;sha&gt;</code> 能列出包含某个提交的远端分支，<code>git log --oneline HEAD..origin/main</code> 能看远端比你多什么。</p>
+        <div class="code-head"><span>terminal — 判断分支是否已被他人使用</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 我的提交出现在哪些远端分支上
+git branch -r --contains HEAD
+#   origin/feature/login    ← 只有自己的，可以 rebase
+#   origin/develop          ← 已经合进主干，任何重写都会伤到别人
+
+# 远端比我多了什么
+git log --oneline HEAD..origin/main
+
+# 重写之后别人 pull，历史会变成这样：
+#   *   合并提交（本地旧链 + 远端新链）
+#   |\
+#   | * 3f2a9c1 旧版本的同一条提交
+#   * | 8b1d2e4 新版本的同一条提交
+# 内容一样、哈希不同，这就是重复提交的来源</code></pre>
+
+        <h2>快进、--ff-only 与 --no-ff：历史形状决定追溯能力</h2>
+        <p>默认的 <code>git merge</code> 行为是「能快进就快进，不能就造合并提交」。听起来聪明，问题是历史形状取决于执行时机：同一个分支早合并一次是快进，晚合并一次就多出一个合并提交，团队历史于是长得五花八门。对团队来说，形状一致比形状最优更重要。</p>
+        <p><code>--ff-only</code> 是一个纪律开关：只允许快进，否则直接失败并返回非零退出码。它适合「主干必须线性」的团队。在流水线里尤其好用——构建的第一步执行 <code>git merge --ff-only origin/main</code>，失败就说明这条分支已经落后或分叉，构建立即中止，不必等二十分钟跑完才发现跑的是一份基于旧代码的结果。</p>
+        <p><code>--no-ff</code> 相反，能快进也要强行造一个合并提交。它的价值是保留「这批提交属于同一个 MR」的边界。有了这个边界，<code>git log --first-parent</code> 看到的是一条只显示合入动作的主线；某个功能上线后出问题，<code>git revert -m 1 &lt;merge-sha&gt;</code> 一条命令就能整体回滚，而不是钻进里面逐个 revert。</p>
+        <p>代价也要说清。no-ff 让图变复杂，几十个 MR 之后 <code>git log --graph</code> 基本没法看；bisect 的粒度变粗，只能定位到「哪个 MR」，还要进 MR 里二次定位。反过来，全用快进或 squash 把历史压成直线，bisect 能精确到单个提交，但你失去了「这次合入包含哪些提交」的显式记录。两种策略都成立，混着用最糟。</p>
+        <p>站在测试追溯的角度，我倾向的默认组合是：主干用 <code>--no-ff</code> 合入 MR，发布 tag 打在合并提交上；<a class="ilink" href="ai-regression-scope.html">回归范围</a>用 <code>git diff v1.8.0..v1.9.0 --stat</code> 算出来，再据此圈定要跑的用例集。如果团队用平台自带的 squash merge，一个 MR 落成一条提交，同样满足追溯需求，只是 bisect 粒度等于 MR。</p>
+        <div class="code-head"><span>terminal — 三种合入方式</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 主干只允许线性：可以在 CI 里当守门条件
+git checkout main
+git merge --ff-only origin/main || exit 1
+
+# 按 MR 合入，保留边界，便于整体回滚
+git checkout main
+git merge --no-ff feature/order-timeout
+git tag v1.9.0
+git revert -m 1 &lt;merge-sha&gt;     # 出问题时整体回滚这个功能
+
+# 一个 MR 压成一条提交（平台侧通常叫 squash merge）
+git merge --squash feature/order-timeout
+git commit -m "test: 订单超时用例与配置调整"</code></pre>
+        <table>
+          <thead>
+            <tr><th>合入方式</th><th>历史形状</th><th>适合的团队</th><th>代价</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>默认 merge</td><td>随机，取决于时机</td><td>不推荐作为约定</td><td>无法预测，评审时难以判断</td></tr>
+            <tr><td>--ff-only</td><td>严格线性</td><td>主干禁止分叉、提交必须先 rebase</td><td>本地分支必须随时跟得上，否则直接失败</td></tr>
+            <tr><td>--no-ff</td><td>每次合入一个合并提交</td><td>需要按 MR 回滚与追溯</td><td>图变复杂，bisect 粒度变粗</td></tr>
+            <tr><td>squash merge</td><td>线性，一个 MR 一条提交</td><td>MR 内部提交质量参差、只关心最终态</td><td>丢失中间提交，无法回溯演进过程</td></tr>
+          </tbody>
+        </table>
+
+        <h2>rebase 撞上冲突：一次一个，三个出口</h2>
+        <p>rebase 的冲突处理和 merge 不是一回事，因为它是一个进行中的多步操作。执行 <code>git rebase main</code> 撞到冲突时，rebase 会停下，HEAD 处于游离状态，<code>.git/rebase-merge</code> 目录存在，<code>git status</code> 第一行会写 <code>interactive rebase in progress; onto &lt;sha&gt;</code>，下面写着 <code>You are currently rebasing branch 'feature' on '&lt;sha&gt;'</code>。这句话就是在告诉你，正在搬第几个提交。</p>
+        <p>正确步骤只有三步：编辑冲突文件删掉标记、<code>git add</code>、<code>git rebase --continue</code>。新手最常犯的错是解决冲突后执行 <code>git commit</code>。rebase 进行中不要自己提交，continue 会替你把当前补丁提交上去，手动提交会让状态机对不上，接下来要么提示没有改动可提交，要么多出一条不该存在的提交。</p>
+        <p>三个出口各有用途。<code>--continue</code> 处理完继续搬下一个；<code>--skip</code> 丢弃当前这个提交，典型场景是上游已经包含同样的改动、补丁变成空的，Git 会提示 <code>The previous <a class="ilink" href="git-cherry-pick-testing.html">cherry-pick</a> is now empty</code>，这时候 skip 才是正确答案；<code>--abort</code> 放弃整个 rebase，HEAD 回到 <code>ORIG_HEAD</code>，也就是开始前的位置。拿不准就 abort，它几乎总能把你原样救回。</p>
+        <p>还有两个配置能明显降低痛苦。<code>git config --global rerere.enabled true</code> 会记住你每次解决冲突的结果，同一个冲突下次自动复用，每天 rebase 一次主干的人会立刻感受到差别。<code>git config --global merge.conflictStyle zdiff3</code> 会在冲突块里额外显示一份原始内容，判断「这一行到底是谁改的」快很多。</p>
+        <div class="code-head"><span>terminal — rebase 冲突的三个出口</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git rebase origin/main
+# CONFLICT (content): Merge conflict in tests/conftest.py
+# 1. 先看清当前在搬哪个提交、哪些文件没解决
+git status
+git diff --name-only --diff-filter=U
+
+# 2. 手工删掉冲突标记后标记为已解决（不要 commit）
+git add tests/conftest.py
+git rebase --continue
+
+# 3. 另外两个出口
+git rebase --skip    # 当前补丁已在上游存在、变成空提交时
+git rebase --abort   # 放弃整个 rebase，回到 ORIG_HEAD
+
+# 重复冲突的自动化：记录并复用解法
+git config --global rerere.enabled true
+git config --global merge.conflictStyle zdiff3</code></pre>
+
+        <h2>rebase -i：把测试代码的提交整理成能评审的形状</h2>
+        <p>场景很具体：一个登录用例改了三天，提交记录依次是「加用例」「选择器不对」「再修」「调试打印」「注释掉等待」「放宽超时」。评审的人打开 MR 看到六条提交，第一条里用的定位方式早就废了，他没法判断最终状态，只能挨个点开对比——大部分人会直接点「批准」，这才是真正的风险。</p>
+        <p><code>git rebase -i HEAD~6</code> 打开一个指令清单，每条对应一个提交。常用的动词六个：pick 保留、reword 只改信息、edit 停下来改内容、squash 合并并编辑信息、fixup 合并但丢弃这条的信息、drop 直接删除。对测试仓库最实用的是 fixup 和 drop：前者把「修一下」并进前一条，后者扔掉调试打印和临时的 <code>pytest.mark.skip</code>。</p>
+        <p>有个更省事的配套用法：修完 bug 时用 <code>git commit --fixup=&lt;目标sha&gt;</code> 提交，再执行 <code>git rebase -i --autosquash HEAD~6</code>，Git 会自动把 fixup 提交排到目标后面并标好，你不用手改清单。</p>
+        <p>还有 <code>exec</code> 值得一试。在清单里插一行 <code>exec pytest tests/unit -q</code>，rebase 会在每个提交之后执行一次，任何一条提交让单测挂了就立刻停下。整理测试代码最怕「合并完发现中间某个提交其实是坏的」，exec 把这个检查前置到了整理阶段。</p>
+        <div class="code-head"><span>terminal — 交互式整理提交</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git rebase -i HEAD~5
+# 编辑器里把清单改成下面这样
+pick   a1b2c3d test: 新增登录失败用例
+fixup  b2c3d4e 修正选择器
+fixup  c3d4e5f 再修一次选择器
+exec   pytest tests/unit -q -x
+drop   d4e5f60 临时打印 driver.page_source
+pick   e5f6071 test: 补充超时断言
+
+# 先提交修复，再自动归位
+git commit --fixup=a1b2c3d
+git rebase -i --autosquash HEAD~6</code></pre>
+        <p>必须记住：<code>-i</code> 一定会重写哈希，哪怕你只是 reword 一条信息。所以它只能用在「没有别人基于它工作」的分支上。已经推到自己 fork 之后需要覆盖，用 <code>git push --force-with-lease</code>，不要用裸的 <code>--force</code>。</p>
+
+        <h2>测试团队的协作约定：按分支类型分配权限</h2>
+        <p>规则要说清「谁能对哪种分支做什么」，否则冲突只是时间问题。我们这条线是四五个测试工程师共用一个仓库，目前是这么定的。</p>
+        <p>功能分支 <code>feature/*</code>：每天开工先 <code>git fetch</code>，再 <code>git rebase origin/main</code>，有冲突当天解决完。这类分支只有作者本人提交，可以随意 rebase、随意强推。别用裸的 <code>git pull</code>，它默认 merge，会给你造出一堆「Merge branch main into feature」的噪音提交，把 MR 的 diff 弄脏；用 <code>git config --global pull.rebase true</code> 一次改掉。</p>
+        <p>主干与发布分支 <code>main</code>、<code>develop</code>、<code>release/*</code>：只接受通过 MR 合入，禁止 rebase，禁止 force push。靠分支保护规则强制，别靠自觉——GitHub 的 branch protection、GitLab 的 protected branches 都能直接禁掉强推。release 分支上只允许 cherry-pick 修 bug，不允许改历史。</p>
+        <p>还有一条容易忽略：两个人一起写同一套用例的共享分支，谁也不要 rebase。同步用 <code>git merge origin/feature-x</code>，冲突当场解一次；等准备合入主干前，再由一个人统一 rebase 整理。至于两个人谁先谁后，看 MR 的负责人是谁，不要两边同时整理。</p>
+        <table>
+          <thead>
+            <tr><th>分支类型</th><th>允许 rebase</th><th>允许强推</th><th>同步方式</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>feature/*（个人）</td><td>允许</td><td>允许（--force-with-lease）</td><td>rebase origin/main</td></tr>
+            <tr><td>共享 feature 分支</td><td>禁止</td><td>禁止</td><td>merge 对方分支</td></tr>
+            <tr><td>develop / main</td><td>禁止</td><td>禁止</td><td>只读，通过 MR 合入</td></tr>
+            <tr><td>release/*</td><td>禁止</td><td>禁止</td><td>cherry-pick 修复</td></tr>
+          </tbody>
+        </table>
+        <div class="code-head"><span>terminal — 一次性对齐本地配置</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git config --global pull.rebase true        # pull 默认变基，不再产生噪音合并
+git config --global rebase.autoStash true   # rebase 前自动暂存未提交改动
+git config --global rerere.enabled true     # 复用上一次的冲突解法
+git config --global alias.lg "log --oneline --graph --decorate"
+
+# 只看主线：每次合入一条，便于按 MR 回滚
+git lg --first-parent -12</code></pre>
+
+        <h2>出事之后：用 reflog 把被重写的提交捞回来</h2>
+        <p>rebase 完发现改错了，或者强推覆盖了不该覆盖的提交，第一反应往往是慌。其实只要没被回收，对象都还在，reflog 记着 HEAD 的每次移动。</p>
+        <p><code>git reflog</code> 输出最近几十条位置变化，每条前面是 <code>HEAD@{n}</code>。找到 rebase 之前的那条，通常是标注 <code>rebase (start)</code> 的上一行。重点来了：不要直接 <code>git reset --hard</code>，先建一个救援分支 <code>git branch rescue HEAD@{12}</code>，确认内容对了再决定怎么合回去。这个习惯能避免「救回来又搞丢一次」。</p>
+        <p>rebase 和 merge 都会写 <code>ORIG_HEAD</code>，<code>git reset --hard ORIG_HEAD</code> 是最快的撤销方式。但如果中间又做了别的操作，ORIG_HEAD 会被覆盖，还是得回 reflog 里找。</p>
+        <p>关于保留期：可达提交的 reflog 默认保留 90 天，不可达对象默认 30 天后被 <code>git gc</code> 清理，对应配置是 <code>gc.reflogExpire</code> 与 <code>gc.reflogExpireUnreachable</code>。所以上周 rebase 掉的提交通常还在，三个月前的就别指望了。</p>
+        <div class="code-head"><span>terminal — 强推前的安全动作与救援</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 强推前先看远端到底有没有陌生提交
+git fetch origin
+git log --oneline HEAD..origin/feature/login
+
+# 用 lease 版本，远端被别人推过就拒绝
+git push --force-with-lease origin feature/login
+
+# 覆盖后才发现搞错了：先建救援分支，别急着 reset
+git reflog
+git branch rescue HEAD@{12}
+git log --oneline -5 rescue
+
+# 如果整个 rebase 刚做完就后悔
+git reset --hard ORIG_HEAD</code></pre>
+
+        <h2>常见坑与排查</h2>
+        <p><strong>现象</strong>：push 被拒，提示 <code>non-fast-forward</code>。<strong>原因</strong>：自己在本地 rebase 过，远端还是旧哈希。<strong>处理</strong>：个人分支用 <code>--force-with-lease</code>；如果是公共分支，说明你 rebase 错了对象，应该改用 merge 把远端合并进来。</p>
+        <p><strong>现象</strong>：同事强推之后，你 pull 出一堆重复提交，log 里相同内容出现两遍。<strong>原因</strong>：你的分支基于被重写前的旧提交，pull 时做了真合并。<strong>处理</strong>：先别 push，<code>git log --oneline --graph</code> 确认重复范围，然后用 <code>git rebase --onto origin/main &lt;重复起点&gt;</code> 只重放你自己那几条，或者直接 <code>git reset --hard origin/main</code> 重来，前提是你本地的改动已经单独存过。</p>
+        <p><strong>现象</strong>：每天都多出一条「Merge branch main into feature」。<strong>原因</strong>：<code>pull.rebase</code> 没开，pull 默认走 merge。<strong>处理</strong>：<code>git config --global pull.rebase true</code>；已经产生的噪音提交用交互式 rebase 里的 drop 清掉。</p>
+        <p><strong>现象</strong>：只改了两行，冲突文件却是整篇红绿。<strong>原因</strong>：Windows 上 <code>core.autocrlf</code> 与仓库里的 LF 不一致，行尾差异被当成改动。<strong>处理</strong>：在仓库加 <code>.gitattributes</code> 固定 <code>* text=auto eol=lf</code>，再统一 <code>git add --renormalize .</code> 提交一次。</p>
+        <p><strong>现象</strong>：rebase 卡在半路，工作区一堆没解决的冲突，不敢动。<strong>原因</strong>：冲突没解完，或者解完忘了 continue。<strong>处理</strong>：<code>git status</code> 看 unmerged 文件清单，解完 add 再 continue；实在搞不定就 <code>git rebase --abort</code>，rebase 是可安全放弃的操作。</p>
+
+        <h2>提 MR 之前的检查清单</h2>
+        <p>把这五条当成肌肉记忆，能挡掉绝大多数提交历史事故。清单的重点不是「会不会用命令」，而是每一步都给自己一个明确的判断依据。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>命令</th><th>通过标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>当前分支是否正确</td><td>git branch --show-current</td><td>是我要操作的那条，不是 main</td></tr>
+            <tr><td>工作区是否干净</td><td>git status --short</td><td>无输出，或只有我确认过的文件</td></tr>
+            <tr><td>分支是否被他人使用</td><td>git branch -r --contains HEAD</td><td>只有我自己的远端分支</td></tr>
+            <tr><td>远端是否有新提交</td><td>git log --oneline HEAD..@{u}</td><td>为空，否则先 rebase</td></tr>
+            <tr><td>合入方式是否统一</td><td>团队约定</td><td>no-ff 与 squash 二选一，不和稀泥</td></tr>
+            <tr><td>强推是否安全</td><td>git push --force-with-lease</td><td>不用裸 --force</td></tr>
+          </tbody>
+        </table>
+        <p>最后给一句判断标准：如果一个合并方式需要你在评审时反复解释「为什么这里有两条一样的提交」，那这个仓库的历史策略就已经失败了。好的历史策略，应该让一个刚接手的人只看 <code>git log --graph</code>，就能说清哪个功能从哪进来、出问题时该回滚哪一段。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://git-scm.com/docs/git-rebase" target="_blank" rel="noopener">git-rebase：变基、交互模式与 --onto — Git 官方文档</a></li>
+            <li><a href="https://git-scm.com/docs/git-merge" target="_blank" rel="noopener">git-merge：--ff、--ff-only、--no-ff 与 --squash — Git 官方文档</a></li>
+            <li><a href="https://git-scm.com/docs/git-reflog" target="_blank" rel="noopener">git-reflog：用引用日志找回被重写的提交 — Git 官方文档</a></li>
+            <li><a href="https://git-scm.com/book/zh/v2" target="_blank" rel="noopener">Pro Git 中文版（分支与变基章节）— git-scm.com</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#git</span>
+          <span class="tag">#rebase</span>
+          <span class="tag">#merge</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

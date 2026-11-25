@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC 自动化的日志与截图取证 · 软件测试资料集</title>
+<meta name="description" content="PC 自动化的日志与截图取证">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-logging-evidence.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="PC 自动化的日志与截图取证">
+<meta property="og:description" content="PC 自动化的日志与截图取证">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-logging-evidence.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="PC 自动化的日志与截图取证">
+<meta name="twitter:description" content="PC 自动化的日志与截图取证">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"PC 自动化的日志与截图取证","description":"PC 自动化的日志与截图取证","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-logging-evidence.html","articleSection":"PC 自动化","keywords":"pc-automation, logging, evidence","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>9 min read</span>
+        </div>
+        <h1>PC 自动化的日志与截图取证</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="pc-automation-logging-evidence">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 PC 自动化工具
+pip install pyautogui pynput uiautomation pywinauto opencv-python
+# 验证
+python -c "import pyautogui; print(pyautogui.size())"</code></pre>
+<div class="code-head"><span>python — 验证环境</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui
+# 获取屏幕尺寸（验证）
+print(f"屏幕尺寸：{pyautogui.size()}")
+print("PC 自动化环境就绪 ✓")</code></pre>
+
+<h2>基础应用：自动操作桌面应用</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui, subprocess, time
+
+# 启动记事本
+subprocess.Popen(["notepad.exe"])
+time.sleep(1)
+
+# 输入 + 保存
+pyautogui.write("Hello, PC Automation!")
+time.sleep(0.3)
+pyautogui.hotkey("ctrl", "s")
+time.sleep(0.5)
+
+# 截图
+pyautogui.screenshot("result.png")
+print("基础操作完成 ✓")</code></pre>
+
+<h2>项目进阶：pytest + 多场景 + CI</h2>
+<div class="code-head"><span>python — pytest fixture</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># conftest.py
+import pytest, subprocess, time
+import uiautomation as auto
+
+@pytest.fixture
+def notepad():
+    subprocess.Popen(["notepad.exe"])
+    time.sleep(1)
+    win = auto.WindowControl(searchDepth=1, subTitle="无标题 - 记事本")
+    assert win.Exists(5)
+    yield win
+    auto.press_keys("alt+f4")
+
+# test_notepad.py
+def test_type(notepad):
+    import pyautogui
+    pyautogui.write("测试内容")
+    pyautogui.hotkey("ctrl", "s")
+    time.sleep(0.5)</code></pre>
+
+        <h2>操作日志：记录每一步「做了什么」</h2>
+        <p>PC 自动化脚本「跑了 100 步」，失败后「翻日志」就能定位「第几步挂的」。核心是「每一步操作都打日志」：</p>
+        <div class="code-head"><span>python — 操作日志</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import logging
+from datetime import datetime
+from logging.handlers import RotatingFileHandler
+
+def setup_pc_test_logger(test_name="pc_test"):
+    """配置 PC 测试日志（控制台 + 文件双通道）。"""
+    logger = logging.getLogger(f"pc_{test_name}")
+    logger.setLevel(logging.DEBUG)
+
+    # 控制台（INFO 级别）
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    console.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
+    logger.addHandler(console)
+
+    # 文件（DEBUG 级别，按大小轮转）
+    log_file = f"logs/{test_name}_{datetime.now().strftime('%Y%m%d')}.log"
+    import os
+    os.makedirs("logs", exist_ok=True)
+    file_handler = RotatingFileHandler(
+        log_file, maxBytes=5*1024*1024, backupCount=3, encoding="utf-8"
+    )
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    ))
+    logger.addHandler(file_handler)
+
+    return logger
+
+# 使用：每一步操作都打日志
+logger = setup_pc_test_logger("excel_test")
+
+def logged_click(x, y, description):
+    """点击 + 打日志。"""
+    logger.info(f"点击 ({x}, {y})：{description}")
+    pyautogui.click(x, y)
+    logger.debug(f"  点击完成")
+
+def logged_type(text, description):
+    """输入 + 打日志。"""
+    logger.info(f"输入：{text}（{description}）")
+    pyperclip.copy(text)
+    pyautogui.hotkey("ctrl", "v")
+
+# 测试流程（每一步都打日志）
+logger.info("=== 测试开始 ===")
+logged_click(500, 300, "点击'新建'按钮")
+logged_type("test_data", "输入测试数据")
+logged_click(800, 600, "点击'保存'按钮")
+logger.info("=== 测试结束 ===")
+
+# 失败后翻日志（定位"哪一步"）
+# 2026-11-23 10:00:00 [INFO] 点击 (500, 300)：点击'新建'按钮
+# 2026-11-23 10:00:01 [INFO] 输入：test_data（输入测试数据）
+# 2026-11-23 10:00:02 [ERROR] 点击 (800, 600)：点击'保存'按钮 → 失败</code></pre>
+
+        <h2>自动截图：关键节点「拍照」</h2>
+        <p>PC 自动化「取证」最直观的方式是截图。关键节点自动截图，失败后「看截图」就知道「界面长什么样」：</p>
+        <div class="code-head"><span>python — 自动截图</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import os
+import logging
+from datetime import datetime
+
+class ScreenshotManager:
+    """截图管理器（自动命名 + 归档）。"""
+
+    def __init__(self, screenshot_dir="screenshots", keep_last=50):
+        self.dir = screenshot_dir
+        self.keep_last = keep_last
+        os.makedirs(screenshot_dir, exist_ok=True)
+
+    def take(self, description, prefix=""):
+        """截图（自动命名 + 记录日志）。
+
+        Args:
+            description: 描述（"点击保存前"、"保存成功后"）
+            prefix: 前缀（"excel"、"game"）
+
+        Returns:
+            截图路径
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        filename = f"{prefix}_{description.replace(' ', '_')}_{timestamp}.png"
+        path = os.path.join(self.dir, filename)
+
+        pyautogui.screenshot(path)
+        logging.getLogger("pc_test").info(f"截图：{path}")
+
+        # 清理旧截图（保留最近 N 张）
+        self._cleanup()
+        return path
+
+    def take_on_failure(self, test_name):
+        """失败时截图（自动命名 + 标记）。"""
+        return self.take(f"FAIL_{test_name}", prefix="error")
+
+    def _cleanup(self):
+        """清理旧截图。"""
+        files = sorted(os.listdir(self.dir))
+        old_files = files[:-self.keep_last] if len(files) > self.keep_last else []
+        for old in old_files:
+            os.remove(os.path.join(self.dir, old))
+
+# 使用
+shots = ScreenshotManager(keep_last=50)
+
+# 关键节点截图
+shots.take("测试开始", prefix="excel")
+shots.take("输入数据后", prefix="excel")
+shots.take("保存成功", prefix="excel")
+
+# 失败时截图
+try:
+    # 测试逻辑...
+    pass
+except Exception:
+    shots.take_on_failure("save_button")
+    raise</code></pre>
+
+        <h2>失败取证：截图 + 日志 + 异常栈</h2>
+        <div class="code-head"><span>python — 失败取证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import traceback
+import logging
+from datetime import datetime
+
+class EvidenceCollector:
+    """失败取证（截图 + 日志 + 异常栈）。"""
+
+    def __init__(self, evidence_dir="evidence"):
+        self.dir = evidence_dir
+        import os
+        os.makedirs(self.dir, exist_ok=True)
+        self.logger = logging.getLogger("evidence")
+
+    def collect(self, test_name, exception=None):
+        """收集失败证据。
+
+        Args:
+            test_name: 测试名称
+            exception: 异常对象（有就记异常栈）
+
+        Returns:
+            证据目录路径
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        evidence_path = os.path.join(self.dir, f"{test_name}_{timestamp}")
+        os.makedirs(evidence_path, exist_ok=True)
+
+        # 1. 截图
+        screenshot_path = os.path.join(evidence_path, "screenshot.png")
+        pyautogui.screenshot(screenshot_path)
+        self.logger.info(f"截图已保存：{screenshot_path}")
+
+        # 2. 日志（导出当前日志文件）
+        import shutil
+        log_files = [f for f in os.listdir("logs") if test_name in f]
+        if log_files:
+            source_log = os.path.join("logs", log_files[-1])
+            target_log = os.path.join(evidence_path, "test.log")
+            shutil.copy2(source_log, target_log)
+            self.logger.info(f"日志已导出：{target_log}")
+
+        # 3. 异常栈
+        if exception:
+            traceback_path = os.path.join(evidence_path, "traceback.txt")
+            with open(traceback_path, "w", encoding="utf-8") as f:
+                f.write(f"测试：{test_name}\n")
+                f.write(f"时间：{datetime.now().isoformat()}\n")
+                f.write(f"异常：{type(exception).__name__}: {exception}\n")
+                f.write("=" * 50 + "\n")
+                f.write("".join(traceback.format_exception(type(exception), exception, exception.__traceback__)))
+            self.logger.info(f"异常栈已保存：{traceback_path}")
+
+        # 4. 生成证据清单
+        manifest_path = os.path.join(evidence_path, "manifest.txt")
+        with open(manifest_path, "w", encoding="utf-8") as f:
+            f.write(f"测试名称：{test_name}\n")
+            f.write(f"失败时间：{datetime.now().isoformat()}\n")
+            f.write(f"证据目录：{evidence_path}\n")
+            f.write(f"包含文件：{os.listdir(evidence_path)}\n")
+
+        self.logger.info(f"=== 失败证据已收集：{evidence_path} ===")
+        return evidence_path
+
+# 使用
+collector = EvidenceCollector()
+
+try:
+    # 测试逻辑
+    run_test("test_excel")
+except Exception as e:
+    evidence_path = collector.collect("test_excel", exception=e)
+    print(f"测试失败，证据已保存：{evidence_path}")
+    raise</code></pre>
+
+        <h2>日志归档：保留最近 N 次</h2>
+        <div class="code-head"><span>python — 日志归档</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import os
+import shutil
+import zipfile
+import glob
+from datetime import datetime
+
+class LogArchiver:
+    """日志归档（打包 + 保留最近 N 次）。"""
+
+    def __init__(self, log_dir="logs", keep_last=30):
+        self.log_dir = log_dir
+        self.keep_last = keep_last
+
+    def archive(self, test_name, date_tag):
+        """归档一次测试的日志（打包 zip）。"""
+        # 找该测试的日志文件
+        log_files = glob.glob(os.path.join(self.log_dir, f"{test_name}_*.log"))
+        if not log_files:
+            print(f"没找到日志：{test_name}")
+            return None
+
+        # 打包 zip
+        zip_name = f"{test_name}_{date_tag}.zip"
+        zip_path = os.path.join(self.log_dir, "archive", zip_name)
+        os.makedirs(os.path.dirname(zip_path), exist_ok=True)
+
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            for log_file in log_files:
+                zf.write(log_file, os.path.basename(log_file))
+            # 也打包截图
+            screenshots = glob.glob(os.path.join("screenshots", f"{test_name}_*.png"))
+            for shot in screenshots:
+                zf.write(shot, os.path.join("screenshots", os.path.basename(shot)))
+
+        print(f"日志已归档：{zip_path}")
+        return zip_path
+
+    def cleanup(self):
+        """清理旧归档（保留最近 N 个）。"""
+        archives = sorted(glob.glob(os.path.join(self.log_dir, "archive", "*.zip")))
+        old_archives = archives[:-self.keep_last] if len(archives) > self.keep_last else []
+        for old in old_archives:
+            os.remove(old)
+        print(f"旧归档已清理（保留最近 {self.keep_last} 个）")
+
+# 使用
+archiver = LogArchiver(keep_last=30)
+
+# 测试完成后归档
+archiver.archive("excel_test", "20261123")
+
+# 定期清理
+archiver.cleanup()</code></pre>
+
+        <h2>案例：测试套件自动截图 + 日志归档</h2>
+        <p>把「操作日志 + 自动截图 + 失败取证 + 日志归档」串起来，写一个「测试套件取证」的完整案例：</p>
+        <div class="code-head"><span>python — 完整案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+import pyautogui
+import logging
+import os
+from datetime import datetime
+
+# pytest fixture：自动截图 + 日志
+@pytest.fixture(autouse=True)
+def test_evidence(request):
+    """每个测试自动截图 + 日志。"""
+    test_name = request.node.name
+
+    # 日志
+    logger = logging.getLogger(f"test_{test_name}")
+    logger.info(f"=== 测试开始：{test_name} ===")
+
+    # 截图（测试前）
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    before_path = f"evidence/{test_name}_before_{timestamp}.png"
+    os.makedirs("evidence", exist_ok=True)
+    pyautogui.screenshot(before_path)
+    logger.info(f"测试前截图：{before_path}")
+
+    yield   # 测试执行
+
+    # 测试后截图
+    after_path = f"evidence/{test_name}_after_{timestamp}.png"
+    pyautogui.screenshot(after_path)
+    logger.info(f"测试后截图：{after_path}")
+
+    # 记录结果
+    if hasattr(request.node, "rep_call") and request.node.rep_call.passed:
+        logger.info(f"=== 测试通过：{test_name} ===")
+    else:
+        logger.error(f"=== 测试失败：{test_name} ===")
+
+# pytest 钩子：失败时自动取证
+def pytest_runtest_makereport(item, call):
+    """测试失败时收集证据。"""
+    if call.when == "call" and call.excinfo:
+        # 截图
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        fail_path = f"evidence/{item.name}_FAIL_{timestamp}.png"
+        os.makedirs("evidence", exist_ok=True)
+        pyautogui.screenshot(fail_path)
+
+        # 异常栈
+        traceback_path = f"evidence/{item.name}_FAIL_{timestamp}_traceback.txt"
+        import traceback
+        with open(traceback_path, "w", encoding="utf-8") as f:
+            f.write("".join(traceback.format_exception(*call.excinfo)))
+
+        print(f"\n⚠️  测试失败证据：{fail_path}")
+        print(f"   异常栈：{traceback_path}")
+
+# 测试用例（自动取证）
+def test_open_excel():
+    """打开 Excel + 验证。"""
+    import subprocess
+    import time
+
+    subprocess.Popen(["excel.exe"])
+    time.sleep(5)
+
+    # 验证 Excel 窗口
+    import uiautomation as auto
+    excel_window = auto.WindowControl(searchDepth=1, subTitle="Microsoft Excel")
+    assert excel_window.Exists(10), "Excel 窗口没打开"
+
+    # 截图验证
+    pyautogui.screenshot("evidence/excel_opened.png")
+
+def test_input_data():
+    """输入数据 + 保存。"""
+    import pyperclip
+    import time
+
+    pyperclip.copy("测试数据 v2")
+    pyautogui.hotkey("ctrl", "v")
+    time.sleep(0.5)
+
+    pyautogui.hotkey("ctrl", "s")
+    time.sleep(1)
+
+# 运行
+# pytest test_excel.py -v
+# 自动：测试前截图 + 测试后截图 + 失败取证（异常栈）</code></pre>
+        <div class="callout">
+          <p>PC 自动化「取证四件套」：<strong>操作日志</strong>（每一步打 log）→ <strong>自动截图</strong>（关键节点「拍照」）→ <strong>失败取证</strong>（截图 + 日志 + 异常栈打包）→ <strong>日志归档</strong>（保留最近 N 次，zip 打包）。脚本「跑挂了」，翻「证据目录」就知道「哪一步挂的 + 当时界面长什么样」。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/library/logging.html" target="_blank" rel="noopener">Python logging 官方文档</a></li>
+            <li><a href="https://pyautogui.readthedocs.io/en/latest/index.html#pyautogui.screenshot" target="_blank" rel="noopener">pyautogui 截图官方文档</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/tmpdir.html" target="_blank" rel="noopener">pytest 临时目录（取证用）</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#pc-automation</span>
+          <span class="tag">#logging</span>
+          <span class="tag">#evidence</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

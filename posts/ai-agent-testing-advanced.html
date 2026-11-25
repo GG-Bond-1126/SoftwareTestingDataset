@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Agent 测试进阶：多步任务、工具调用与状态机 · 软件测试资料集</title>
+<meta name="description" content="用轨迹断言、工具 Mock、录制回放和失败注入，测住多步 Agent 的步骤、参数、状态与成本边界。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-agent-testing-advanced.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="AI Agent 测试进阶：多步任务、工具调用与状态机">
+<meta property="og:description" content="用轨迹断言、工具 Mock、录制回放和失败注入，测住多步 Agent 的步骤、参数、状态与成本边界。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-agent-testing-advanced.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AI Agent 测试进阶：多步任务、工具调用与状态机">
+<meta name="twitter:description" content="用轨迹断言、工具 Mock、录制回放和失败注入，测住多步 Agent 的步骤、参数、状态与成本边界。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"AI Agent 测试进阶：多步任务、工具调用与状态机","description":"用轨迹断言、工具 Mock、录制回放和失败注入，测住多步 Agent 的步骤、参数、状态与成本边界。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-agent-testing-advanced.html","articleSection":"AI 测试","keywords":"agent-testing, trajectory, state-machine","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>14 min read</span>
+        </div>
+        <h1>AI Agent 测试进阶：多步任务、工具调用与状态机</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="ai-agent-testing-advanced">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <p>单轮问答的测试相对简单：给输入、看输出。Agent 把这件事复杂化了一个数量级——它要自己决定调哪个工具、传什么参数、失败后要不要重试、什么时候停止。最终答案对了，过程也可能完全错：用错了工具、查了别的租户、重试了六次才碰对。只看最后一句话，这些全都测不出来。</p>
+
+        <figure class="article-figure">
+          <svg viewBox="0 0 720 300" width="100%" role="img" aria-labelledby="fig-agent-1-title" xmlns="http://www.w3.org/2000/svg" font-family="inherit">
+            <title id="fig-agent-1-title">Agent 轨迹链示意图：用户目标依次经过规划、工具调用、观察，不满足时再规划，最终以 final 动作终止；图中标出关键步骤、工具参数、终态三个断言点</title>
+            <defs>
+              <marker id="fig-agent-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 Z" fill="var(--text-faint)"/>
+              </marker>
+            </defs>
+            <text x="28" y="24" font-size="12.5" fill="var(--text-dim)">轨迹 = 用户目标到终止的完整步骤序列</text>
+            <text x="692" y="24" font-size="11.5" fill="var(--text-faint)" text-anchor="end">循环与步数上限也要断言</text>
+
+            <circle cx="208" cy="44" r="10" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.2"/>
+            <text x="208" y="48" font-size="11.5" fill="var(--cyan)" text-anchor="middle">1</text>
+            <circle cx="352" cy="44" r="10" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.2"/>
+            <text x="352" y="48" font-size="11.5" fill="var(--cyan)" text-anchor="middle">2</text>
+            <circle cx="616" cy="44" r="10" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.2"/>
+            <text x="616" y="48" font-size="11.5" fill="var(--cyan)" text-anchor="middle">3</text>
+
+            <rect x="28" y="68" width="104" height="56" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="80" y="92" font-size="15" fill="var(--text)" text-anchor="middle">用户目标</text>
+            <text x="80" y="112" font-size="12.5" fill="var(--text-dim)" text-anchor="middle">退耳机订单</text>
+
+            <rect x="160" y="68" width="96" height="56" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="208" y="92" font-size="15" fill="var(--text)" text-anchor="middle">规划</text>
+            <text x="208" y="112" font-size="12.5" fill="var(--text-dim)" text-anchor="middle">选工具</text>
+
+            <rect x="288" y="68" width="128" height="56" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.4"/>
+            <text x="352" y="92" font-size="15" fill="var(--text)" text-anchor="middle">工具调用</text>
+            <text x="352" y="112" font-size="12.5" fill="var(--text-dim)" text-anchor="middle">search_orders</text>
+
+            <rect x="444" y="68" width="96" height="56" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="492" y="92" font-size="15" fill="var(--text)" text-anchor="middle">观察</text>
+            <text x="492" y="112" font-size="12.5" fill="var(--text-dim)" text-anchor="middle">订单结果</text>
+
+            <rect x="568" y="68" width="96" height="56" rx="10" fill="rgba(61,220,132,0.12)" stroke="var(--accent)" stroke-width="1.4"/>
+            <text x="616" y="92" font-size="15" fill="var(--accent)" text-anchor="middle">终止</text>
+            <text x="616" y="112" font-size="12.5" fill="var(--text-dim)" text-anchor="middle">final 收尾</text>
+
+            <line x1="132" y1="96" x2="156" y2="96" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-agent-arrow)"/>
+            <line x1="256" y1="96" x2="284" y2="96" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-agent-arrow)"/>
+            <line x1="416" y1="96" x2="440" y2="96" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-agent-arrow)"/>
+            <line x1="540" y1="96" x2="564" y2="96" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-agent-arrow)"/>
+
+            <path d="M492 124 V172 H208 V126" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-agent-arrow)"/>
+            <text x="350" y="164" font-size="12.5" fill="var(--text-dim)" text-anchor="middle">不满足就再规划</text>
+
+            <rect x="28" y="206" width="212" height="82" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.2"/>
+            <circle cx="48" cy="228" r="9" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.2"/>
+            <text x="48" y="232" font-size="11.5" fill="var(--cyan)" text-anchor="middle">1</text>
+            <text x="66" y="232" font-size="12.5" fill="var(--text)">断言 1 · 关键步骤</text>
+            <text x="44" y="256" font-size="12.5" fill="var(--text-dim)">工具顺序做子序列</text>
+            <text x="44" y="274" font-size="11.5" fill="var(--text-faint)">允许插入辅助步骤</text>
+
+            <rect x="264" y="206" width="212" height="82" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.2"/>
+            <circle cx="284" cy="228" r="9" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.2"/>
+            <text x="284" y="232" font-size="11.5" fill="var(--cyan)" text-anchor="middle">2</text>
+            <text x="302" y="232" font-size="12.5" fill="var(--text)">断言 2 · 工具参数</text>
+            <text x="280" y="256" font-size="12.5" fill="var(--text-dim)">order_id 与输入一致</text>
+            <text x="280" y="274" font-size="11.5" fill="var(--text-faint)">必填参数不能缺</text>
+
+            <rect x="500" y="206" width="212" height="82" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.2"/>
+            <circle cx="520" cy="228" r="9" fill="rgba(70,200,240,0.12)" stroke="var(--cyan)" stroke-width="1.2"/>
+            <text x="520" y="232" font-size="11.5" fill="var(--cyan)" text-anchor="middle">3</text>
+            <text x="538" y="232" font-size="12.5" fill="var(--text)">断言 3 · 终态</text>
+            <text x="516" y="256" font-size="12.5" fill="var(--text-dim)">业务状态真的变了</text>
+            <text x="516" y="274" font-size="11.5" fill="var(--text-faint)">不只看回复文案</text>
+          </svg>
+          <figcaption>图 1 · 轨迹是一条可断言的链：先看关键步骤和参数，再看是否真的终止、终态是否改变。</figcaption>
+        </figure>
+
+        <h2>一、Agent 和单轮问答到底差在哪</h2>
+        <table>
+          <thead>
+            <tr><th>维度</th><th>单轮问答</th><th>Agent</th><th>测试影响</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>交互次数</td><td>1 次模型调用</td><td>平均 4 到 8 步</td><td>耗时与成本成倍增长</td></tr>
+            <tr><td>状态</td><td>无状态</td><td>跨步保留上下文与业务状态</td><td>需要状态机建模</td></tr>
+            <tr><td>副作用</td><td>无</td><td>会写库、发消息、改订单</td><td>必须 Mock 或使用沙箱</td></tr>
+            <tr><td>失败模式</td><td>答案不对</td><td>选错工具、参数错、死循环、提前终止</td><td>断言对象从文本变成轨迹</td></tr>
+            <tr><td>可重复性</td><td>受采样影响</td><td>受采样 + 工具返回 + 时序影响</td><td>必须录制回放</td></tr>
+          </tbody>
+        </table>
+        <p>我们测的是一个售后 Agent，支持查订单、改地址、发起退款三类操作。上线前跑 38 条轨迹用例，发现了 11 个问题，其中 7 个是「最终答案看起来对，但中间调了不该调的工具」。这类问题如果只做<a class="ilink" href="web-e2e-testing.html">端到端</a>文本断言，一条都发现不了。</p>
+        <p>举个具体的例子。用户说「我昨天买的那个耳机要退」，Agent 先调了 <code>search_orders</code>，再用关键词匹配找到订单号，最后调 <code>create_refund</code>。最终回复完全正确。但轨迹里 <code>search_orders</code> 没有带租户参数，实际走了跨租户查询，只是结果恰好只有一条。这种缺陷在文本层是隐形的，在参数层是一眼可见的。</p>
+
+        <h2>二、轨迹断言的四个层次</h2>
+        <p>轨迹（trajectory）就是 Agent 从收到请求到给出答案之间的完整步骤序列。断言它，建议按四层来写，从粗到细。</p>
+        <ol>
+          <li><strong>步骤序列</strong>：关键工具是否按顺序出现。用子序列断言而不是全等，允许中间有合理的辅助步骤。</li>
+          <li><strong>工具参数</strong>：必填参数是否存在、取值是否在当前租户范围内、订单号是否与输入一致。</li>
+          <li><strong>终止条件</strong>：步数是否超上限、是否以 final 动作结束、有没有重复调用同一工具超过阈值。</li>
+          <li><strong>终态</strong>：业务状态是否到达预期，比如订单状态从 created 变成 refunded，而不只是回复里写了「已退款」。</li>
+        </ol>
+        <p>四层里最容易漏的是第三层。Agent 死循环时往往还在「正常工作」，每步都有输出，日志看起来一切正常，只是账单在涨。终止条件必须显式断言。</p>
+        <p>第二个容易漏的是参数层。大部分团队只断言「调了 <code>create_refund</code>」，不断言它传的 <code>order_id</code> 是不是用户说的那个。我们遇到过 Agent 把「12345」听成「12354」，因为用户口述时含糊，模型自己补了一位。回复里写着退款成功，实际退的是别人的单。参数断言必须和输入做一致性比对，不能只看工具名。</p>
+
+        <h2>三、环境与可复现的执行骨架</h2>
+        <p>Agent 测试的第一原则是可控：模型输出可控、工具返回可控、时间可控。做法是把模型换成脚本化的假模型，把工具换成记录器，这样每次运行的轨迹完全一致。</p>
+        <div class="code-head"><span>tests/agent/harness.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from dataclasses import dataclass, field
+
+@dataclass
+class Step:
+    tool: str
+    args: dict
+    output: str = ""
+    status: str = "ok"
+
+class ScriptedLLM:
+    """按预设脚本产出动作，去掉采样带来的不确定性"""
+    def __init__(self, script):
+        self.script = list(script)
+        self.calls = 0
+
+    def next_action(self, messages):
+        self.calls += 1
+        if not self.script:
+            return {"type": "final", "content": "已完成"}
+        return self.script.pop(0)
+
+class RecordingToolbox:
+    """真实工具替身：记录调用，按配置返回或抛错"""
+    def __init__(self, responses=None, failures=None):
+        self.responses = responses or {}
+        self.failures = failures or {}
+        self.calls = []
+
+    def call(self, name, **kwargs):
+        self.calls.append(Step(tool=name, args=kwargs))
+        if name in self.failures:
+            raise self.failures[name]
+        return self.responses.get(name, {"ok": True})
+
+def run_agent(llm, toolbox, user_input, max_steps=8):
+    steps = []
+    for _ in range(max_steps):
+        action = llm.next_action([{"role": "user", "content": user_input}])
+        if action["type"] == "final":
+            return {"steps": steps, "final": action["content"], "stopped": "final"}
+        try:
+            out = toolbox.call(action["tool"], **action["args"])
+            steps.append(Step(action["tool"], action["args"], str(out)))
+        except Exception as e:
+            steps.append(Step(action["tool"], action["args"], str(e), status="error"))
+    return {"steps": steps, "final": None, "stopped": "max_steps"}</code></pre>
+        <p>骨架里有两个设计值得保留。第一，<code>max_steps</code> 是必填参数而不是默认无限循环，强制每个用例都考虑终止。第二，工具替身默认记录调用而不是直接返回成功，这样即使某个断言写漏了，事后也能从记录里补查。测试数据的隔离同样重要：每个用例使用独立的租户前缀和订单号，跑完即销毁，避免上一个用例的残留状态影响下一个。</p>
+
+        <h2>四、轨迹断言怎么写</h2>
+        <p>有了可控骨架，断言就是纯 Python。核心是写一个 <code>assert_subsequence</code>，因为 Agent 常会插入一些合理步骤，比如先查用户再查订单，硬要求全等会让用例非常脆。</p>
+        <div class="code-head"><span>test_trajectory.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+
+def tools_of(result):
+    return [s.tool for s in result["steps"]]
+
+def assert_subsequence(actual, expected):
+    it = iter(actual)
+    assert all(any(x == e for x in it) for e in expected), \
+        f"期望顺序 {expected}，实际 {actual}"
+
+def test_refund_flow():
+    llm = ScriptedLLM([
+        {"type": "tool", "tool": "get_order", "args": {"order_id": "12345"}},
+        {"type": "tool", "tool": "check_refund_policy", "args": {"order_id": "12345"}},
+        {"type": "tool", "tool": "create_refund", "args": {"order_id": "12345", "reason": "七天无理由"}},
+        {"type": "final", "content": "退款已提交，预计 3 个工作日到账"},
+    ])
+    box = RecordingToolbox(responses={"get_order": {"tenant": "t-01", "amount": 199}})
+    result = run_agent(llm, box, "订单 12345 我要退款")
+
+    assert_subsequence(tools_of(result), ["get_order", "check_refund_policy", "create_refund"])
+    assert result["stopped"] == "final"
+    assert len(result["steps"]) &lt;= 8
+
+    refund = [s for s in result["steps"] if s.tool == "create_refund"][0]
+    assert refund.args["order_id"] == "12345", "退款订单号被改"
+    assert "reason" in refund.args
+
+def test_no_write_tool_when_policy_denies():
+    llm = ScriptedLLM([
+        {"type": "tool", "tool": "get_order", "args": {"order_id": "99999"}},
+        {"type": "tool", "tool": "check_refund_policy", "args": {"order_id": "99999"}},
+        {"type": "final", "content": "该订单已超过退款期限，无法退款"},
+    ])
+    box = RecordingToolbox(responses={"check_refund_policy": {"allowed": False}})
+    result = run_agent(llm, box, "订单 99999 我要退款")
+
+    assert "create_refund" not in tools_of(result), "策略拒绝后仍调用了写接口"
+    assert "无法退款" in result["final"]</code></pre>
+        <p>第二条用例是关键。很多人只测「能退款」的正向流程，不测「策略拒绝时绝不能写库」。后者才是资损来源，而且它经常发生在模型「热心帮忙」的时候。</p>
+        <p>写这类用例时，断言要落在「副作用」而不是「文本」。具体做法是让工具替身记录每一次调用，用例结束后检查调用集合里有没有写操作。只要出现过 <code>create_refund</code>、<code>update_address</code> 这类工具，无论回复写得多客气，都判失败。这个口径比读回复可靠得多，也更容易在评审时达成一致。</p>
+
+        <h2>五、状态机建模与非法转移</h2>
+        <p>Agent 的业务状态要单独建模，不能藏在 Prompt 里。把状态和合法转移列成表，测试用例从表里生成，非法转移单独构造。</p>
+        <table>
+          <thead>
+            <tr><th>当前状态</th><th>合法转移</th><th>非法示例</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>created</td><td>paid、cancelled</td><td>shipped</td></tr>
+            <tr><td>paid</td><td>shipped、refunding</td><td>cancelled</td></tr>
+            <tr><td>shipped</td><td>completed、refunding</td><td>created</td></tr>
+            <tr><td>refunding</td><td>refunded、paid</td><td>shipped</td></tr>
+            <tr><td>refunded</td><td>无终态</td><td>shipped、paid</td></tr>
+          </tbody>
+        </table>
+        <div class="code-head"><span>test_state_machine.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+
+LEGAL = {
+    "created": {"paid", "cancelled"},
+    "paid": {"shipped", "refunding"},
+    "shipped": {"completed", "refunding"},
+    "refunding": {"refunded", "paid"},
+    "refunded": set(),
+}
+
+ILLEGAL = [
+    ("created", "shipped"),
+    ("created", "refunded"),
+    ("shipped", "created"),
+    ("refunded", "shipped"),
+    ("cancelled", "paid"),
+]
+
+def can_transit(src, dst):
+    return dst in LEGAL.get(src, set())
+
+@pytest.mark.parametrize("src,dst", ILLEGAL)
+def test_illegal_transition_blocked(src, dst, order_service):
+    with pytest.raises(ValueError):
+        order_service.transition(src, dst)
+
+@pytest.mark.parametrize("src,dst", ILLEGAL)
+def test_agent_refuses_illegal_request(src, dst, build_agent, order_service):
+    order_service.force_state(src)
+    agent = build_agent(tools=order_service)
+    reply = agent.run(f"把订单直接从 {src} 改成 {dst}").text
+    assert "不支持" in reply or "无法" in reply, \
+        f"Agent 未拒绝非法转移 {src} -&gt; {dst}"
+    assert order_service.state == src, "非法转移被真实执行"
+
+def test_no_step_skip_in_happy_path(order_service):
+    order_service.force_state("created")
+    order_service.pay("12345")
+    order_service.ship("12345")
+    assert order_service.state == "shipped"
+    assert "paid" in order_service.history, "跳过了支付状态"</code></pre>
+        <p>非法转移用例要同时断言两件事：Agent 拒绝，且底层的状态没有被改。只断言回复文本，会出现「嘴上说不行、后台已经改了」的假通过。</p>
+
+        <h2>六、失败注入：让工具按最坏情况返回</h2>
+        <p>线上工具不会永远成功。超时、返回脏数据、权限拒绝、部分成功、重复提交，这五种情况必须逐个注入。注入点放在工具替身上，不改业务代码。</p>
+        <div class="code-head"><span>test_failure_injection.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+import socket
+
+class TimeoutError_(Exception):
+    pass
+
+SCENARIOS = {
+    "timeout": TimeoutError_("tool timeout after 3000ms"),
+    "permission": PermissionError("403 scope order:write required"),
+    "bad_data": ValueError("response missing field order_id"),
+}
+
+@pytest.mark.parametrize("name,error", SCENARIOS.items())
+def test_tool_failure_is_handled(name, error):
+    llm = ScriptedLLM([
+        {"type": "tool", "tool": "get_order", "args": {"order_id": "12345"}},
+        {"type": "final", "content": f"查询暂时失败（{name}），请稍后重试"},
+    ])
+    box = RecordingToolbox(failures={"get_order": error})
+    result = run_agent(llm, box, "查订单 12345")
+
+    assert result["steps"][0].status == "error"
+    assert result["stopped"] == "final", "工具失败后没有正常收口"
+    assert "稍后重试" in result["final"]
+
+def test_retry_is_bounded():
+    llm = ScriptedLLM([
+        {"type": "tool", "tool": "get_order", "args": {"order_id": "12345"}},
+    ] * 12)
+    box = RecordingToolbox(failures={"get_order": TimeoutError_("timeout")})
+    result = run_agent(llm, box, "查订单 12345", max_steps=8)
+
+    assert result["stopped"] == "max_steps"
+    assert len(result["steps"]) == 8, "重试次数未被上限截断"</code></pre>
+        <p>失败注入的判定重点不是「有没有报错」，而是「报错后有没有收口」。好的 Agent 会在两次重试后给用户明确的失败说明，差的 Agent 会一直重试到步数耗尽，最后返回一段半截话。</p>
+        <p>还有一种更隐蔽的失败叫「部分成功」。比如改地址时省市区写进去了、详细地址写失败，接口返回 200 但 <code>partial=true</code>。测试必须专门构造这种返回，断言 Agent 不会对用户说「地址已更新」然后就此结束。我们要求它必须识别部分成功并继续补齐，或者明确告知用户哪一部分没成功。</p>
+
+        <h2>七、录制回放：把不确定变成确定</h2>
+        <p>脚本化假模型适合单测，但真实模型的决策路径需要定期校准，否则测试和线上会越走越远。折中方案是录制回放：线上或预发跑一遍，把模型动作、工具返回、时间戳全部落成 cassette，回归时重放。</p>
+        <div class="code-head"><span>replay.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+from pathlib import Path
+
+class CassetteLLM:
+    def __init__(self, path):
+        self.actions = json.loads(Path(path).read_text(encoding="utf-8"))["actions"]
+        self.i = 0
+
+    def next_action(self, messages):
+        action = self.actions[self.i]
+        self.i += 1
+        return action
+
+def record_run(result, path):
+    payload = {
+        "actions": [{"type": "tool", "tool": s.tool, "args": s.args} for s in result["steps"]]
+                   + [{"type": "final", "content": result["final"]}],
+        "stopped": result["stopped"],
+    }
+    Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+# 回归时
+result = run_agent(CassetteLLM("cassettes/refund_12345.json"), box, "订单 12345 我要退款")
+assert result["stopped"] == "final"</code></pre>
+        <p>录制的关键是去掉不稳定字段：时间戳、trace id、随机 id 都要替换成固定值，否则每次 diff 都是噪音。我们规定 cassette 里只保留工具名、参数、业务相关返回，其余全部裁剪。回放让回归从 9 分钟降到 40 秒，也终于能在 CI 里跑。</p>
+        <p>回放也有边界：它只能验证「同一条路径上逻辑没变」，验证不了「模型是否会选另一条路径」。所以回放用来守回归，脚本模型用来测分支，真实模型每周跑一次用来校准。三者分工明确，不要指望一种手段覆盖全部。</p>
+
+        <h2>八、成本与步数上限</h2>
+        <p>Agent 的成本是步数的线性函数，而步数服从长尾分布。我们统计过一个改地址场景：中位数 4 步，P95 9 步，最长一次 23 步——那一次是模型把「地址格式不合法」误判成工具故障，反复重试。没有上限，这一单的成本是正常单的六倍。</p>
+        <p>建议设三道闸：单次任务最大步数 8、单工具最多调用 3 次、单任务 token 上限 12000。任何一道触发都终止并把轨迹写入告警日志。终止不是失败，而是一种正确的兜底行为，测试要断言它确实触发了。</p>
+        <p>预算要按 P95 而不是均值算。按均值 4 步估成本，实际账单会被长尾拉高 30% 以上。我们的做法是给每个场景单独记步数分布，取 P95 作为容量规划依据，再留 20% 余量。这样即使某天模型状态不好，也不会出现单日成本失控。</p>
+
+        <h2>九、踩坑与边界</h2>
+        <ul>
+          <li><strong>症状：本地轨迹全绿，线上偶尔调错工具。</strong>原因：本地用脚本模型，线上是真实模型，决策分布完全不同。处理：每周用真实模型跑一次同样的用例，把差异补进脚本，至少保证关键路径两条都覆盖。</li>
+          <li><strong>症状：断言步骤全等，用例三天两头红。</strong>原因：Agent 会插入合理辅助步骤。处理：改子序列断言，只在关键顺序上做强约束。</li>
+          <li><strong>症状：回放时结果对不上。</strong>原因：工具返回里带时间戳和随机 id，且每次重放都重新生成。处理：录制时归一化，回放时使用冻结时钟。</li>
+          <li><strong>症状：并发跑用例时状态互相污染。</strong>原因：共用同一个沙箱租户和订单号。处理：每个用例生成独立租户前缀，结束即清理，禁止跨用例复用业务主键。</li>
+          <li><strong>症状：断言全过，但用户投诉「答非所问」。</strong>原因：只断言了轨迹和工具，没有断言最终回复是否回答了用户问题。处理：补一层轻量语义检查，比如回复必须提到订单号或金额中的至少一个业务实体。</li>
+        </ul>
+
+        <h2>十、效果度量</h2>
+        <table>
+          <thead>
+            <tr><th>指标</th><th>改造前</th><th>改造后</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>轨迹类用例数</td><td>0</td><td>38</td></tr>
+            <tr><td>工具选择错误</td><td>11 个（上线后 2 周发现）</td><td>0 个</td></tr>
+            <tr><td>回归耗时</td><td>9 分钟（不稳定，常跳过）</td><td>40 秒（稳定进 CI）</td></tr>
+            <tr><td>平均步数</td><td>6.2</td><td>4.4</td></tr>
+            <tr><td>单任务成本</td><td>0.031 元</td><td>0.019 元</td></tr>
+          </tbody>
+        </table>
+        <p>Agent 测试的核心不是把每一步都写死，而是把「不允许发生的轨迹」钉住：顺序不能反、写操作要有前置检查、失败必须收口、步数必须有上限。这四条守住，剩下的表述差异可以交给抽样。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://arxiv.org/abs/2210.03629" target="_blank" rel="noopener">ReAct: Synergizing Reasoning and Acting in Language Models — arXiv</a></li>
+            <li><a href="https://arxiv.org/abs/2406.12045" target="_blank" rel="noopener">τ-bench: A Benchmark for Tool-Agent-User Interaction — arXiv</a></li>
+            <li><a href="https://github.com/kevin1024/vcrpy" target="_blank" rel="noopener">VCR.py: Record and Replay HTTP Interactions — GitHub</a></li>
+            <li><a href="https://langchain-ai.github.io/langgraph/" target="_blank" rel="noopener">LangGraph Documentation: Stateful Agent Orchestration</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#agent-testing</span>
+          <span class="tag">#trajectory</span>
+          <span class="tag">#state-machine</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

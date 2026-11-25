@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>App 调试工具链：adb、scrcpy、Charles 与 Frida · 软件测试资料集</title>
+<meta name="description" content="把定位问题从猜变成看：adb 取证、投屏录屏、抓包证书与 Frida 边界。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-debugging-tools.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="App 调试工具链：adb、scrcpy、Charles 与 Frida">
+<meta property="og:description" content="把定位问题从猜变成看：adb 取证、投屏录屏、抓包证书与 Frida 边界。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-debugging-tools.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="App 调试工具链：adb、scrcpy、Charles 与 Frida">
+<meta name="twitter:description" content="把定位问题从猜变成看：adb 取证、投屏录屏、抓包证书与 Frida 边界。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"App 调试工具链：adb、scrcpy、Charles 与 Frida","description":"把定位问题从猜变成看：adb 取证、投屏录屏、抓包证书与 Frida 边界。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-debugging-tools.html","articleSection":"APP 自动化","keywords":"adb, scrcpy, charles","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>13 min read</span>
+        </div>
+        <h1>App 调试工具链：adb、scrcpy、Charles 与 Frida</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="app-debugging-tools">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <h2>为什么值得做：定位问题的成本比修问题高</h2>
+        <p>去年我们统计过一次缺陷处理时长。二百一十四个客户端缺陷里，从「测试提交」到「开发定位到具体原因」的平均耗时是四十七分钟，而真正改代码的平均耗时是十九分钟。也就是说，三分之二的时间花在搞清楚发生了什么。</p>
+        <p>这四十七分钟典型长什么样：开发问「能不能复现」，测试说不稳定；开发说「发个日志」，测试截了个屏幕照片；开发说「看不出，能不能抓个包」，测试说要装证书；最后两个人约在同一台机器前面，手工点一遍。一次沟通两小时，问题本身可能是一个空指针。</p>
+        <p>工具链的价值不在工具本身，在于把「发生了什么」变成一份别人能直接读的证据：哪台设备、什么系统、哪一行日志、哪一次请求、哪个元素被点击、栈有多深。有了这套，很多问题在提给开发之前就已经定位完了。</p>
+        <p>下面按使用频率排：adb 占七成，scrcpy 占一成半，抓包占一成，Frida 用得少但遇到就是硬骨头。</p>
+
+        <h2>工具分工：先看这张表</h2>
+        <table>
+          <thead>
+            <tr><th>工具</th><th>解决什么问题</th><th>典型证据</th><th>成本</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>adb</td><td>设备、安装、日志、性能、输入</td><td>logcat 片段、dumpsys 输出</td><td>零，自带 SDK</td></tr>
+            <tr><td>scrcpy</td><td>投屏、控屏、录屏</td><td>一段带点击轨迹的 mp4</td><td>低，单文件绿色版</td></tr>
+            <tr><td>Charles / mitmproxy</td><td>看接口入参出参与时序</td><td>请求列表与 HAR 文件</td><td>中，需处理证书</td></tr>
+            <tr><td>uiautomator dump</td><td>元素定位、层级结构</td><td>xml 层级树与 bounds</td><td>零</td></tr>
+            <tr><td>Frida</td><td>加解密、证书固定、脱壳</td><td>hook 输出与调用栈</td><td>高，需 root 与授权</td></tr>
+          </tbody>
+        </table>
+
+        <p>有一点要先讲清楚：这几个工具解决的是不同层次的问题。adb 和 scrcpy 是「这台设备现在怎么了」，抓包是「它和后端说了什么」，Frida 是「它在内存里做了什么」。混用会导致大量无效努力，比如用 logcat 去找一个根本没打日志的加密参数，找一天也找不到。</p>
+
+        <h2>adb：设备、日志、安装与性能采集</h2>
+        <p>adb 是唯一必须熟练到不用查文档的工具。下面这份清单是我们新人入职第一周要背下来的，每条都带输出该怎么读。</p>
+
+        <div class="code-head"><span>powershell — adb 常用命令</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># --- 设备与环境 ---
+adb devices -l
+# 输出：emulator-5554  device product:sdk_gphone64 model:sdk_gphone64_x86_64
+# device 才是可用状态；offline 一般是没有完成授权，unauthorized 是手机没点「允许调试」
+
+adb shell getprop ro.build.version.release   # 系统版本，如 14
+adb shell getprop ro.product.model           # 机型，用来判断是不是厂商 ROM 特有问题
+adb -s emulator-5554 shell ...               # 多设备时必须指定 serial
+
+# --- 安装与清理 ---
+adb install -r -d -g app-debug.apk
+# -r 覆盖安装保留数据；-d 允许降级；-g 一次性授予所有运行时权限（测推送时很关键）
+
+adb shell pm clear com.demo.app              # 清空数据，等价于「全新安装后首次启动」
+adb shell pm list packages | Select-String demo
+
+# --- 日志 ---
+adb logcat -c                                # 清缓冲，复现前必做
+adb logcat -v threadtime -s AndroidRuntime:E ActivityManager:E
+# threadtime 带线程号和毫秒时间戳；-s 只留指定 tag，能把几千行压到几十行
+
+adb logcat -b crash -d                       # 只看崩溃缓冲，-d 表示输出后退出
+adb shell dumpsys dropbox --print data_app_crash   # 系统留存的崩溃记录，比 logcat 更全
+
+# --- 性能 ---
+adb shell dumpsys meminfo com.demo.app
+# 看 TOTAL PSS、Java Heap、Native Heap。PSS 持续上涨且不回落才是泄漏，单次数值没有意义
+
+adb shell dumpsys gfxinfo com.demo.app reset  # 先清零
+# （手工滑动列表 30 秒）
+adb shell dumpsys gfxinfo com.demo.app
+# 看 Janky frames 百分比，超过 5% 就值得查；同时看 90th/95th/99th percentile 的帧耗时
+
+adb shell am start -W -n com.demo.app/.MainActivity
+# 输出 TotalTime / WaitTime，冷启动 TotalTime 超过 1200ms 基本可以报优化项</code></pre>
+
+        <p>几个读输出的要点。第一，<code>logcat</code> 不做过滤基本没法看，一台正常使用的手机每秒几十到几百行日志，<code>-s</code> 加 tag 过滤是生存技能。第二，崩溃看 <code>-b crash</code>，不要在主缓冲里翻，主缓冲只有几 MB，滚动很快就把崩溃刷掉了。第三，<code>dumpsys meminfo</code> 单次数值不能作为泄漏证据，必须做「操作三十次，看 PSS 是否单调上升」的对比。</p>
+        <p>还有一个习惯很值钱：跑 UI 自动化之前先把动画关掉。</p>
+
+        <div class="code-head"><span>powershell — 关动画与稳定环境</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 关掉三类动画，能显著降低「元素还没停稳就去点」导致的偶发失败
+adb shell settings put global window_animation_scale 0
+adb shell settings put global transition_animation_scale 0
+adb shell settings put global animator_duration_scale 0
+
+# 保持常亮、锁定竖屏，避免脚本跑到一半屏幕灭了
+adb shell svc power stayon true
+adb shell settings put system accelerometer_rotation 0
+adb shell settings put system user_rotation 0</code></pre>
+
+        <h2>scrcpy：投屏、控屏与录屏取证</h2>
+        <p>scrcpy 把设备画面实时投到电脑上，延迟通常在一百毫秒以内，鼠标键盘可以直接操作手机。它的实际价值有两个：一是多人同时看一台设备，省掉「你们过来看」的往返；二是录屏取证。</p>
+        <p>偶现问题最有力的证据不是截图，是一段能看清手指落点的录像。加上 <code>--show-touches</code> 之后，每一次点击会在画面上留下一个圆圈，开发一眼就知道你点的是哪个元素、点了第几次才生效。</p>
+
+        <div class="code-head"><span>powershell — scrcpy 常用参数</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 基础投屏：限制分辨率和码率，减少 USB 2.0 下的卡顿
+scrcpy --max-size 1280 --max-fps 30 --bit-rate 4M
+
+# 录屏取证：不录声音，限制 90 秒，显示触控轨迹
+scrcpy --record bug-20261123-01.mp4 --no-audio --time-limit 90 --show-touches
+
+# 长时间观察：关屏但保持运行，省电又不影响脚本
+scrcpy --turn-screen-off --stay-awake --max-fps 15
+
+# 指定设备（多设备时）
+scrcpy -s 1234567890ABCDEF --window-title "Pixel 7 - staging"
+
+# 输出解读：录制的 mp4 用播放器逐帧看，能确认「点击后 800ms 才有响应」这类问题
+# 这类证据比一句「点了没反应」有效得多</code></pre>
+
+        <p>注意 scrcpy 用的是 adb 通道，所以它和你的自动化脚本会争抢同一个设备的操作权。跑自动化时不要同时用它去点，会互相打断。要观察就只看画面，不要动手操作。</p>
+
+        <h2>抓包：Charles、mitmproxy 与 Android 7 之后的证书</h2>
+        <p>抓包是接口层问题最快的手段，但 Android 7 之后多了一道坎：应用默认不再信任用户安装的证书，只信任系统证书。这意味着你在手机上装了 Charles 的根证书，浏览器能抓，但你的 App 抓不到，所有 HTTPS 请求显示为 <code>unknown</code> 或者直接连接失败。</p>
+        <p>网上很多教程让你改 <code>targetSdkVersion</code> 降到 23，这是坏建议，会引入一堆其他问题。实操上我们有三个选择，按推荐度排序。</p>
+        <ol>
+          <li><strong>让开发加 debug 配置</strong>（最正规）：在 <code>res/xml/network_security_config.xml</code> 里加 <code>debug-overrides</code>，只在 debug 构建生效，线上包不受影响。这是唯一不需要 root 且不污染系统的方案。</li>
+          <li><strong>装进系统证书目录</strong>（模拟器或已 root 设备）：证书文件必须按 <code>subject_hash_old</code> 命名，扩展名 <code>.0</code>，放到 <code>/system/etc/security/cacerts/</code>。Android 14 起这个目录被挂到 <code>/apex/com.android.conscrypt/cacerts</code>，直接写系统分区不再生效。</li>
+          <li><strong>hook 掉证书校验</strong>（授权范围内）：用 Frida 替换 <code>TrustManager</code> 或绕开 <code>CertificatePinner</code>，见效最快，但只允许用在自有 App 上。</li>
+        </ol>
+
+        <div class="code-head"><span>powershell — mitmproxy 证书装进系统目录</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 启动 mitmproxy，首次运行会在 ~/.mitmproxy 生成 CA
+mitmdump -p 8888
+
+# 2. 让手机走代理（同网段，IP 换成你电脑的）
+adb shell settings put global http_proxy 192.168.1.10:8888
+
+# 3. 取证书并算出系统要求的文件名
+curl.exe -o mitm.cer http://mitm.it/cert/pem
+openssl x509 -inform PEM -subject_hash_old -in mitm.cer | Select-Object -First 1
+# 假设输出 1b2c3d4e，那么文件名必须是 1b2c3d4e.0
+Copy-Item mitm.cer 1b2c3d4e.0
+
+# 4. 写入系统证书目录（需要 root 或可写系统分区的模拟器）
+adb root
+adb remount
+adb push 1b2c3d4e.0 /system/etc/security/cacerts/
+adb shell chmod 644 /system/etc/security/cacerts/1b2c3d4e.0
+adb reboot
+
+# 5. 验证：请求应正常解密，而不是出现 Certificate pinning failure
+adb shell settings delete global http_proxy   # 收工记得删，否则手机整体断网
+
+# Android 14 以上改用 apex 目录：
+# adb push 1b2c3d4e.0 /apex/com.android.conscrypt/cacerts/   （部分机型只读，需 Magisk 模块）</code></pre>
+
+        <p>抓包时最容易忽略的是时序。看到「下单接口返回 200 但页面报错」这种问题，不要只看单条请求，要看前后五条请求的间隔：我们遇到过一次是客户端在支付回调前的轮询里拿了旧的状态，接口全对，顺序错了。Charles 的请求列表有时间轴，mitmproxy 可以用 <code>-w flow.dump</code> 存全量流量事后回放，两种都值得养成习惯。</p>
+        <p>再补一条工程习惯：会话不要用截图传，导出成 HAR 或 mitmproxy 的 flow 文件附在缺陷单里。截图只能证明「发生过一次调用」，HAR 能证明入参、返回、耗时和先后顺序，开发可以直接导入自己的工具重放。我们要求每条接口类缺陷至少附一个 HAR，这条规矩落地后，接口类缺陷的平均往返次数从 2.6 次降到 1.2 次。</p>
+
+        <div class="callout warn">
+          <p>抓包只用于测试环境和你自己负责的应用。抓第三方 App 的流量、解析他人账号数据，无论技术上是否可行，都不在测试工作范围内。公司内网也要遵守数据安全规范，抓到的报文不要随手贴在工单里，先脱敏。</p>
+        </div>
+
+        <h2>Frida：hook 与脱壳的适用边界</h2>
+        <p>Frida 是把脚本注入到目标进程里执行的能力。对测试来说它解决三类问题：看加密前的明文参数、绕过证书固定、脱掉加固壳后看真实代码。</p>
+        <p>典型用法是 <code>frida-ps -U</code> 列出设备上的进程，然后 <code>frida -U -f 包名 -l hook.js</code> 在启动时注入。下面这个脚本 hook 了 OkHttp 的请求构造，把 URL、header 和 body 打出来，用来验证客户端是否把某个字段多传了：</p>
+
+        <div class="code-head"><span>js — Frida hook OkHttp 请求</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>Java.perform(function () {
+  var Builder = Java.use("okhttp3.Request$Builder");
+
+  Builder.build.implementation = function () {
+    var req = this.build();
+    console.log("[REQ] " + req.method() + " " + req.url().toString());
+
+    var headers = req.headers();
+    for (var i = 0; i &lt; headers.size(); i++) {
+      console.log("      " + headers.name(i) + ": " + headers.value(i));
+    }
+
+    var body = req.body();
+    if (body !== null &amp;&amp; body.contentLength() &gt; 0 &amp;&amp; body.contentLength() &lt; 4096) {
+      var Buffer = Java.use("okio.Buffer");
+      var buf = Buffer.$new();
+      body.writeTo(buf);
+      console.log("      body: " + buf.readUtf8());
+    }
+    return req;
+  };
+
+  console.log("[*] OkHttp hook 已挂载");
+});</code></pre>
+
+        <p>实际用起来有两点要点。一是不管什么 App，启动注入通常比 attach 稳，因为很多初始化逻辑在 <code>Application.onCreate</code> 里就跑完了。二是加固包的类名会被混淆，<code>okhttp3.Request$Builder</code> 可能找不到，要先脱壳或改用特征搜索（按方法签名遍历已加载的类）。</p>
+        <p>边界必须写清楚：Frida 只对自有应用或持有书面授权测试的应用使用。对第三方 App 注入脚本、绕过其保护措施，在国内可能触及《网络安全法》与刑法中关于侵入计算机信息系统、破坏技术措施的条款，不是「技术中立」能兜住的。另外，被测应用如果有 Frida 检测（扫描 <code>frida-server</code> 端口、检查 <code>/proc/self/maps</code> 里的可疑模块），注入会直接触发风控甚至封号，测试账号要提前申请白名单。</p>
+
+        <h2>UI 层级 dump：元素定位的最后手段</h2>
+        <p>自动化脚本里最耗时的事是「这个元素怎么选」。除了 Appium Inspector，最原始也最可靠的办法是直接把当前界面的层级树 dump 出来看。</p>
+
+        <div class="code-head"><span>powershell — 导出并解读 UI 层级</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>adb shell uiautomator dump /sdcard/window_dump.xml
+adb pull /sdcard/window_dump.xml .
+
+# 只看带 resource-id 且可点击的节点
+Select-String -Path window_dump.xml -Pattern 'clickable="true"' |
+  Select-String -Pattern 'resource-id="com.demo.app:id/'
+
+# 输出解读：
+#   bounds="[36,420][1044,540]"   左上与右下坐标，中心点是 (540, 480)
+#   resource-id=...               首选定位方式，比 text 稳
+#   content-desc=...              无障碍描述，图标按钮通常只有它有值
+#   class=android.widget.FrameLayout   说明这层只是容器，真正的控件在子节点
+#   WebView 内部内容是 dump 不到的，需要切到 webview context 或用前端调试协议</code></pre>
+
+        <p><code>bounds</code> 除了用来算坐标，还能用来判断布局问题。比如一个按钮的 bounds 高度只有 24 像素，那它一定低于 48dp 的最小点击区域，手指容易点不到——这类问题看截图看不出来，看层级一眼就有。</p>
+
+        <h2>崩溃日志与 ANR</h2>
+        <p>崩溃和 ANR 是两类问题，抓法不同，混淆了会浪费时间。</p>
+        <ul>
+          <li><strong>Java 崩溃</strong>：<code>logcat -b crash</code> 里有完整堆栈，重点是第一个 <code>Caused by</code>，后面都是包装。</li>
+          <li><strong>Native 崩溃</strong>：logcat 里是 <code>signal 11 (SIGSEGV)</code>，堆栈只有地址没有函数名，需要 <code>addr2line</code> 配合带符号的 so，或者去看 <code>/data/tombstones/</code>（需要 root）。</li>
+          <li><strong>ANR</strong>：主线程卡住超过五秒（前台）。证据在 <code>dumpsys dropbox --print data_app_anr</code>，里面有主线程的堆栈，能直接看出卡在哪个锁或者哪次 IO。</li>
+        </ul>
+
+        <div class="code-head"><span>powershell — 一次性取证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 崩溃：三个来源互相补
+adb logcat -b crash -d &gt; crash.txt
+adb shell dumpsys dropbox --print data_app_crash &gt; dropbox_crash.txt
+adb shell ls -l /data/tombstones/            # native 崩溃，需 root
+
+# ANR：主线程堆栈在这里
+adb shell dumpsys dropbox --print data_app_anr &gt; anr.txt
+Select-String -Path anr.txt -Pattern "main" -Context 0,25
+
+# 兜底：完整 bugreport，包含上述全部内容，几十 MB，适合打包给开发
+adb bugreport .\bugreport-20261123.zip
+
+# 输出解读（ANR 片段）：
+#   "main" prio=5 tid=1 Blocked
+#     at com.demo.app.sync.OrderSync.waitLock(OrderSync.java:88)
+#   说明主线程在等锁，去找谁持有这把锁，而不是去优化 UI</code></pre>
+
+        <h2>踩坑与边界</h2>
+        <ul>
+          <li><strong>症状</strong>：<code>adb devices</code> 显示 <code>unauthorized</code>。<strong>原因</strong>：手机上没点允许调试，或者之前点了「一律拒绝」。<strong>处理</strong>：开发者选项里撤销 USB 调试授权再插一次；Windows 上还可能是驱动问题，换 USB 口或装厂商驱动。</li>
+          <li><strong>症状</strong>：抓包工具显示大量 <code>unknown</code>。<strong>原因</strong>：Android 7 之后的用户证书不被信任。<strong>处理</strong>：优先让开发加 debug 的 <code>network_security_config</code>，别去降 targetSdk。</li>
+          <li><strong>症状</strong>：<code>uiautomator dump</code> 报 <code>could not get idle state</code>。<strong>原因</strong>：页面有无限动画（进度条、轮播图），系统等不到静止。<strong>处理</strong>：先关动画，或者直接读 <code>/sdcard/window_dump.xml</code> 上次的产物。</li>
+          <li><strong>症状</strong>：脚本在真机上偶发点击落空，模拟器从不出错。<strong>原因</strong>：真机动画时长不同，元素还在位移。<strong>处理</strong>：全局关动画，并且等待条件用「元素可见且 bounds 稳定」而不是「元素存在」。</li>
+        </ul>
+        <p>工具不是越多越好。我们内部的定位顺序是固定的：先看日志，再录屏，再看接口，最后才动 Frida。九成的问题在前两步就能定性，过早掏 Frida 通常是因为没读日志。</p>
+        <p>最后一条经验：把上面这些命令整理成一个取证脚本，输入包名和缺陷编号，自动收集日志、崩溃缓冲、UI 层级、一段录屏和一份性能快照，打包成带时间戳的压缩包。提缺陷时直接附包，开发不用再问一句「有没有日志」。这个脚本不到两百行，是团队这一年投入产出比最高的东西。</p>
+
+        <h2>效果度量</h2>
+        <table>
+          <thead>
+            <tr><th>指标</th><th>引入工具链前</th><th>引入之后</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>缺陷平均定位耗时</td><td>47 分钟</td><td>13 分钟</td></tr>
+            <tr><td>需要「当面复现」的比例</td><td>约 38%</td><td>9%</td></tr>
+            <tr><td>偶现问题一次抓取成功率</td><td>不足三成</td><td>八成以上</td></tr>
+            <tr><td>UI 脚本偶发失败率</td><td>11%</td><td>3.5%</td></tr>
+          </tbody>
+        </table>
+        <p>最后那条来自关动画加断言条件改造，和技术选型无关，但收益最大。工具链真正的产出不是「会用四个工具」，而是团队里形成了一套固定的取证顺序，新人照着做也能一次拿全证据。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://developer.android.com/tools/adb" target="_blank" rel="noopener">Android Debug Bridge (adb) — Android Developers</a></li>
+            <li><a href="https://github.com/Genymobile/scrcpy" target="_blank" rel="noopener">scrcpy — GitHub 仓库与参数说明</a></li>
+            <li><a href="https://docs.mitmproxy.org/stable/concepts-certificates/" target="_blank" rel="noopener">Certificates — mitmproxy 官方文档</a></li>
+            <li><a href="https://developer.android.com/privacy-and-security/security-config" target="_blank" rel="noopener">Network security configuration — Android Developers</a></li>
+            <li><a href="https://frida.re/docs/android/" target="_blank" rel="noopener">Frida on Android — Frida 官方文档</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#adb</span>
+          <span class="tag">#scrcpy</span>
+          <span class="tag">#charles</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

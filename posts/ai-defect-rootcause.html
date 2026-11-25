@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 缺陷根因分析：用上下文缩小排查面 · 软件测试资料集</title>
+<meta name="description" content="用堆栈、日志切片、最近改动与历史同类缺陷给足上下文，让 AI 输出可疑模块与可人工验证的步骤。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-defect-rootcause.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="AI 缺陷根因分析：用上下文缩小排查面">
+<meta property="og:description" content="用堆栈、日志切片、最近改动与历史同类缺陷给足上下文，让 AI 输出可疑模块与可人工验证的步骤。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-defect-rootcause.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AI 缺陷根因分析：用上下文缩小排查面">
+<meta name="twitter:description" content="用堆栈、日志切片、最近改动与历史同类缺陷给足上下文，让 AI 输出可疑模块与可人工验证的步骤。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"AI 缺陷根因分析：用上下文缩小排查面","description":"用堆栈、日志切片、最近改动与历史同类缺陷给足上下文，让 AI 输出可疑模块与可人工验证的步骤。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-defect-rootcause.html","articleSection":"落地实践","keywords":"缺陷定位, 根因分析, llm","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>13 min read</span>
+        </div>
+        <h1>AI 缺陷根因分析：用上下文缩小排查面</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="ai-defect-rootcause">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <h2>缺陷单缺信息，比缺技术更贵</h2>
+        <p>去年我们组提了 214 张缺陷单，其中 130 张在第一次转给开发时被退回补充信息，占 61%。退回理由高度集中：复现步骤只有一句「下单失败」，没有 traceId，没有接口返回，也不知道是在哪个环境复现的。平均一张单多花 40 分钟来回沟通，而真正定位问题的中位数时间只有 25 分钟。</p>
+        <p>也就是说，一多半精力耗在问「你是在预发还是生产复现的」这类问题上。这不是人的问题，是模板和流程的问题。缺陷单模板里只有「现象」和「截图」两个必填项，日志、接口返回、最近改动全靠提交人自觉，而自觉的结果就是大部分人只填截图，因为截图最省事。</p>
+        <p>我把 AI 放进这个环节，起点不是让它猜根因，而是让它做两件确定性更高的事：先按模板检查输入缺了什么，再基于已有证据给出最多三条可验证的假设。前者直接减少沟通轮次，后者把定位从翻代码变成照着步骤验证。</p>
+        <p>边界要先说清楚：AI 在这件事上只负责缩小搜索范围，不负责下结论。任何一条假设，如果给不出可执行的验证步骤，我们一律不写进缺陷单的根因字段。这条规矩执行了半年，缺陷单的根因返工率从 34% 降到 11%。</p>
+
+        <h2>这个 skill 的定位：缩小排查面，不下结论</h2>
+        <p>适用的情况有四类：线上或预发缺陷已经复现，但开发和测试对原因判断不一致；缺陷单信息不全，需要先列出缺失项再补；同模块连续出现相似缺陷，需要判断是否同一根因；回归阶段老功能失效，需要快速定位是哪次改动引入。</p>
+        <p>不适用的情况也要写清楚。缺陷还没有稳定复现路径，先做复现，再谈根因，否则假设全是空中楼阁；问题已明确是第三方故障且对方已确认，直接走故障通告；需要用生产数据验证但没有脱敏授权，这一步不能绕。</p>
+        <p>它不输出修复代码，也不替你执行命令。修复方案留给开发确认，这是权限问题，也是责任问题。验证方法写成给人执行的步骤：在哪台机器、用哪个账号、调哪个接口、看哪个字段、期望看到什么。</p>
+        <p>还有一个约束容易被忽略：现象归类只能从五类里选一个，功能错误、数据错误、性能异常、依赖故障、配置问题。不允许自定义分类。自定义听起来灵活，实际上会让统计失效，三个月后你无法回答「我们最多的到底是哪类问题」。</p>
+
+        <h2>上下文怎么给：六类证据与截取范围</h2>
+        <p>根因分析的输入是证据，不是描述。描述会带主观判断，证据不会。六类材料里前四类必需，后两类建议给，缺了要在待确认清单里写清楚。</p>
+        <table>
+          <thead><tr><th>材料</th><th>作用</th><th>截取范围</th><th>缺失后果</th></tr></thead>
+          <tbody>
+            <tr><td>缺陷描述</td><td>确定现象、环境、首次出现时间</td><td>标题、现象、复现步骤、环境，按字段分行</td><td>现象归类会漂移</td></tr>
+            <tr><td>堆栈信息</td><td>定位抛出点与调用路径</td><td>业务入口到抛出点，最多 120 行，保留行号</td><td>只能猜模块</td></tr>
+            <tr><td>日志切片</td><td>还原同一 traceId 的调用顺序</td><td>按 traceId 截取，前后各 30 秒，8000 字以内</td><td>因果链断在中间</td></tr>
+            <tr><td>最近改动</td><td>形成候选提交列表</td><td>近 72 小时相关模块，文件级增删行数加关键片段</td><td>无法判断是否新引入</td></tr>
+            <tr><td>接口返回</td><td>区分业务错误与系统错误</td><td>一条异常请求加一条正常请求做对照</td><td>状态码与错误码对不上</td></tr>
+            <tr><td>历史同类缺陷</td><td>判断是否复发、上次怎么修</td><td>同模块同现象，最多 10 条，只要根因与修复方式</td><td>重复排查已知问题</td></tr>
+          </tbody>
+        </table>
+        <p>堆栈不要只贴最后一行。中间被省略的 caused by 往往才是真正的入口，尤其是包装过异常的框架。我们要求保留完整链路，重复的框架内部帧可以折叠，但首尾各五帧必须留。</p>
+        <p>日志切片宁可短而准，不要整文件上传。只保留 ERROR、WARN 和关键业务节点，比如订单创建、支付回调、库存扣减。8000 字是经验值，再长模型会开始丢中间的细节。</p>
+        <p>改动窗口定 72 小时是统计出来的。我们抽了 190 张线上缺陷单，78% 能关联到 72 小时内的改动；放宽到 7 天只多找到 6%，但候选提交数量翻了 4 倍，人工核对成本反而上升。这个数字每半年要重算一次，业务节奏变了，窗口也要跟着变。</p>
+        <p>接口返回要给对照。只有异常报文，模型无法判断这个错误码是这次才有还是一直如此；给一条同时段的正常请求，它才能看出字段差异。</p>
+        <div class="code-head"><span>提示词 — defect-rootcause</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>你是缺陷根因分析助手。只依据我给出的证据输出，不得补充证据之外的业务规则、字段名、接口地址或阈值。
+
+本次缺陷：
+- 单号：BUG-2026-1842
+- 环境：预发，分支 release/2026.11，commit 7c1d9ab
+- 现象：订单支付成功后，优惠券仍显示未使用
+- 首次出现：2026-11-23 10:12:37 +08:00
+
+证据清单：
+1. current/stack.txt：堆栈原文，保留行号
+2. current/log-T20261123-1012.txt：按 traceId 截取，前后各 30 秒
+3. current/diff-72h.md：近 72 小时相关模块改动
+4. current/api-response.json：异常请求与正常请求各一条
+5. history/defects/2026-Q3.csv：同模块历史缺陷
+
+要求：
+1. 先给不超过 80 字的现象判断，并归入五类之一
+2. 给不超过 3 条假设，按最容易证伪排序
+3. 每条假设写：可疑模块、可疑改动、证据位置、验证步骤、成立时的预期、置信度
+4. 验证步骤写成人工可执行的步骤，不写脚本
+5. 不输出修复代码
+6. 证据不足的结论移入待确认清单，逐条写缺什么、影响哪条结论、需要谁提供</code></pre>
+        <p>提示词里特意写了「按最容易证伪排序」。这个顺序和按可能性排序不一样，前者能让你在十分钟内排除两条错误方向，后者会让你从最像的原因开始啃，啃两小时发现不成立。</p>
+
+        <h2>上下文怎么装：一个缺陷一个目录</h2>
+        <p>缺陷分析的材料最忌跨单混用。上一张单的日志混进来，模型会把两次现象串成一条因果链，而且看起来非常合理。我们的做法是一张单一个目录，分析完归档，下张单重新建。</p>
+        <div class="code-head"><span>目录结构 — qa-ai-context/defect-rootcause</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>qa-ai-context/defect-rootcause/
+├── current/
+│   ├── ticket.md               本次缺陷单原文，按模板字段填写
+│   ├── stack.txt               堆栈原文，保留文件名与行号
+│   ├── log-T20261123-1012.txt  按 traceId 截取的日志切片
+│   ├── diff-72h.md             近 72 小时改动统计与关键片段
+│   └── api-response.json       脱敏后的异常与正常请求对照
+└── history/
+    ├── defects/
+    │   ├── 2026-Q3.csv         历史缺陷：编号、模块、现象、根因、修复方式、版本
+    │   └── similar-cases.md    同类缺陷聚合，按根因分类
+    ├── rootcause-taxonomy.md   根因分类口径，固定八类
+    └── deprecated/
+        ├── api-2024.md         旧版接口文档，首行标已过期
+        └── runbook-2025.md     旧排查手册，仅作背景</code></pre>
+        <p>文件名里带 traceId 是有意的。这样引用时可以写 log-T20261123-1012.txt 第 41 行，任何人能直接打开核对；写「日志里有一段报错」等于没写。</p>
+        <p>每份材料首行还要写来源：缺陷单号或文件路径、环境与 commit、导出时间。缺了 commit 的材料基本没法用，因为你不知道它对应哪次部署。</p>
+
+        <h2>历史同类缺陷怎么挂</h2>
+        <p>历史缺陷是这套 skill 里最容易被用错的部分。用对了能少走半天弯路，用错了会把相关关系写成因果关系。</p>
+        <p>我们分三类挂：history/defects 下的季度缺陷表、人工整理的同类缺陷聚合、以及一份根因分类口径。口径固定八类，不允许临时新增。原因很实际：新分类一旦出现，历史数据的聚合就断了，你没法比较「这个季度哪类问题变多了」。</p>
+        <p>同类缺陷最多取 10 条，按时间倒序，超过 10 条时只保留同模块同错误码的记录。每条只要根因分类和修复方式，不要完整描述。给完整描述，模型会倾向于说「这就是上次那个问题」，而实际上可能只是现象相似。</p>
+        <p>每次引用历史缺陷，都要求模型写清共同点和差异点。共同点用来复用排查路径，差异点用来提醒你这次可能不一样。只写共同点的结论，我们一律退回重做，因为它本质上是在找一个能自圆其说的故事。</p>
+        <p>旧接口文档和旧排查手册放 deprecated，首行写失效版本与替代文件。冲突裁定的顺序是：缺陷描述与日志、堆栈不一致时，以原始日志和堆栈为准；接口文档与代码不一致时，两种说法并列，进待确认清单。</p>
+
+        <h2>输出规范：可疑模块、可疑改动、验证步骤、置信度</h2>
+        <p>先给一段不超过 80 字的现象判断，然后是最多三条假设。为什么是三条？因为我们试过放开到十条，结果是每条都写得很短，没人愿意验证，最后等于没有结论。</p>
+        <table>
+          <thead><tr><th>字段</th><th>要求</th><th>示例</th></tr></thead>
+          <tbody>
+            <tr><td>可疑模块</td><td>具体到服务与目录</td><td>coupon-service/src/callback</td></tr>
+            <tr><td>可疑改动</td><td>commit 短 hash 加文件行号</td><td>7c1d9ab callback.py:137</td></tr>
+            <tr><td>证据位置</td><td>日志行号或接口字段</td><td>log-T20261123-1012.txt 第 41 行</td></tr>
+            <tr><td>验证步骤</td><td>人工可执行，写清账号、入口、观察点</td><td>用测试账号重放同一笔回调两次，查券状态表</td></tr>
+            <tr><td>成立预期</td><td>可观察的具体现象</td><td>同一订单出现两条已使用记录</td></tr>
+            <tr><td>置信度</td><td>高 / 中 / 低</td><td>中</td></tr>
+          </tbody>
+        </table>
+        <p>置信度的规则要写死：证据精确到行号、且验证步骤能明确判定成立与否，才允许标高；只有模块级线索标中；靠经验联想标低，而且低置信度不能当结论用，只能进观察项。</p>
+        <p>验证步骤是给人看的，所以必须带上下文。写「重放回调」不够，要写清用哪个环境的哪个测试账号、从哪个入口触发、重放几次、去哪张表看哪个字段。我们的标准是：换一个没参与排查的同事，照着步骤能独立做完。</p>
+        <p>待确认清单照旧四列：序号、缺失或不确定的内容、影响、需要谁提供。没有就写「无」，但不许省略。</p>
+
+        <h2>误判的四种典型与人工兜底</h2>
+        <ul>
+          <li><strong>把最近提交当根因</strong>：时间上相邻不等于因果。必须先做重放或对照，再写进结论。</li>
+          <li><strong>把相关当因果</strong>：日志里 A 先出现、B 后出现，只能说明顺序，不能说明因果。要求给出机制解释。</li>
+          <li><strong>把第三方超时写成自身逻辑缺陷</strong>：先看错误码来源和调用链归属，第三方的问题走故障通告。</li>
+          <li><strong>把建议加日志当成假设</strong>：那不是可验证结论，是待办事项。放进排查清单，不要放进假设列表。</li>
+          <li><strong>假设太多</strong>：十几条可能原因等于没有结论。超过三条就强制排序，只留最容易验证的。</li>
+        </ul>
+        <p>人工兜底有三道。第一，每条假设必须能被一次操作证伪，证伪不了就降级为观察项。第二，高置信度也要开发确认后才能写进缺陷单的根因字段。第三，每周抽三张已关闭的缺陷单回看，检查当时的假设是否真的成立，误判的补进反例库。</p>
+        <p>这三道不是为了防模型，是为了防人偷懒。模型给出一条看起来很顺的假设，人最容易做的事就是直接复制进缺陷单，然后这个故事就变成了团队记忆。</p>
+
+        <h2>什么时候不该用它，以及效果</h2>
+        <p>三种情况直接停手：缺陷未稳定复现；已确认是第三方故障；需要生产数据但没有脱敏授权。前两种用了只会产生噪音，第三种用了就是事故。</p>
+        <p>用半年之后的数据对比，样本是同一业务线的 180 张缺陷单。</p>
+        <table>
+          <thead><tr><th>指标</th><th>改前</th><th>改后</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>首次转派被退回率</td><td>61%</td><td>18%</td><td>缺信息导致</td></tr>
+            <tr><td>平均沟通轮次</td><td>2.6 轮</td><td>1.2 轮</td><td>每张单</td></tr>
+            <tr><td>首轮假设命中率</td><td>43%</td><td>71%</td><td>三条以内命中</td></tr>
+            <tr><td>根因返工率</td><td>34%</td><td>11%</td><td>根因被推翻</td></tr>
+          </tbody>
+        </table>
+        <p>判断标准只有一条：假设能不能被别人照着重放。能重放，说明证据和步骤都够具体；不能重放，那只是一个人的猜测换了个说法。</p>
+
+        <div class="callout warn">
+          <p>这个 skill 的第一条硬性约束是：只依据引用文档与当前上下文输出，不许按想法自由发挥；信息不足的部分必须进入「待确认清单」，不许编造。</p>
+        </div>
+        <h2>Skill 完整展示</h2>
+        <p>这套流程对应的 skill 放在 Claude Code 的用户目录 <code>~/.claude/skills/skill-defect-rootcause/SKILL.md</code>；Trae 放在 <code>C:\Users\你的用户名\.trae\skills\skill-defect-rootcause\SKILL.md</code>，项目内则放 <code>.trae/skills/</code>。目录名与 front matter 的 name 保持一致，重启后加载。</p>
+        <div class="code-head"><span>markdown — SKILL.md</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>---
+name: defect-rootcause
+description: 基于堆栈、日志切片、最近改动与接口返回做缺陷根因假设，每条假设附带证据位置与可直接执行的验证命令，最多三条并按可能性排序，用于缺陷流转中的信息补全与定位。
+---
+
+# 缺陷根因分析：从堆栈到可疑提交
+
+## 硬性约束（优先级最高，与其他章节冲突时以本节为准）
+
+1. 只能依据三类信息输出：用户提供的需求文档 / 接口文档 / 代码 / 日志原文、当前会话上下文、本 skill「输入」一节所列的文件。禁止凭想象补充业务规则、字段名、接口地址、阈值、状态码、版本号或历史数据。
+2. 每条产出都要可回溯，必须标注来源：文档章节或条款、文件路径与行号、日志片段、接口字段。标不出来源的条目不得进入正式产出。
+3. 信息不足时不许编造填补。缺失项一律进入「待确认清单」，逐条写清：缺什么、影响哪条结论、需要谁提供。
+4. 凡是基于经验补出的内容，必须以「推断：」开头，并写明依据与置信度（高 / 中 / 低）。置信度为低的推断不能当结论用。
+5. 禁止虚构引用：不编造文档条款号、版本号、链接、指标数值、报错原文。引用原文时逐字摘录并注明位置。
+6. 资料互相矛盾时（文档与代码不一致、两处规则冲突）不要自行取舍，把两种说法并列，标明冲突点和需要确认的问题。
+7. 输出前逐条自检：这条有来源吗？没有就移到「待确认清单」。自检不通过不许输出。
+
+## 待确认清单（输出必带）
+
+无论信息是否充足，输出末尾都保留这一节；没有待确认项时写「无」，不许省略该节。每行格式：
+
+| 序号 | 缺失或不确定的内容 | 影响 | 需要谁提供 |
+
+## 适用场景
+
+- 线上或预发缺陷已经复现，但开发与测试对原因判断不一致。
+- 缺陷单信息不全，需要先列出缺失项再补充。
+- 同一模块连续出现相似缺陷，需要判断是否属于同一根因。
+- 回归阶段发现老功能失效，需要快速定位是哪次改动引入。
+
+以下情况不要用：
+
+- 缺陷还没有稳定复现路径，应先做复现，再谈根因。
+- 问题已明确是第三方故障，且对方已确认，直接走故障通告。
+- 需要使用生产数据验证，但没有脱敏授权。
+
+## 输入
+
+必需：
+
+1. 缺陷标题、现象描述、复现步骤。
+2. 堆栈信息，包含文件名与行号，至少给到业务入口方法。
+3. 日志切片，按 traceId 截取，控制在 8000 字以内。
+4. 最近 72 小时相关模块的 diff 统计，含文件名与增删行数。
+
+建议补充：
+
+5. 接口返回报文，含状态码与业务错误码。
+6. 环境信息：分支名、部署 commit、部署时间、依赖版本。
+7. 受影响用户量与首次出现时间。
+
+输入缺失时：在输出的 missing_info 中逐条列出，并写明由谁补充，不要用猜测填补。
+
+## 上下文与历史文档规范
+
+本节规定每次调用前要准备哪些证据、怎么截取、历史缺陷放在哪里。证据不齐时先把缺口列出来，再用现场材料往下推。
+
+### 本次任务需要的材料
+
+| 材料 | 必需 | 截取范围 | 格式 |
+| --- | --- | --- | --- |
+| 缺陷描述 | 是 | 标题、现象、复现步骤、环境、首次出现时间 | 纯文本，按字段分行 |
+| 堆栈信息 | 是 | 从业务入口方法到抛出点，最多 120 行，保留文件名与行号 | 原始堆栈，不删中间的 caused by |
+| 日志切片 | 是 | 按 traceId 截取，前后各留 30 秒，总量 8000 字以内 | 每行保留时间戳、级别、服务名、traceId |
+| 最近改动 | 是 | 近 72 小时相关模块，给文件级增删行数与可疑文件的关键 hunk | 表格加 diff 片段 |
+| 接口返回 | 建议 | 一条出问题的请求与一条正常请求做对照，含状态码与业务错误码 | JSON 或纯文本，去掉 token 与个人信息 |
+| 历史同类缺陷 | 建议 | 同模块同现象，最多 10 条，只要根因与修复方式 | 表格：缺陷编号 / 根因分类 / 修复方式 / 版本 |
+
+截取规则：
+
+1. 日志切片宁可短而准，不要整文件上传；超过 8000 字时只保留 ERROR、WARN 与关键业务节点。
+2. 堆栈里出现框架内部循环调用的，折叠中间重复帧，保留首尾各 5 帧。
+3. 一张缺陷单的材料放在一轮对话里，不要跨缺陷混用。
+4. 每份材料首行写来源：缺陷单号或文件路径 | 环境与 commit | 导出时间。
+
+### 历史文档怎么挂
+
+固定目录如下，根路径按自己的仓库替换：
+
+- qa-ai-context/defect-rootcause/
+  - current/
+    - ticket.md：本次缺陷单原文，按模板字段填写
+    - stack.txt：堆栈原文
+    - log-&lt;traceId&gt;.txt：按 traceId 截取的日志切片
+    - diff-72h.md：近 72 小时改动统计与关键 hunk
+    - api-response.json：脱敏后的接口返回
+  - history/
+    - defects/
+      - 2026-Q3.csv：历史缺陷，字段为编号、模块、现象、根因、修复方式、版本
+      - similar-cases.md：人工整理的同类缺陷聚合，按根因分类
+    - rootcause-taxonomy.md：根因分类口径，固定八类，不允许自造
+    - deprecated/
+      - api-2024.md：旧版接口文档，首行标已过期
+      - runbook-2025.md：旧排查手册，仅作背景
+
+引用与维护规则：
+
+1. 引用格式：证据写文件路径加行号，例如 stack.txt 第 18 行；历史依据写 defects/2026-Q3.csv 里的缺陷编号。
+2. 历史缺陷只用来判断是否同一根因、上次怎么修，不用来直接下结论；每次引用都要说明与本次现象的共同点和差异点。
+3. 同类缺陷最多取 10 条，按时间倒序；超过 10 条时只保留同模块同错误码的记录。
+4. 过时文档放进 deprecated，首行写失效版本与替代文件，skill 不得引用。
+5. 冲突裁定：缺陷描述与日志、堆栈不一致时以原始日志和堆栈为准；接口文档与代码不一致时并列列出，进待确认清单。
+
+## 执行步骤
+
+1. 先做现象归类，只能取五类之一：功能错误、数据错误、性能异常、依赖故障、配置问题。
+2. 从堆栈找到抛出点，记录文件名与行号，判断是业务代码还是框架代码。
+3. 在日志切片里找同一 traceId 的关键节点，按时间戳还原调用顺序与各段耗时。
+4. 对照近 72 小时 diff，标出与异常路径相关的文件，形成候选提交列表。
+5. 用 git blame 确认报错行最后一次改动，记录 commit 短 hash 与作者。
+6. 生成不超过 3 条假设，每条给出证据位置、验证命令、成立时的预期结果。
+7. 按「能一条命令证伪」的思路排序，优先给最容易验证的假设。
+8. 输出缺失信息清单，明确需要谁补什么。
+9. 所有假设标注置信度，只有证据精确到行号且验证命令可执行的才允许标高。
+
+## 输出格式
+
+先给一段不超过 80 字的现象判断，然后输出 JSON：
+
+```json
+{
+  "symptom_class": "数据错误",
+  "hypotheses": [
+    {
+      "cause": "回调缺少幂等键，重复通知写入两条扣款流水",
+      "evidence": "callback.py:137 与 commit 9f3c2a1",
+      "verify_cmd": "重放同一 trade_no 的回调两次后查 pay_record",
+      "expect_if_true": "同一订单出现两条 status=SUCCESS 的记录",
+      "next_action": "为 trade_no 增加唯一索引并补幂等校验",
+      "confidence": "高"
+    }
+  ],
+  "missing_info": ["首次出现时间", "受影响订单量"]
+}
+```
+
+JSON 之后附一份排查清单，用复选框列出下一步动作，每项写明执行人与预计耗时。
+
+## 质量检查清单
+
+- 每条假设都有证据位置，没有证据的必须标为待补充。
+- 每条假设都有可直接执行的验证命令，命令里不留占位符。
+- 假设数量不超过 3 条，且按可能性从高到低排序。
+- 现象归类只取五类之一，不允许自定义分类。
+- 缺失信息写清楚由谁补、补什么，不写「建议补充更多日志」这类空话。
+- 没有把相关关系写成因果关系。
+- 没有直接输出修复代码，修复方案留给开发确认。
+- 引用的日志行号与原始文件一致，可被人工核对。
+
+## 反例
+
+- 输出十几种可能原因，等于没有结论。
+- 只写「可能是并发问题」，既没有证据也没有验证方式。
+- 把最近的提交直接认定为根因，没有做重放验证。
+- 用生产数据做验证，未脱敏也未走审批。
+- 把第三方接口超时写成自身逻辑缺陷。
+- 把「建议加日志观察」当成一条假设，那不是可验证的结论。</code></pre>
+        <div class="callout">
+          <p>下载完整 skill 文件：<a href="../assets/downloads/skill-defect-rootcause.md" download>skill-defect-rootcause.md</a>。放到 <code>~/.claude/skills/skill-defect-rootcause/SKILL.md</code> 即可被自动加载。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://git-scm.com/docs/git-blame" target="_blank" rel="noopener">git-blame Documentation — Git</a></li>
+            <li><a href="https://sre.google/sre-book/postmortem-culture/" target="_blank" rel="noopener">Postmortem Culture: Learning from Failure — Google SRE Book</a></li>
+            <li><a href="https://opentelemetry.io/docs/concepts/signals/traces/" target="_blank" rel="noopener">Traces — OpenTelemetry Documentation</a></li>
+            <li><a href="https://bugzilla.readthedocs.io/en/latest/using/editing.html" target="_blank" rel="noopener">Editing Bugs — Bugzilla Documentation</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#缺陷定位</span>
+          <span class="tag">#根因分析</span>
+          <span class="tag">#llm</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,1871 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>软件测试资料集 · GG Bond</title>
+<meta name="description" content="软件测试资料集：自动化测试与 AI 测试的实践笔记，覆盖 AI 用例生成、Agent 测试、脚本自愈与接口自动化。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/index.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="软件测试资料集 · GG Bond">
+<meta property="og:description" content="软件测试资料集：自动化测试与 AI 测试的实践笔记，覆盖 AI 用例生成、Agent 测试、脚本自愈与接口自动化。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/index.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="软件测试资料集 · GG Bond">
+<meta name="twitter:description" content="软件测试资料集：自动化测试与 AI 测试的实践笔记，覆盖 AI 用例生成、Agent 测试、脚本自愈与接口自动化。">
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="index.html" class="active">首页</a>
+      <a href="index.html#posts">文章</a>
+      <a href="tags.html">标签</a>
+      <a href="paths.html">路径</a>
+      <a href="favorites.html">收藏</a>
+      <a href="about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="eyebrow">Automation × AI Testing</span>
+        <h1>自动化测试与 <span class="hl">AI</span> 测试，<br>把公开实践整理成<span class="hl-cyan">可复用</span>的笔记。</h1>
+        <p class="lead">从 AI 生成用例、Agent 测试，到脚本自愈与接口自动化，这里收录行业里已经被验证的做法、公开数据与工程边界，每篇都附原文出处。</p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="index.html#posts">开始阅读 →</a>
+          <a class="btn btn-ghost" href="about.html">$ whoami</a>
+        </div>
+      </div>
+
+      <div class="terminal">
+        <div class="terminal-bar">
+          <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+          <span class="terminal-title">qa@ggbond: ~/knowledge-base</span>
+        </div>
+        <div class="terminal-body">
+          <div><span class="prompt">$</span><span class="cmd">whoami</span></div>
+          <div><span class="ok">→</span> GG Bond · 软件测试工程师</div>
+          <div><span class="prompt">$</span><span class="cmd">ls ./topics</span></div>
+          <div><span class="key">AI 用例生成</span> &nbsp;<span class="key">Agent 测试</span> &nbsp;<span class="key">脚本自愈</span></div>
+          <div><span class="key">接口自动化</span> &nbsp;<span class="key">大模型评测</span> &nbsp;<span class="key">落地实践</span></div>
+          <div><span class="prompt">$</span><span class="cmd">cat sources.log</span></div>
+          <div><span class="ok">[ok]</span> 124 篇笔记 · 124 篇附原文出处<span class="cursor"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="wrap">
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num">124</div>
+        <div class="stat-label">实践笔记</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">07</div>
+        <div class="stat-label">主题方向</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">124</div>
+        <div class="stat-label">标注原文出处</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">2026.11</div>
+        <div class="stat-label">最近更新</div>
+      </div>
+    </div>
+  </div>
+
+  <section class="posts wrap" id="posts">
+    <div class="section-head">
+      <div>
+        <span class="section-tag">// articles</span>
+        <h2>最新文章</h2>
+        <p>输入关键词实时搜索：自动化、AI 测试、落地实践，标题、简介、标签都能搜。</p>
+      </div>
+      <a class="section-link" href="about.html">关于作者 →</a>
+    </div>
+
+    <div class="search-bar">
+      <input class="search-input" id="post-search" type="search" placeholder="🔍 搜索文章：如 Appium、用例生成、自愈、pytest…" autocomplete="off">
+      <button class="fav-filter" id="fav-filter" type="button">☆ 只看收藏</button>
+      <span class="search-count" id="search-count"></span>
+    </div>
+
+    <div class="post-grid">
+
+      <a class="post-card" href="posts/ai-api-testcase-generation.html" data-cats="ai" data-slug="ai-api-testcase-generation">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>AI 生成接口测试用例：从接口文档到可执行用例</h3>
+        <p>接口用例与业务用例的边界、九类上下文怎么给、历史文档挂载与冲突裁决、九字段输出规范与等价类边界值展开…</p>
+        <div class="post-foot">
+          <span>#接口用例 #测试设计 #llm</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-case-maintenance.html" data-cats="ai" data-slug="ai-case-maintenance">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>AI 用例维护：去重、补全与失效识别</h3>
+        <p>把用例库体检做成可重跑的skill：给定现有用例、变更记录与下线清单，输出重复簇、缺项与失效候选。</p>
+        <div class="post-foot">
+          <span>#用例治理 #用例去重 #skill</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-defect-rootcause.html" data-cats="ai" data-slug="ai-defect-rootcause">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>AI 缺陷根因分析：用上下文缩小排查面</h3>
+        <p>用堆栈、日志切片、最近改动与历史同类缺陷给足上下文，让AI输出可疑模块与可人工验证的步骤。</p>
+        <div class="post-foot">
+          <span>#缺陷定位 #根因分析 #llm</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-log-analysis.html" data-cats="ai" data-slug="ai-log-analysis">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>AI 日志分析：从海量日志提炼线索</h3>
+        <p>按traceId聚合、按错误码聚类后再交给AI，输出时间线、异常簇、首次出现位置与影响面。</p>
+        <div class="post-foot">
+          <span>#日志分析 #故障排查 #llm</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-qa-metrics.html" data-cats="ai" data-slug="ai-qa-metrics">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>AI 提效度量：别只看生成了多少条用例</h3>
+        <p>用采纳率、前移率、回归时长、漏测率与返工率度量AI提效，围绕skill用法与口径展开，不写脚本。</p>
+        <div class="post-foot">
+          <span>#效能度量 #指标设计 #llm</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-regression-scope.html" data-cats="ai" data-slug="ai-regression-scope">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>AI 圈回归范围：改动影响面分析</h3>
+        <p>用diff、接口变更、依赖图与历史回归记录给足上下文，让AI圈出受影响模块与必测用例。</p>
+        <div class="post-foot">
+          <span>#回归范围 #影响面分析 #llm</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-requirement-analysis.html" data-cats="ai" data-slug="ai-requirement-analysis">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>AI 拆需求：把 PRD 读成可测的需求点</h3>
+        <p>评审前把PRD拆成功能点、规则、约束与数据字典，附歧义清单、待确认清单与抽查流程。</p>
+        <div class="post-foot">
+          <span>#需求分析 #PRD #llm</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-test-case-prompt.html" data-cats="ai" data-slug="ai-test-case-prompt">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>AI 生成业务测试用例：从需求到可执行用例</h3>
+        <p>业务用例与接口用例的边界、六类上下文的粒度、历史文档挂载方式与十字段输出规范，附完整skill。</p>
+        <div class="post-foot">
+          <span>#业务用例 #测试设计 #llm</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-testdata-generation.html" data-cats="ai" data-slug="ai-testdata-generation">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>AI 设计测试数据：从字段约束到数据集</h3>
+        <p>把字段约束翻译成数据集说明与校验规则，含脱敏样例、历史踩坑数据与引用规范。</p>
+        <div class="post-foot">
+          <span>#测试数据 #数据脱敏 #llm</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-testpoint-generation.html" data-cats="ai" data-slug="ai-testpoint-generation">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>AI 生成测试点：从需求到可评审检查项</h3>
+        <p>用七类方法把需求点转成可评审检查项，含历史用例去重、覆盖度自查与输出规范。</p>
+        <div class="post-foot">
+          <span>#测试点 #测试设计 #llm</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/nl2test-agent.html" data-cats="ai" data-slug="nl2test-agent">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-21</span>
+        </div>
+        <h3>字节 NL2Test Agent 落地复盘：让 QA 真正用起来</h3>
+        <p>字节跳动测试用例生成Agent的场景选择、工程取舍与落地数据复盘。</p>
+        <div class="post-foot">
+          <span>#ai-testing #agent #落地实践</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-agent-testing-advanced.html" data-cats="ai" data-slug="ai-agent-testing-advanced">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>AI Agent 测试进阶：多步任务、工具调用与状态机</h3>
+        <p>用轨迹断言、工具Mock、录制回放和失败注入，测住多步Agent的步骤、参数、状态与成本边界。</p>
+        <div class="post-foot">
+          <span>#agent-testing #trajectory #state-machine</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-app-testing-intro.html" data-cats="ai" data-slug="ai-app-testing-intro">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>AI 应用测试入门：LLM 应用和传统软件哪里不同</h3>
+        <p>从不确定输出、三层断言、评测集、Prompt交付物到上下文与成本预算，给出一张AI应用测试全景图。</p>
+        <div class="post-foot">
+          <span>#ai-testing #llm-eval #test-strategy</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-cicd-monitoring.html" data-cats="ai" data-slug="ai-cicd-monitoring">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>AI 应用 CI/CD：Prompt 回归门禁与线上监控</h3>
+        <p>把Prompt回归做成PR合并门禁：评测集入库、通过率阈值、失败样本回写评论，再配灰度对比与线上监控。</p>
+        <div class="post-foot">
+          <span>#ai-cicd #prompt-regression #observability</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-content-generation-testing.html" data-cats="ai" data-slug="ai-content-generation-testing">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>AIGC 内容测试：质量、偏见与合规</h3>
+        <p>把生成内容拆成质量四维、偏见对照组与合规红线，配批量生成、规则校验和抽样评审的完整流程。</p>
+        <div class="post-foot">
+          <span>#aigc #content-eval #bias-testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-hallucination-testing.html" data-cats="ai" data-slug="ai-hallucination-testing">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>幻觉测试：事实校验与引用可追溯</h3>
+        <p>幻觉三类型、三层防线、引用校验函数与幻觉率统计脚本。</p>
+        <div class="post-foot">
+          <span>#hallucination #citation-check #llm-testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-llm-evaluation.html" data-cats="ai" data-slug="ai-llm-evaluation">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>大模型评测：评测集、指标与 LLM 裁判</h3>
+        <p>评测集构建、准确率与Kappa、LLM裁判偏见校准与P0分层。</p>
+        <div class="post-foot">
+          <span>#llm-evaluation #llm-as-judge #kappa</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-model-testing.html" data-cats="ai" data-slug="ai-model-testing">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>模型测试：鲁棒性、一致性与偏见</h3>
+        <p>同义改写一致性、对抗扰动、长上下文衰减与JSON解析健壮性测试。</p>
+        <div class="post-foot">
+          <span>#model-testing #robustness #bias</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-prompt-testing.html" data-cats="ai" data-slug="ai-prompt-testing">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Prompt 测试：版本管理、回归与 A/B 对比</h3>
+        <p>把Prompt当代码管：Git快照、全量回归、LLM裁判A/B与注入用例。</p>
+        <div class="post-foot">
+          <span>#prompt-testing #prompt-regression #prompt-injection</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-rag-testing.html" data-cats="ai" data-slug="ai-rag-testing">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>RAG 测试：召回、排序与答案落地</h3>
+        <p>RAG四层测试：召回率、重排、拒答与页码可追溯，附评测脚本。</p>
+        <div class="post-foot">
+          <span>#rag #retrieval-eval #citation</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/ai-security-testing.html" data-cats="ai" data-slug="ai-security-testing">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>大模型安全测试：注入、越权与数据泄露</h3>
+        <p>从直接注入、间接注入到工具越权与数据泄露，给出可跑批的安全用例集、断言方式和四层防御。</p>
+        <div class="post-foot">
+          <span>#ai-security #prompt-injection #owasp-llm</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/self-healing-automation.html" data-cats="ai" data-slug="self-healing-automation">
+        <div class="post-meta">
+          <span class="post-cat">自动化</span>
+          <span class="post-fw">AI 框架</span>
+          <span>2026-11-08</span>
+        </div>
+        <h3>自动化脚本自愈：执行稳定性从 70% 到 95% 的工程做法</h3>
+        <p>智能元素定位、自愈Agent与错误诊断Agent的落地方式，以及自愈必须守住的边界。</p>
+        <div class="post-foot">
+          <span>#self-healing #ui-automation #stability</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-api-testing.html" data-cats="auto" data-slug="web-api-testing">
+        <div class="post-meta">
+          <span class="post-cat">接口测试</span>
+          <span class="post-fw">传统+AI 接口</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>LLM 生成接口测试：从 Swagger 文档到可执行 pytest 脚本</h3>
+        <p>使用OpenAILLM读取Swagger/OpenAPI文档…</p>
+        <div class="post-foot">
+          <span>LLM 接口测试 Swagger</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-cicd-integration.html" data-cats="auto" data-slug="web-cicd-integration">
+        <div class="post-meta">
+          <span class="post-cat">CI/CD</span>
+          <span class="post-fw">传统+AI 接口</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>AI 驱动的 Web 测试 CI/CD：Playwright Agents + GitHub Actions</h3>
+        <p>把Playwright三件套Agent接进CI：spec评审、自愈边界、分片缓存与成本台账。</p>
+        <div class="post-foot">
+          <span>Playwright GitHub Actions LLM Agent</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-pytest-allure.html" data-cats="auto" data-slug="web-pytest-allure">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统+AI 接口</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Playwright Agents + pytest + Allure：AI 规划-生成-自愈三合一</h3>
+        <p>pytest编排Playwright三件套：把spec步骤映射成Allure，失败取证与自愈标注都要留痕。</p>
+        <div class="post-foot">
+          <span>Playwright pytest Allure</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-automation-intro.html" data-cats="auto" data-slug="app-automation-intro">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统+AI 接口</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Appium + LLM 视觉 Agent：APP 测试的 AI 新范式</h3>
+        <p>用GPT-4V/Claude视觉LLM读取App屏幕截图，将自然语言意图转化为Appium操作…</p>
+        <div class="post-foot">
+          <span>Appium LLM 视觉 多设备</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-cicd-integration.html" data-cats="auto" data-slug="app-cicd-integration">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统+AI 接口</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Appium + LLM Agent：APP 测试 CI/CD 的 AI 自动化</h3>
+        <p>使用Appium驱动真实设备/模拟器，结合GPT-4V视觉LLM读取屏幕截图生成Appium操作序列…</p>
+        <div class="post-foot">
+          <span>Appium LLM 视觉 GPT-4V</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/pc-automation-ci-integration.html" data-cats="auto" data-slug="pc-automation-ci-integration">
+        <div class="post-meta">
+          <span class="post-cat">桌面自动化</span>
+          <span class="post-fw">传统+AI 接口</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>桌面自动化 + LLM Agent：PC 测试的 AI 闭环</h3>
+        <p>使用pyautogui+uiautomation驱动桌面UI，结合LLM视觉识别屏幕元素…</p>
+        <div class="post-foot">
+          <span>桌面自动化 pyautogui uiautomation</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/pc-automation-with-pytest.html" data-cats="auto" data-slug="pc-automation-with-pytest">
+        <div class="post-meta">
+          <span class="post-cat">桌面自动化</span>
+          <span class="post-fw">传统+AI 接口</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>pytest + LLM Agent 的桌面测试框架</h3>
+        <p>将LLM视觉Agent封装为pytestfixtures…</p>
+        <div class="post-foot">
+          <span>pytest 桌面自动化 LLM Agent</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-testing-with-pytest.html" data-cats="auto" data-slug="python-testing-with-pytest">
+        <div class="post-meta">
+          <span class="post-cat">单元测试</span>
+          <span class="post-fw">传统+AI 接口</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>pytest + LLM：AI 辅助的 Python 测试框架</h3>
+        <p>使用OpenAI/AnthropicLLM读取函数docstring自动生成pytest测试用例…</p>
+        <div class="post-foot">
+          <span>pytest LLM OpenAI</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-automation-pitfalls.html" data-cats="auto" data-slug="web-automation-pitfalls">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Web 自动化常见坑：幽灵元素 / 多窗口 / Cookie 共享</h3>
+        <p>13个Web自动化高频坑的现象、根因与解法，覆盖定位、窗口、Cookie、时序、并发与CI差异。</p>
+        <div class="post-foot">
+          <span>#debugging #web-automation #troubleshooting</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-compatibility-testing.html" data-cats="auto" data-slug="web-compatibility-testing">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Web 兼容性测试：浏览器 + 分辨率</h3>
+        <p>按用户占比与内核定浏览器矩阵，拆解缩放错位、CSS与JS降级、Safari与微信WebView的坑</p>
+        <div class="post-foot">
+          <span>#compatibility #browser-testing #webkit</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-debugging-tools.html" data-cats="auto" data-slug="web-debugging-tools">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Web 自动化调试技巧：单步 / 慢速 / 录屏</h3>
+        <p>五类失败证据、trace与Selenium取证差异、定位失败根因、录屏与CI存储策略，一次讲透。</p>
+        <div class="post-foot">
+          <span>#debugging #playwright #web-automation</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-e2e-testing.html" data-cats="auto" data-slug="web-e2e-testing">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Web 端到端测试：用户场景 + E2E 设计</h3>
+        <p>E2E只验证链路接通：场景筛选、数据隔离、登录态复用、失败归因与执行节奏。</p>
+        <div class="post-foot">
+          <span>#e2e-testing #user-scenario #web-automation</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-element-locators.html" data-cats="auto" data-slug="web-element-locators">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Web 元素定位技巧：CSS 选择器与 XPath</h3>
+        <p>从稳定性排序讲起，拆解CSS与XPath边界、动态class、ShadowDOM、虚拟列表与降级链设计。</p>
+        <div class="post-foot">
+          <span>#css-selector #xpath #web-automation</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-form-testing.html" data-cats="auto" data-slug="web-form-testing">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Web 表单测试：输入验证 + 边界值</h3>
+        <p>表单测试全维度：边界值、前后端分层验证、幂等与上传伪造、三层断言。</p>
+        <div class="post-foot">
+          <span>#form-testing #boundary-value #web-automation</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-framework-architecture.html" data-cats="auto" data-slug="web-framework-architecture">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Web UI 自动化框架设计：分层架构</h3>
+        <p>从变更隔离出发，讲透六层职责边界、配置与数据分离、重试与失败快照钩子，以及演进路线的成本账。</p>
+        <div class="post-foot">
+          <span>#framework-design #page-object #web-automation</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-load-testing.html" data-cats="auto" data-slug="web-load-testing">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Web 性能压测：JMeter + k6</h3>
+        <p>从目标定法、场景设计、关联参数化到拐点判读，讲清JMeter与k6的分工，以及压测失真的常见来源。</p>
+        <div class="post-foot">
+          <span>#performance #load-testing #k6</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-mobile-testing.html" data-cats="auto" data-slug="web-mobile-testing">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>移动端 Web 测试：响应式 + PWA</h3>
+        <p>视口与断点、触摸延迟、键盘遮挡、PWA离线与真机自动化取舍，写给一线测试的H5验收手册。</p>
+        <div class="post-foot">
+          <span>#mobile-web #responsive #pwa</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-performance-testing.html" data-cats="auto" data-slug="web-performance-testing">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Web 性能测试：页面加载 + 接口耗时</h3>
+        <p>拆解前端核心指标与接口耗时分段，用真实浏览器采集，定基线与回归判定标准。</p>
+        <div class="post-foot">
+          <span>#performance #core-web-vitals #web-automation</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-playwright-intro.html" data-cats="auto" data-slug="web-playwright-intro">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Playwright 入门：新一代 Web 自动化</h3>
+        <p>Playwright三层对象、自动等待检查、locator惰性定位与storageState登录态复用。</p>
+        <div class="post-foot">
+          <span>#playwright #web-automation #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-playwright-pagemodel.html" data-cats="auto" data-slug="web-playwright-pagemodel">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Playwright 进阶：Page Object + 数据驱动</h3>
+        <p>拆解Playwright下PO的惰性定位、组件拆分、fixture注入登录态与数据驱动，附登录加下单完整示范</p>
+        <div class="post-foot">
+          <span>#playwright #page-object #data-driven</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-popup-handling.html" data-cats="auto" data-slug="web-popup-handling">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Web 弹窗处理：alert / iframe / 新窗口</h3>
+        <p>原生弹窗、页面内模态框、iframe与新窗口四类弹窗的处理方式，含时序、遮挡与稳定性设计。</p>
+        <div class="post-foot">
+          <span>#playwright #dialog #iframe</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-security-testing.html" data-cats="auto" data-slug="web-security-testing">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Web 安全测试：XSS / CSRF / SQL 注入</h3>
+        <p>从输入点盘点讲起，拆解XSS、CSRF、SQL注入与越权的验证手法、自动化取舍与授权边界。</p>
+        <div class="post-foot">
+          <span>#security #xss #sql-injection</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-selenium-intro.html" data-cats="auto" data-slug="web-selenium-intro">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Selenium 入门：用 Python 操控浏览器</h3>
+        <p>Selenium四层架构与驱动管理、八种定位的代价、元素交互失败的四类原因、等待策略、取证与Grid适用规模。</p>
+        <div class="post-foot">
+          <span>#selenium #web-automation #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-selenium-pagemodel.html" data-cats="auto" data-slug="web-selenium-pagemodel">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Selenium 进阶：Page Object 设计模式</h3>
+        <p>PO不是给find_element包层壳：讲清业务动作边界、定位器归属、返回约定、组件组合与断言位置。</p>
+        <div class="post-foot">
+          <span>#selenium #page-object #design-pattern</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-test-management.html" data-cats="auto" data-slug="web-test-management">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Web 自动化测试管理：用例组织 + 数据隔离</h3>
+        <p>讲透用例分层与粒度取舍、四种数据隔离策略及其代价，以及并发冲突、生命周期与时长预算。</p>
+        <div class="post-foot">
+          <span>#test-management #data-isolation #pytest</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-test-report.html" data-cats="auto" data-slug="web-test-report">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Web 自动化测试报告：从「跑通了」到「可汇报」</h3>
+        <p>按四类读者分层组织报告字段，统一失败分类，识别趋势波动，把报告接进CI与历史存储。</p>
+        <div class="post-foot">
+          <span>#test-report #allure #playwright</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-visual-regression.html" data-cats="auto" data-slug="web-visual-regression">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Web UI 自动化进阶：视觉回归 + A/B 测试</h3>
+        <p>视觉回归能抓什么、阈值怎么定、动态内容与字体差异怎么处理，附基线流程与CI一致性方案。</p>
+        <div class="post-foot">
+          <span>#visual-regression #playwright #screenshot</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/web-wait-strategies.html" data-cats="auto" data-slug="web-wait-strategies">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Web 等待策略：告别 time.sleep</h3>
+        <p>为什么time.sleep是Web自动化的定时炸弹…</p>
+        <div class="post-foot">
+          <span>#selenium #wait-strategy #web-automation</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-automation-pitfalls.html" data-cats="auto" data-slug="app-automation-pitfalls">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>App 自动化 12 个坑与解法</h3>
+        <p>从元素定位、Toast、权限到驱动版本与CI掉线，12个真实坑按症状、原因、解法逐条拆开。</p>
+        <div class="post-foot">
+          <span>#appium #debugging #flaky</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-compatibility-testing.html" data-cats="auto" data-slug="app-compatibility-testing">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>APP 兼容性测试：系统版本 / 分辨率 / 厂商 ROM</h3>
+        <p>用用户占比乘风险剪裁兼容矩阵，覆盖Android与iOS版本变更、屏幕形态、厂商ROM差异与缺陷取证。</p>
+        <div class="post-foot">
+          <span>#compatibility #app-testing #android</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-crash-testing.html" data-cats="auto" data-slug="app-crash-testing">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>APP 崩溃测试 + 日志采集</h3>
+        <p>崩溃识别信号、logcat与dropbox取证、tombstone符号化、ANRtraces与崩溃率口径。</p>
+        <div class="post-foot">
+          <span>#crash-testing #logcat #app-automation</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-debugging-tools.html" data-cats="auto" data-slug="app-debugging-tools">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>App 调试工具链：adb、scrcpy、Charles 与 Frida</h3>
+        <p>把定位问题从猜变成看：adb取证、投屏录屏、抓包证书与Frida边界。</p>
+        <div class="post-foot">
+          <span>#adb #scrcpy #charles</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-element-locators.html" data-cats="auto" data-slug="app-element-locators">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>APP 元素定位：4 种方式 + View 层级</h3>
+        <p>四种定位方式的适用面与代价、View层级读法、自绘控件策略、降级链与常见失败排查。</p>
+        <div class="post-foot">
+          <span>#app-automation #appium #locators</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-framework-design.html" data-cats="auto" data-slug="app-framework-design">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>APP 自动化测试设计：PO 模式 + 数据驱动</h3>
+        <p>移动端PO差异、五层分层、业务动作设计、YAML数据驱动、账号池与并发driver管理，附目录树与检查清单。</p>
+        <div class="post-foot">
+          <span>#app-automation #page-object #appium</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-gesture-testing.html" data-cats="auto" data-slug="app-gesture-testing">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>APP 手势测试：滑动 / 双指 / 长按</h3>
+        <p>从TouchAction到W3CActions与手势插件，讲清点击、滑动、双指、冲突与自绘控件的测试写法。</p>
+        <div class="post-foot">
+          <span>#app-automation #gesture #swipe</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-hybrid-webview-testing.html" data-cats="auto" data-slug="app-hybrid-webview-testing">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Hybrid 与 WebView 测试：上下文切换与 JS 桥</h3>
+        <p>从调试开关、NATIVE_APP与WEBVIEW上下文切换，到H5定位与JS桥参数、回调、异常测试。</p>
+        <div class="post-foot">
+          <span>#hybrid #webview #jsbridge</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-miniprogram-testing.html" data-cats="auto" data-slug="app-miniprogram-testing">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>小程序自动化：miniprogram-automator 实战</h3>
+        <p>用调试协议驱动开发者工具：选择器、data断言、路由校验与CI边界。</p>
+        <div class="post-foot">
+          <span>#miniprogram #automator #app-automation</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-multi-device-testing.html" data-cats="auto" data-slug="app-multi-device-testing">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>APP 多设备测试：机型 / 系统 / 分辨率</h3>
+        <p>机型矩阵怎么裁剪、云真机与本地机房怎么取舍、分辨率与ROM差异怎么测、并行与取证怎么落地。</p>
+        <div class="post-foot">
+          <span>#multi-device #device-matrix #android-rom</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-performance-testing.html" data-cats="auto" data-slug="app-performance-testing">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>APP 性能测试：启动时间 / 内存 / 耗电</h3>
+        <p>从冷热启动口径、关键路径拆解，到内存泄漏回归、耗电读取、卡顿归因与CI性能门禁。</p>
+        <div class="post-foot">
+          <span>#app-performance #cold-start #memory-leak</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-permission-testing.html" data-cats="auto" data-slug="app-permission-testing">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>APP 权限测试：定位 / 相机 / 通知</h3>
+        <p>Android三态权限与iOS差异、adb批量改权限、通知渠道与隐私合规，一份能落地的权限测试手册。</p>
+        <div class="post-foot">
+          <span>#permission-testing #app-automation #appium</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-push-notification-testing.html" data-cats="auto" data-slug="app-push-notification-testing">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>推送测试：厂商通道、到达率与点击链路</h3>
+        <p>打通推送全链路：厂商通道差异、通知渠道、到达率取证与三态点击验证。</p>
+        <div class="post-foot">
+          <span>#push-notification #vendor-channel #app-testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-test-data-management.html" data-cats="auto" data-slug="app-test-data-management">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>App 测试数据管理：账号池、环境隔离与数据回滚</h3>
+        <p>用账号池、环境隔离、接口造数与标记清理，把数据冲突导致的假失败压下去。</p>
+        <div class="post-foot">
+          <span>#test-data #account-pool #env-isolation</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-test-report.html" data-cats="auto" data-slug="app-test-report">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>App 自动化报告：Allure、截图与录屏取证</h3>
+        <p>失败必带截图、录屏与logcat，用Allure聚合设备信息、flaky率与历史趋势，报告可归档可追溯。</p>
+        <div class="post-foot">
+          <span>#allure #appium #test-report</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/app-weak-network-testing.html" data-cats="auto" data-slug="app-weak-network-testing">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>弱网测试：限速、丢包与断网恢复</h3>
+        <p>用tcnetem与代理限速造弱网，量化首屏、超时率与重试，验证断网重连、订单幂等与兜底UI。</p>
+        <div class="post-foot">
+          <span>#weak-network #netem #idempotency</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/electron-app-testing.html" data-cats="auto" data-slug="electron-app-testing">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Electron 应用测试：把桌面应用当 Web 测</h3>
+        <p>Electron应用（VSCode/Slack）用CDP当Web自动化、DevTools调试…</p>
+        <div class="post-foot">
+          <span>#pc-automation #electron #cdp</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/opencv-image-recognition.html" data-cats="auto" data-slug="opencv-image-recognition">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>PC 图像识别测试：OpenCV 找图 + 模板匹配</h3>
+        <p>OpenCV模板匹配原理、灰度/彩色匹配、ROI区域识别、置信度调参，配游戏界面验证完整案例。</p>
+        <div class="post-foot">
+          <span>#pc-automation #opencv #image-recognition</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/pc-automation-cross-platform.html" data-cats="auto" data-slug="pc-automation-cross-platform">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>PC 自动化跨平台：Windows、macOS、Linux 差异与适配</h3>
+        <p>三平台鼠标键盘/控件树/权限差异、跨平台工具选择、Mac辅助功能权限，配跨平台测试脚本完整案例。</p>
+        <div class="post-foot">
+          <span>#pc-automation #cross-platform #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/pc-automation-data-setup.html" data-cats="auto" data-slug="pc-automation-data-setup">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>PC 自动化的数据准备与清理：测试环境的「造数 + 清数」</h3>
+        <p>桌面测试的五类数据、幂等造数、注册表与目录快照、清理取舍、多用户隔离与假失败识别。</p>
+        <div class="post-foot">
+          <span>#pc-automation #data-setup #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/pc-automation-debugging.html" data-cats="auto" data-slug="pc-automation-debugging">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>PC 自动化的调试与排错：脚本「跑不通」怎么查</h3>
+        <p>调试打印、单步执行、截图取证、异常栈分析、常见错误速查表，配定位脚本卡在哪一步完整案例。</p>
+        <div class="post-foot">
+          <span>#pc-automation #debugging #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/pc-automation-intro.html" data-cats="auto" data-slug="pc-automation-intro">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>PC 自动化测试入门：用 Python 操控你的电脑</h3>
+        <p>PC自动化能做什么、pyautogui/pynput/uiautomation三大库对比…</p>
+        <div class="post-foot">
+          <span>#pc-automation #pyautogui #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/pc-automation-logging-evidence.html" data-cats="auto" data-slug="pc-automation-logging-evidence">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>PC 自动化的日志与截图取证</h3>
+        <p>PC自动化的日志与截图取证</p>
+        <div class="post-foot">
+          <span>#pc-automation #logging #evidence</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/pc-automation-performance.html" data-cats="auto" data-slug="pc-automation-performance">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>PC 自动化的性能测试：桌面应用「压力 + 资源监控」</h3>
+        <p>桌面应用压力测试、内存泄漏检测、CPU占用监控、响应时间统计，配Excel批量操作+资源监控完整案例。</p>
+        <div class="post-foot">
+          <span>#pc-automation #performance #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/pc-automation-popup-dialogs.html" data-cats="auto" data-slug="pc-automation-popup-dialogs">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>PC 自动化中的弹窗与对话框处理</h3>
+        <p>弹窗检测、自动处理、对话框输入、多弹窗队列，配自动处理Excel弹窗完整案例。</p>
+        <div class="post-foot">
+          <span>#pc-automation #popup #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/pc-automation-report.html" data-cats="auto" data-slug="pc-automation-report">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>PC 自动化的测试报告：从「跑通了」到「可汇报」</h3>
+        <p>桌面自动化的证据链：失败瞬间截图、控件树dump、日志与录屏，用pytest-html与Allure落地。</p>
+        <div class="post-foot">
+          <span>#pc-automation #report #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/pc-automation-stability.html" data-cats="auto" data-slug="pc-automation-stability">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>PC 自动化的稳定性：处理界面变化和超时</h3>
+        <p>界面改版的应对策略、多级降级、重试机制、超时配置，配自动操作后台管理系统完整案例。</p>
+        <div class="post-foot">
+          <span>#pc-automation #stability #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/pc-automation-test-management.html" data-cats="auto" data-slug="pc-automation-test-management">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>PC 自动化的用例管理与数据驱动</h3>
+        <p>用例数据放Excel/CSV/JSON、参数化驱动、用例分组、数据隔离，配数据驱动Excel测试套件完整案例。</p>
+        <div class="post-foot">
+          <span>#pc-automation #data-driven #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/pc-automation-waiting-sync.html" data-cats="auto" data-slug="pc-automation-waiting-sync">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>PC 自动化中的等待与同步：别让脚本「跑太快」</h3>
+        <p>固定等待、条件等待、轮询、超时四种同步策略，配等待界面加载完成案例，解决脚本跑太快的核心问题。</p>
+        <div class="post-foot">
+          <span>#pc-automation #synchronization #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/pyautogui-guide.html" data-cats="auto" data-slug="pyautogui-guide">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>pyautogui 详解：鼠标键盘自动化的全部招式</h3>
+        <p>鼠标/键盘/截图/图像识别/安全机制五大类操作详解，配自动操作Excel+截图完整案例。</p>
+        <div class="post-foot">
+          <span>#pc-automation #pyautogui #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/pywinauto-windows-ui.html" data-cats="auto" data-slug="pywinauto-windows-ui">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Windows UI 自动化：pywinauto 操控桌面应用</h3>
+        <p>pywinauto的Win32/UIA两种后端、窗口/控件定位、点击/输入/断言，配自动操作记事本+验证案例。</p>
+        <div class="post-foot">
+          <span>#pc-automation #pywinauto #windows</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-api-testing-with-requests.html" data-cats="auto" data-slug="python-api-testing-with-requests">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>用 Python + requests 做接口测试：从 GET 到断言</h3>
+        <p>讲透Session复用、连接与读超时、重试幂等、token刷新、三种请求体与四层断言。</p>
+        <div class="post-foot">
+          <span>#python #requests #api-testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-async-and-threads.html" data-cats="auto" data-slug="python-async-and-threads">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Python 异步与多线程：让测试脚本「跑得更快」</h3>
+        <p>threading多线程、线程池、asyncio异步，各配并发调用接口案例…</p>
+        <div class="post-foot">
+          <span>#python #concurrency #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-classes-and-objects.html" data-cats="auto" data-slug="python-classes-and-objects">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Python 类与对象：封装测试逻辑的「工具箱」</h3>
+        <p>类是模板、对象是实例，self是什么、怎么定义方法、继承怎么用，配封装用户操作完整案例。</p>
+        <div class="post-foot">
+          <span>#python #classes #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-control-flow.html" data-cats="auto" data-slug="python-control-flow">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Python 控制流：if、for、while 在测试里怎么用</h3>
+        <p>用测试脚本的真实场景讲分支、遍历、轮询等待、推导式、match与映射表重构。</p>
+        <div class="post-foot">
+          <span>#python #control-flow #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-decorators.html" data-cats="auto" data-slug="python-decorators">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Python 装饰器：给测试方法「加功能」不修改代码</h3>
+        <p>从函数是一等对象到带参装饰器、wraps与叠加顺序，给出重试、计时、截图取证与条件跳过四个测试实现。</p>
+        <div class="post-foot">
+          <span>#python #decorators #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-files-and-exceptions.html" data-cats="auto" data-slug="python-files-and-exceptions">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Python 文件操作与异常处理：读配置、写日志、不让脚本崩溃</h3>
+        <p>open/with文件读写、try/except/finally异常处理、自定义异常…</p>
+        <div class="post-foot">
+          <span>#python #exception-handling #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-functions-and-args.html" data-cats="auto" data-slug="python-functions-and-args">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Python 函数：从定义到调用，测试工程师最该懂的 5 件事</h3>
+        <p>函数定义、参数类型、返回值、默认值、*args/**kwargs，每个配测试场景，把登录逻辑封装成可复用方法。</p>
+        <div class="post-foot">
+          <span>#python #functions #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-list-dict-and-json.html" data-cats="auto" data-slug="python-list-dict-and-json">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Python 列表、字典与 JSON：测试数据的三种形态</h3>
+        <p>列表管顺序、字典管查询、JSON管传输，讲透三者分工、嵌套取值、编码、拷贝与类型映射。</p>
+        <div class="post-foot">
+          <span>#python #data-structures #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-modules-and-imports.html" data-cats="auto" data-slug="python-modules-and-imports">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Python 模块与 import：让测试代码「不重复写」</h3>
+        <p>import的几种方式、__name__判断、包结构和相对导入，配把登录方法抽成公共模块案例。</p>
+        <div class="post-foot">
+          <span>#python #modules #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-strings-and-regex.html" data-cats="auto" data-slug="python-strings-and-regex">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Python 字符串与正则：解析接口响应的必备技能</h3>
+        <p>字符串常用方法、f-string进阶、正则基础语法、re模块三大函数，配接口响应解析案例。</p>
+        <div class="post-foot">
+          <span>#python #regex #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-variables-and-types.html" data-cats="auto" data-slug="python-variables-and-types">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>测试工程师的 Python 第一课：变量与类型</h3>
+        <p>从Python变量不用声明到None不是0，配测试数据准备案例，小白也能看懂的Python基础。</p>
+        <div class="post-foot">
+          <span>#python #variables #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-csv-excel-testing.html" data-cats="auto" data-slug="python-csv-excel-testing">
+        <div class="post-meta">
+          <span class="post-cat">Python 进阶</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Python 读写 Excel 做测试：openpyxl 和 pandas 两个工具</h3>
+        <p>csv的编码与换行、openpyxl读写与公式缓存、pandas的取舍，附表格用例组织与一用例一行的报告写法。</p>
+        <div class="post-foot">
+          <span>#python #excel #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-data-generation.html" data-cats="auto" data-slug="python-data-generation">
+        <div class="post-meta">
+          <span class="post-cat">Python 进阶</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Python 生成测试数据：从造一条到批量造 1000 条</h3>
+        <p>random固定种子、Faker中文化、唯一ID与规则造数、批量写入与清理标记，附身份证校验位实现思路。</p>
+        <div class="post-foot">
+          <span>#python #test-data #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-database-testing.html" data-cats="auto" data-slug="python-database-testing">
+        <div class="post-meta">
+          <span class="post-cat">Python 进阶</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Python 连接数据库做测试：sqlite3 和 MySQL 实战</h3>
+        <p>造数、校验落库与安全清理三类用途，驱动选型、连接与事务关闭顺序、参数化查询、字段级断言和测试库隔离红线。</p>
+        <div class="post-foot">
+          <span>#python #database #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-logging-for-testing.html" data-cats="auto" data-slug="python-logging-for-testing">
+        <div class="post-meta">
+          <span class="post-cat">Python 进阶</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Python 日志：让测试脚本「说话」</h3>
+        <p>logging模块配置、级别、格式、写文件，配接口测试全流程打日志完整案例。</p>
+        <div class="post-foot">
+          <span>#python #logging #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-performance-testing.html" data-cats="auto" data-slug="python-performance-testing">
+        <div class="post-meta">
+          <span class="post-cat">Python 进阶</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Python 做性能测试：压测脚本、结果收集与报告</h3>
+        <p>先测再优化：perf_counter与cProfile定位热点，讲清并行前提、并发模型取舍与耗时基线。</p>
+        <div class="post-foot">
+          <span>#python #performance #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/python-type-hints-and-docs.html" data-cats="auto" data-slug="python-type-hints-and-docs">
+        <div class="post-meta">
+          <span class="post-cat">Python 进阶</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Python 类型注解与文档：让代码「自带说明书」</h3>
+        <p>类型注解基础、dataclass、Google风格docstring、mypy静态检查…</p>
+        <div class="post-foot">
+          <span>#python #type-hints #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/mongodb-schema-testing.html" data-cats="auto" data-slug="mongodb-schema-testing">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>不用 SQL 也能写验证脚本：MongoDB 测试的 3 个关键技巧</h3>
+        <p>利用聚合管道校验嵌套文档完整性，用$expr做字段级一致性比对。</p>
+        <div class="post-foot">
+          <span>#mongodb #nosql #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/mysql-concurrent-transactions.html" data-cats="auto" data-slug="mysql-concurrent-transactions">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>并发测试：两个用户同时扣库存，数据库怎么保证不多扣</h3>
+        <p>模拟并发UPDATE的Python脚本，展示隔离级别对结果的影响和行锁行为。</p>
+        <div class="post-foot">
+          <span>#mysql #concurrency #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/mysql-data-integrity-testing.html" data-cats="auto" data-slug="mysql-data-integrity-testing">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>数据库测试第一关：怎么证明写入的数据没丢没脏</h3>
+        <p>覆盖唯一约束、外键、事务回滚与脏读检测的实操清单和SQL验证脚本。</p>
+        <div class="post-foot">
+          <span>#mysql #integrity #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/mysql-index-testing.html" data-cats="auto" data-slug="mysql-index-testing">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>接口突然变慢？教你用 EXPLAIN 看 SQL 有没有走索引</h3>
+        <p>用EXPLAIN输出解读type、key、rows，给测试同学一份索引验证Checklist。</p>
+        <div class="post-foot">
+          <span>#mysql #index #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/mysql-replication-testing.html" data-cats="auto" data-slug="mysql-replication-testing">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>主从库延迟到底影响谁：写一份测试延迟场景的操作手册</h3>
+        <p>模拟主从延迟、验证读写分离路由策略，覆盖4种典型延迟触发条件。</p>
+        <div class="post-foot">
+          <span>#mysql #replication #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/mysql-slow-query-audit.html" data-cats="auto" data-slug="mysql-slow-query-audit">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>测试环境跑出来的慢 SQL，上线前怎么提前发现</h3>
+        <p>建一张慢查询监控表，配一段自动化脚本定期抓取并对比基线。</p>
+        <div class="post-foot">
+          <span>#mysql #slow-query #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/mysql-transaction-rollback.html" data-cats="auto" data-slug="mysql-transaction-rollback">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>事务没提交就崩了：测试工程师必须懂的 5 种异常恢复场景</h3>
+        <p>从死锁、超时、网络断连到手动ROLLBACK，每种都有对应的数据验证SQL。</p>
+        <div class="post-foot">
+          <span>#mysql #transaction #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/redis-basic-operations.html" data-cats="auto" data-slug="redis-basic-operations">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>测试 Redis 别只试 SET GET：5 种数据结构各对应什么业务</h3>
+        <p>用真实业务场景解释String/Hash/List/Set/ZSet，附redis-cli实操命令。</p>
+        <div class="post-foot">
+          <span>#redis #data-structure #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/redis-cache-invalidation.html" data-cats="auto" data-slug="redis-cache-invalidation">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>改了数据但页面还是旧的：缓存一致性测试怎么做</h3>
+        <p>讲穿透、击穿、雪崩三类场景，给每种场景写一段Python验证脚本。</p>
+        <div class="post-foot">
+          <span>#redis #cache #consistency</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/sql-aggregate-verification.html" data-cats="auto" data-slug="sql-aggregate-verification">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>用 GROUP BY 和 HAVING 快速验证统计接口返回是否对</h3>
+        <p>写一段SQL对比接口汇总值和数据库聚合值，5分钟定位统计口径差异。</p>
+        <div class="post-foot">
+          <span>#sql #aggregate #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/sql-basics-for-testers.html" data-cats="auto" data-slug="sql-basics-for-testers">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>写给测试工程师的 SQL 入门：别只会 SELECT 表名</h3>
+        <p>从最基础的建库到查数，用6个高频测试场景带你跑通第一套SQL。</p>
+        <div class="post-foot">
+          <span>#sql #mysql #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/sql-joins-in-testing.html" data-cats="auto" data-slug="sql-joins-in-testing">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>测试时怎么跨表查数据：JOIN 的四种姿势一次讲透</h3>
+        <p>用订单-用户-商品三表，演示INNER/LEFT/RIGHT/FULLJOIN在数据验证中的用法。</p>
+        <div class="post-foot">
+          <span>#sql #join #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/git-basics-for-testers.html" data-cats="auto" data-slug="git-basics-for-testers">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>测试工程师的 Git 第一课：从 clone 到 push 不迷路</h3>
+        <p>8条最常用的Git命令配20个测试场景，附每个命令的下一步该干嘛提示。</p>
+        <div class="post-foot">
+          <span>#git #commit #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/git-bisect-find-bug.html" data-cats="auto" data-slug="git-bisect-find-bug">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Git Bisect：用二分法找到引入 Bug 的提交</h3>
+        <p>gitbisect的工作原理、测试工程师怎么用自动化脚本配合bisect、手动跑测试的场景…</p>
+        <div class="post-foot">
+          <span>#git #bisect #debugging</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/git-branch-models.html" data-cats="auto" data-slug="git-branch-models">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Git 分支模型：Feature、Release、Hotfix 怎么选</h3>
+        <p>三种主流分支模型（GitFlow、GitHubFlow、简化模型）的测试视角对比，附分支命名规范和测试环境映射。</p>
+        <div class="post-foot">
+          <span>#git #branching #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/git-cherry-pick-testing.html" data-cats="auto" data-slug="git-cherry-pick-testing">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Git Cherry-Pick：把某条提交摘出来单独用</h3>
+        <p>从热修回灌到区间拣选，讲透cherry-pick的机制、冲突处理、拣选后验证清单与不该用的场合。</p>
+        <div class="post-foot">
+          <span>#git #cherry-pick #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/git-conflict-resolution.html" data-cats="auto" data-slug="git-conflict-resolution">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Git 冲突解决：从标记到合并</h3>
+        <p>逐段读懂冲突标记与三方合并角色，讲清手工解决顺序、回退方式与减少冲突的日常习惯。</p>
+        <div class="post-foot">
+          <span>#git #conflict #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/git-hooks-in-testing.html" data-cats="auto" data-slug="git-hooks-in-testing">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Git Hooks：测试脚本提交前的自动检查</h3>
+        <p>pre-commit、pre-push、post-merge三个最实用的hook…</p>
+        <div class="post-foot">
+          <span>#git #hooks #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/git-log-for-testing.html" data-cats="auto" data-slug="git-log-for-testing">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Git 日志阅读：用 log 快速定位改动</h3>
+        <p>Git日志阅读：用log快速定位改动</p>
+        <div class="post-foot">
+          <span>#git #log #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/git-merge-pr-workflow.html" data-cats="auto" data-slug="git-merge-pr-workflow">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Git 合并请求（MR/PR）流程：测试工程师的评审要点</h3>
+        <p>Git合并请求（MR/PR）流程：测试工程师的评审要点</p>
+        <div class="post-foot">
+          <span>#git #merge-request #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/git-merge-vs-rebase.html" data-cats="auto" data-slug="git-merge-vs-rebase">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Git 合并 vs 变基：测试工程师该选哪个</h3>
+        <p>讲清merge与rebase对提交图的影响、公共分支禁改历史、快进与no-ff取舍与reflog救援。</p>
+        <div class="post-foot">
+          <span>#git #rebase #merge</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/git-restore-mistake.html" data-cats="auto" data-slug="git-restore-mistake">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Git 误操作急救：撤销提交、还原文件、找回删除</h3>
+        <p>误提交、误删除、误reset、误forcepush四个高频场景的急救命令，每条配为什么这样做的解释。</p>
+        <div class="post-foot">
+          <span>#git #reflog #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/git-stash-workflow.html" data-cats="auto" data-slug="git-stash-workflow">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Git Stash：临时保存改动的实用工作流</h3>
+        <p>讲清stash存了什么、apply与pop怎么取舍、跨分支恢复为何静默出错，以及切分支前的安全做法。</p>
+        <div class="post-foot">
+          <span>#git #stash #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/git-submodule-automation.html" data-cats="auto" data-slug="git-submodule-automation">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Git 子模块在测试自动化中的使用</h3>
+        <p>子模块解决用例库拆分与工具库复用，讲透指针原理、版本锁定、CI鉴权、常见事故与替代方案选型。</p>
+        <div class="post-foot">
+          <span>#git #submodule #testing</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/git-tag-release-testing.html" data-cats="auto" data-slug="git-tag-release-testing">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+        </div>
+        <h3>Git Tag 与发布流程：测试工程师的版本管理</h3>
+        <p>轻量与附注标签怎么选，语义化版本如何决定回归范围，gitdescribe定位代码，CI按tag发布与禁改规则。</p>
+        <div class="post-foot">
+          <span>#git #tag #release</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+      <a class="post-card" href="posts/api-ai-mcp.html" data-cats="auto" data-slug="api-ai-mcp">
+        <div class="post-meta">
+          <span class="post-cat">自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-15</span>
+        </div>
+        <h3>接口自动化新打法：AI IDE + MCP 从文档到可执行脚本</h3>
+        <p>用AIIDE与MCP把接口文档变成可执行的自动化用例，以及必须补上的工程约束。</p>
+        <div class="post-foot">
+          <span>#api-testing #mcp #automation</span>
+          <span class="read">阅读全文 →</span>
+        </div>
+      </a>
+
+    </div>
+
+<div class="search-empty" id="search-empty">没有匹配的文章。换个关键词，或到 <a href="tags.html">标签总览</a> 里按主题找。</div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span>Built with plain HTML / CSS / JS · <a href="index.html#posts">回到顶部</a></span>
+  </div>
+</footer>
+
+<script src="assets/main.js"></script>
+</body>
+</html>

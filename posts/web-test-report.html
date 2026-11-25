@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web 自动化测试报告：从「跑通了」到「可汇报」 · 软件测试资料集</title>
+<meta name="description" content="按四类读者分层组织报告字段，统一失败分类，识别趋势波动，把报告接进 CI 与历史存储。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-test-report.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Web 自动化测试报告：从「跑通了」到「可汇报」">
+<meta property="og:description" content="按四类读者分层组织报告字段，统一失败分类，识别趋势波动，把报告接进 CI 与历史存储。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-test-report.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Web 自动化测试报告：从「跑通了」到「可汇报」">
+<meta name="twitter:description" content="按四类读者分层组织报告字段，统一失败分类，识别趋势波动，把报告接进 CI 与历史存储。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Web 自动化测试报告：从「跑通了」到「可汇报」","description":"按四类读者分层组织报告字段，统一失败分类，识别趋势波动，把报告接进 CI 与历史存储。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-test-report.html","articleSection":"Web 自动化","keywords":"test-report, allure, playwright","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>20 min read</span>
+        </div>
+        <h1>Web 自动化测试报告：从「跑通了」到「可汇报」</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-test-report">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+
+        <h2>报告写给谁看：四类读者决定信息层级</h2>
+        <p>很多团队把「有报告」等同于「能汇报」。前者只是流水线多了一步生成 HTML，后者是在发版评审上，你能说清这批改动的风险、哪几条必须修完、和上周比是变好还是变差。我们最初那份 Allure 报告有三百多条用例、二十多个附件，看着体面，却在评审时被三个问题问住——因为它按测试文件平铺，不按人的问题分层。</p>
+        <p>同一份报告至少有四类读者，他们打开它的目的完全不同；不分层，每一类人都得自己翻找，然后放弃。</p>
+        <table>
+          <thead>
+            <tr><th>读者</th><th>要回答的问题</th><th>必须看到的内容</th><th>缺失的后果</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>脚本作者</td><td>断在哪一步，是不是我写错了</td><td>步骤树、堆栈、失败时的页面与网络请求</td><td>只能本地复跑，定位靠运气</td></tr>
+            <tr><td>开发</td><td>是不是我的改动引入的</td><td>最小复现路径、接口响应、commit 与构建号</td><td>被拉进会议逐条解释</td></tr>
+            <tr><td>老板</td><td>能不能发，风险多大</td><td>通过率口径、四类失败计数、与上次对比</td><td>只能凭感觉拍板</td></tr>
+            <tr><td>客户</td><td>验收项过没过，还有哪些已知问题</td><td>验收项结论、已知问题与影响范围</td><td>把内部噪音当成质量问题</td></tr>
+          </tbody>
+        </table>
+        <p>对应的就是三层结构：顶部摘要只放结论、通过率口径、四类失败计数与环比，老板一屏内就能判断；中部明细按业务域折叠，每条失败带分类和责任人，开发点进去看是不是自己的模块；尾部证据是步骤树、截图、trace 与控制台片段，脚本作者在这里定位。任何一层缺失，就会有一类读者被迫去问别人，报告随即退化成聊天记录里的一个附件。</p>
+        <p>客户视角最容易被忽略。对外验收时，客户关心的是验收项结论与已知问题清单，不是内部用例编号，更不是「选择器失效」这种脚本细节。给客户的报告要单独裁一份：保留业务语言，去掉内部命名和重试痕迹，否则一次脚本维护会被读成一次线上事故。</p>
+
+        <h2>一份能汇报的报告必须有的字段</h2>
+        <p>报告最容易缺的不是数据，而是口径。两个团队都说通过率 97%，一个的分母是全部用例，另一个去掉了 skipped 与 xfail，数字一样，含义完全不同。所以字段清单的第一条不是通过率，而是算法：是否包含跳过、是否包含重试后通过、参数化用例算一条还是多条。</p>
+        <table>
+          <thead>
+            <tr><th>字段</th><th>写到什么程度</th><th>缺失的后果</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>用例通过率</td><td>分子分母定义、是否含重试通过</td><td>跨团队不可比</td></tr>
+            <tr><td>失败分类</td><td>四类计数、Top 条目、待确认占比</td><td>无法排优先级</td></tr>
+            <tr><td>耗时分布</td><td>最慢 10 条及其占总时长比例</td><td>优化没有靶点</td></tr>
+            <tr><td>环境与版本</td><td>浏览器与驱动版本、commit、部署标识</td><td>别人无法复现</td></tr>
+            <tr><td>失败现场链接</td><td>能直接点开的报告锚点或 trace</td><td>失败无法自证</td></tr>
+            <tr><td>执行信息</td><td>触发方式、分支、时区、总耗时</td><td>无法归档对比</td></tr>
+          </tbody>
+        </table>
+        <p>环境信息写到能复现为止。浏览器版本尤其关键，同一个选择器在 Chromium 与 WebKit 下的可见性判断可能不同；测试数据来源也要写清楚，是固定账号、接口现造还是快照恢复，这决定别人能不能重放同一条用例。</p>
+        <p>版本要写 commit 短哈希或构建号，同一个 3.4.0 可能对应七八次构建，只写版本名回答不了「从哪次开始的」。失败现场链接必须稳定可寻址：报告锚点、trace 文件名、缺陷单号，至少给一样，而不是让人去 artifact 里翻目录。</p>
+        <p>耗时分布比总耗时有用：总耗时四十分钟听起来尚可，但若其中六条用例占了一半时间，优化对象就非常明确。建议固定输出最慢 10 条及占比。本文出现的耗时与比例均为示例值，用来说明判断方法，不代表任何项目的基准。</p>
+
+        <h2>失败分类：把「红了」翻译成「谁的活」</h2>
+        <p>通过率只说明挂了多少。两次 92% 的风险可能完全不同：一次是 8 条边缘断言，另一次是 8 条支付主流程全部失败。先分类再谈比例，报告才从统计变成判断；不做分类，报告就只能汇报坏消息，不能用来做决定。</p>
+        <table>
+          <thead>
+            <tr><th>分类</th><th>典型特征</th><th>责任人</th><th>期望时效</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>产品缺陷</td><td>断言与需求不符、接口错误码、渲染异常</td><td>开发</td><td>当个迭代</td></tr>
+            <tr><td>脚本问题</td><td>选择器失效、等待不足、断言写错</td><td>脚本维护者</td><td>24 小时内</td></tr>
+            <tr><td>环境问题</td><td>服务未就绪、证书过期、依赖 5xx</td><td>环境负责人</td><td>按阻塞级别</td></tr>
+            <tr><td>数据问题</td><td>账号被锁、库存不足、脏数据破坏前置条件</td><td>数据负责人</td><td>当天</td></tr>
+          </tbody>
+        </table>
+        <p>这一栏为什么最有价值？因为它把一次失败直接路由到人。没有分类时，每条红色都要先花两轮对话确认「这是不是脚本问题」，一天只处理了五条；有分类后，值班人只需确认或纠正建议值，其余直接进对应人的待办。分类计数还是趋势分析的分母：产品缺陷数在涨说明质量在恶化，环境问题数在涨说明测试环境在退化，应对方式完全不同。</p>
+        <div class="code-head"><span>python — 按异常类型给出分类建议</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import allure
+import pytest
+from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+# 子类必须排在父类前面：TimeoutError 也是 PlaywrightError
+RULES = (
+    (PlaywrightTimeout, "环境问题"),
+    (PlaywrightError, "脚本问题"),
+    (AssertionError, "产品缺陷"),
+)
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+    if report.when != "call" or not report.failed:
+        return
+
+    category = "待确认"
+    exc = call.excinfo.value
+    for exc_type, label in RULES:
+        if isinstance(exc, exc_type):
+            category = label
+            break
+    allure.dynamic.label("failure_category", category)</code></pre>
+        <p>分类不必全自动，规则给建议值、值班人确认一次，是成本最低的组合。规则表的顺序本身就是逻辑：把父类写在前面，所有超时都会被归成脚本问题，值班人打开一看全是自己的锅，很快就不再相信这套分类，于是又退回纯人工。</p>
+        <p>还有一种隐蔽做法会把分类彻底搞坏：在 <code>except</code> 里调用 <code>pytest.skip</code>。报告干净了，失败被藏进 skipped，通过率不降反升。只有真正不适用于当前环境的用例才允许跳过，必须写明原因，并单独统计跳过原因。</p>
+
+        <h2>Allure、pytest-html、自研 HTML：三种方案的取舍</h2>
+        <p>这三种不是新旧替代关系，而是信息密度与维护成本的组合。选错的代价通常不在生成报告那天，而在两个月后：要么没人看，要么维护报告的人跑路。</p>
+        <table>
+          <thead>
+            <tr><th>方案</th><th>强项</th><th>短板</th><th>适合</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>pytest-html</td><td>单文件、零依赖、双击即看</td><td>无层级、无步骤、无趋势</td><td>本地调试</td></tr>
+            <tr><td>Allure</td><td>三层层级、步骤树、趋势图</td><td>需命令行、需传 history、体积大</td><td>流水线归档</td></tr>
+            <tr><td>自研 HTML</td><td>字段排版可控、可接内部系统</td><td>渲染层与数据结构要自己维护</td><td>跨项目聚合</td></tr>
+          </tbody>
+        </table>
+        <div class="code-head"><span>terminal — 三种方案的最小命令对照</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># pytest-html：单文件，零额外依赖
+pip install pytest-html==4.1.3
+pytest tests/ --html=report.html --self-contained-html
+
+# Allure：results 目录 + 命令行渲染
+pip install allure-pytest==2.13.5
+pytest tests/ --alluredir=allure-results
+allure generate allure-results -o allure-report --clean
+
+# 自研：只取结构化原始数据，渲染自己做
+pytest tests/ --junitxml=reports/junit.xml</code></pre>
+        <p>判断可以很直接：只在本地看、寿命不超过一天，pytest-html 完全够；要转发、要归档、要给不写脚本的人阅读，用 Allure；要回答「这个模块三个月的稳定性」、把失败直接推进缺陷系统、给客户裁一份去内部化的版本，才值得自研。三者也能并存，本地拿即时反馈、流水线做归档、自研层只做聚合查询，代价是每次多写一份数据。</p>
+        <p>自研的隐性成本在第二版。渲染层一旦成为内部工具，需求会不断加进来，两套渲染层的字段口径还会打架。团队小于三人、又没有明确下游消费者时，用 Allure 更划算。</p>
+
+        <h2>步骤与证据：让失败可以回读</h2>
+        <p>失败信息如果只有断言那一行，读报告的人还得回读代码才知道走到了哪一步。用 <code>with allure.step</code> 把登录、搜索、提交分别包起来，报告里就会出现一棵步骤树，失败节点自动标红，附件挂在对应步骤下，读起来像操作记录而不是堆栈。</p>
+        <p>步骤名要把参数带进去，例如「以尾号 6688 的账号登录」，比只写「登录」有用得多；但绝不能写密码、token、手机号原文，报告经常被转发到群里。粒度也别切太碎，一个步骤只做一件能一句话说清的事。</p>
+        <p>证据要有信息量，不要有数量。截图是底线；DOM 片段比整页源码实用，整页 HTML 动辄几 MB；控制台只取失败前后若干行。用 Playwright 时，trace 往往比十张截图更有价值：可离线回放，包含每一步的 DOM 快照、网络请求与控制台输出，代价是体积，建议只对失败用例保留。</p>
+        <div class="code-head"><span>python — 失败时收集三类证据</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+
+import allure
+import pytest
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+    if report.when != "call" or not report.failed:
+        return
+
+    page = item.funcargs.get("page")
+    if page is None:
+        return
+
+    prefix = item.nodeid.replace("/", "_").replace("::", "-")
+    allure.attach(
+        page.screenshot(full_page=True),
+        name=f"{prefix}-01-失败截图",
+        attachment_type=allure.attachment_type.PNG,
+    )
+    block = page.locator("main").first
+    html = block.inner_html() if block.count() else page.content()
+    allure.attach(
+        html[:200_000],
+        name=f"{prefix}-02-关键区域DOM",
+        attachment_type=allure.attachment_type.HTML,
+    )
+    logs = item.funcargs.get("console_logs") or []
+    allure.attach(
+        "\n".join(logs[-200:]),
+        name=f"{prefix}-03-控制台",
+        attachment_type=allure.attachment_type.TEXT,
+    )
+    trace = item.funcargs.get("trace_path")
+    if trace and pathlib.Path(trace).exists():
+        allure.attach.file(str(trace), name=f"{prefix}-04-trace.zip")</code></pre>
+        <p>附件名必须带序号和用例标识。不带序号，阅读顺序取决于写入时机，排查时容易把两张图看成一条用例；不带用例标识，并行执行会互相覆盖，看到的是别人的页面。踩上这两个坑，会让人开始怀疑报告本身不可信，这比少几张图严重得多。</p>
+
+        <h2>趋势与波动：连续失败、间歇失败、新增失败</h2>
+        <p>通过率是一个点，趋势才是一条线。失败要拆成三种形态，因为它们对应的动作不同：连续失败，同一条用例连续多次不通过，基本是稳定缺陷或稳定脚本问题，必须当天处理；间歇失败，今天挂明天过，状态翻转或重试后才通过；新增失败，上次通过这次失败，第一优先级是看这次改了什么。</p>
+        <p>统计要落在原始结果上，而不是最终状态。很多团队用重试插件兜底，报告最终一片绿，间歇失败就此消失；Allure 的结果 JSON 保留每条记录，正好用来区分「一次就过」和「重试才过」。</p>
+        <div class="code-head"><span>python — 从历史结果分出三种失败形态</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import collections
+import json
+import pathlib
+
+
+def load_history(run_dirs):
+    history = collections.defaultdict(list)
+    for run_dir in run_dirs:
+        for path in sorted(pathlib.Path(run_dir).glob("*-result.json")):
+            data = json.loads(path.read_text(encoding="utf-8"))
+            history[data["fullName"]].append(data["status"])
+    return history
+
+
+def classify(history, streak=3):
+    new_fail, streak_fail, flaky = [], [], []
+    for name, states in history.items():
+        if len(states) &lt; 2:
+            continue
+        if states[-1] != "passed":
+            if all(s != "passed" for s in states[-streak:]):
+                streak_fail.append(name)
+            elif states[-2] == "passed":
+                new_fail.append(name)
+        if len(set(states)) &gt; 1:
+            flaky.append(name)
+    return new_fail, streak_fail, flaky</code></pre>
+        <p>用 Allure 自带趋势的人会撞上同一个问题：history 不会自动续上，每次 CI 从空目录开始跑，趋势页永远只有一个点。要么用缓存接住上一次的 history，要么从上一份报告 artifact 里解出来。另一个断档来源是标识变化：改函数名、调参数化 id、移动文件，都会让同一条用例在趋势里变成新用例，曲线看上去像新增了一堆。</p>
+        <p>波动也别忘了量。同一条用例耗时从 800ms 抖到 2400ms，很可能只是环境噪音；但中位数整体抬升就是系统性变慢。判定要带区间，别用单次值下结论。</p>
+
+        <h2>历史结果存哪里、怎么查询</h2>
+        <p>artifact 解决的是「拿得到」，不解决「查得到」。保留期一过链接全部失效，更回答不了跨运行的问题：这条用例过去十次怎么样、这个模块在变好还是变差、上次同类失败是谁修的。</p>
+        <table>
+          <thead>
+            <tr><th>存储方式</th><th>能力</th><th>代价</th><th>适合</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>CI artifact</td><td>原样保存完整报告</td><td>保留期短、不能查询</td><td>失败现场</td></tr>
+            <tr><td>对象存储固定路径</td><td>长期保存、链接稳定</td><td>只能按命名约定找</td><td>按迭代归档</td></tr>
+            <tr><td>数据库 / 时序表</td><td>可聚合、可趋势、可看板</td><td>需要建表与维护</td><td>稳定性度量</td></tr>
+          </tbody>
+        </table>
+        <p>务实做法是两条腿走路：artifact 存完整报告供人点开看现场，数据库只存精简结果供机器查询。字段六列就够：用例标识、状态、耗时、分类、commit、运行编号。量级其实很小，三百条用例、每天八次运行、一年约八十八万行（示例值），单机 sqlite 完全够用，没必要一上来就上大数据栈。</p>
+        <div class="code-head"><span>python — 结果落库与按用例查询</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import sqlite3
+from datetime import datetime, timezone
+
+DDL = """
+CREATE TABLE IF NOT EXISTS results (
+    run_id      TEXT NOT NULL,
+    commit_sha  TEXT,
+    case_id     TEXT NOT NULL,
+    status      TEXT NOT NULL,
+    category    TEXT,
+    duration_ms INTEGER,
+    created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_case ON results (case_id, created_at);
+"""
+
+
+def connect(path="reports/history.db"):
+    conn = sqlite3.connect(path)
+    conn.executescript(DDL)
+    return conn
+
+
+def save_run(conn, run_id, commit_sha, records):
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    conn.executemany(
+        "INSERT INTO results VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [(run_id, commit_sha, item["id"], item["status"],
+          item.get("category"), int(item["duration_ms"]), now)
+         for item in records],
+    )
+    conn.commit()
+
+
+def recent(conn, case_id, limit=20):
+    rows = conn.execute(
+        "SELECT status, category, created_at FROM results "
+        "WHERE case_id = ? ORDER BY created_at DESC LIMIT ?",
+        (case_id, limit),
+    ).fetchall()
+    return rows</code></pre>
+        <p>落库要在测试结束后做，而且不能因为它失败而让构建失败：写库是观测手段，不是被测对象。表要定期清理或按月分表，否则两年后查询变慢，而这时当初写库的人多半已经不在项目里了。</p>
+
+        <h2>报告与 CI 的绑定：artifact、PR 评论、消息推送</h2>
+        <p>报告躺在构建机的临时目录里，等于没有。三条通道各管一段：artifact 保证完整报告可下载、可归档；PR 评论保证改动相关的人第一时间看到结论；消息推送保证值班人不用盯着流水线。</p>
+        <p>artifact 的关键是 <code>if: always()</code>。测试失败时不生成报告，是最常见的自伤：恰恰是失败的那一次，大家最需要点进去看现场。保留期按追溯需求定，三十天是常见起点，发版节点的那份另行归档。</p>
+        <p>PR 评论要克制，只放三样：通过率与失败数、分类计数、报告链接。更重要的是更新而不是新增——同一个 PR 每次推送都发一条新评论，三个提交之后评论区就没人看了。</p>
+        <div class="code-head"><span>yaml — 上传报告并更新 PR 评论</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-report-${{ github.run_number }}
+          path: |
+            reports/allure-report
+            reports/junit.xml
+          retention-days: 30
+
+      - name: Upsert PR comment
+        if: always() &amp;&amp; github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = [
+              '## Web 自动化结果',
+              `通过率 ${process.env.PASS_RATE}`,
+              `失败 ${process.env.FAILED} 条，跳过 ${process.env.SKIPPED} 条`,
+              `报告：${process.env.REPORT_URL}`,
+            ].join('\n')
+            const { data: list } = await github.rest.issues.listComments({
+              ...context.repo,
+              issue_number: context.issue.number,
+            })
+            const old = list.find(c =&gt; c.body.startsWith('## Web 自动化结果'))
+            if (old) {
+              await github.rest.issues.updateComment({
+                ...context.repo, comment_id: old.id, body,
+              })
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: context.issue.number, body,
+              })
+            }</code></pre>
+        <p>消息推送遵守三行原则：结论、计数、链接。把二十条用例名全贴进群消息是最常见的错误，刷屏之后没人会点链接。通知还要分级：PR 阶段只留评论，主干与夜间构建发群消息，发版前才需要邮件或文档归档。通知越廉价，阅读率越低，最后全被静音，等于没接。</p>
+        <p>链接可达性也常被忽略。内网 Jenkins 的报告对外包打不开，云上 artifact 要登录还有过期时间。常见做法是每个迭代把最后一份报告同步到对象存储的固定路径，并在用例管理平台挂上链接，半年后追查问题还能翻到现场。</p>
+
+        <h2>别把报告做成日志堆</h2>
+        <p>最没用的东西是原始日志。贴三千行和没贴效果一样，因为没人会读。只保留失败前后若干行、错误级别与关键业务日志，并在附件名里写清过滤条件；判断标准是这段日志能不能回答一个具体问题。</p>
+        <p>第二没用的是没有上下文的截图。一张不知道属于哪条用例、哪一步的图，只能证明当时屏幕上有点东西。截图要挂在步骤下，文件名带用例标识与序号，必要时附视口尺寸——在 1280 宽度下正常、在 375 宽度下错位的问题非常常见。</p>
+        <p>第三是只给通过率不给分类。95% 单独出现时，读者只能选择相信或不信；加上「其中 3 条环境问题、2 条脚本问题、1 条支付主流程回归」，它才成为判断依据。</p>
+        <p>还要分清报告与缺陷系统的边界。报告回答「发生了什么、现场什么样」，缺陷单回答「谁来修、什么时候修、修完怎么验证」。互相链接，各司其职，别把工单状态塞进报告，也别把截图堆进工单。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>下面这张表适合放进团队文档，每次改报告结构时过一遍。大部分问题不是技术难题，而是遗漏，清单的价值就是把遗漏变成可见项。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>合格标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>字段完整性</td><td>口径、分类、耗时、环境版本、现场链接五项齐全</td></tr>
+            <tr><td>失败证据</td><td>每条失败至少一张截图加堆栈，trace 按需保留</td></tr>
+            <tr><td>分类质量</td><td>四类计数齐全，待确认占比低于 5%</td></tr>
+            <tr><td>趋势连续性</td><td>history 已传入，连续两次运行能看到两个点</td></tr>
+            <tr><td>历史可查</td><td>精简结果已落库，能按用例查最近二十次</td></tr>
+            <tr><td>分发渠道</td><td>artifact、PR 评论、群消息各就各位，链接可达</td></tr>
+            <tr><td>体积</td><td>常见网络下能打开，示例目标 100 MB 以内</td></tr>
+          </tbody>
+        </table>
+        <div class="callout warn">
+          <p>最容易自欺的一条是趋势：本地跑得通、CI 也生成了报告，就以为趋势在工作，其实 history 每次都被当成新目录覆盖。验收方法很土但有效——连续跑两次，确认趋势页有两个点；再点一条失败用例，看它过去十次记录是否都在。</p>
+        </div>
+        <p>最后给一个判断标准：如果一份失败报告需要写它的人亲自解释才能看懂，它就不合格。合格的报告应该让一个不熟悉该项目的人，三分钟内说清失败发生在哪一步、当时页面是什么状态、有没有可复现的路径。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://allurereport.org/docs/pytest/" target="_blank" rel="noopener">Allure Report 与 pytest 集成 — Allure 官方文档</a></li>
+            <li><a href="https://allurereport.org/docs/behavior/" target="_blank" rel="noopener">Behavior-based hierarchy：epic、feature、story — Allure 官方文档</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/reference/reference.html#hook-reference" target="_blank" rel="noopener">Hook reference：pytest_runtest_makereport — pytest 官方文档</a></li>
+            <li><a href="https://playwright.dev/python/docs/trace-viewer" target="_blank" rel="noopener">Trace Viewer 离线回放 — Playwright 官方文档</a></li>
+            <li><a href="https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts" target="_blank" rel="noopener">Storing workflow data as artifacts — GitHub Docs</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#test-report</span>
+          <span class="tag">#allure</span>
+          <span class="tag">#playwright</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

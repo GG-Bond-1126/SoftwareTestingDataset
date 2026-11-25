@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Selenium 进阶：Page Object 设计模式 · 软件测试资料集</title>
+<meta name="description" content="PO 不是给 find_element 包层壳：讲清业务动作边界、定位器归属、返回约定、组件组合与断言位置。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-selenium-pagemodel.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Selenium 进阶：Page Object 设计模式">
+<meta property="og:description" content="PO 不是给 find_element 包层壳：讲清业务动作边界、定位器归属、返回约定、组件组合与断言位置。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-selenium-pagemodel.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Selenium 进阶：Page Object 设计模式">
+<meta name="twitter:description" content="PO 不是给 find_element 包层壳：讲清业务动作边界、定位器归属、返回约定、组件组合与断言位置。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Selenium 进阶：Page Object 设计模式","description":"PO 不是给 find_element 包层壳：讲清业务动作边界、定位器归属、返回约定、组件组合与断言位置。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-selenium-pagemodel.html","articleSection":"Web 自动化","keywords":"selenium, page-object, design-pattern","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>20 min read</span>
+        </div>
+        <h1>Selenium 进阶：Page Object 设计模式</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-selenium-pagemodel">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>一、PO 解决的不是代码好看</h2>
+        <p>先看一段裸写的用例。它能跑，逻辑也对，问题是当三个人各写一遍之后，维护成本会随着文件数迅速上涨。</p>
+        <div class="code-head"><span>python — 裸写（问题版）</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>def test_login_success():
+    driver.get(f"{BASE_URL}/login")
+    driver.find_element(By.CSS_SELECTOR, "#username").send_keys("admin")
+    driver.find_element(By.CSS_SELECTOR, "#password").send_keys("123456")
+    driver.find_element(By.CSS_SELECTOR, ".btn-login").click()
+    assert "仪表盘" in driver.title
+
+
+def test_login_wrong_password():
+    driver.get(f"{BASE_URL}/login")
+    driver.find_element(By.CSS_SELECTOR, "#username").send_keys("admin")
+    driver.find_element(By.CSS_SELECTOR, "#password").send_keys("wrong")
+    driver.find_element(By.CSS_SELECTOR, ".btn-login").click()
+    assert "密码错误" in driver.page_source</code></pre>
+        <p>三个问题会依次出现。选择器散落，页面改一次 id 要改 N 个文件；意图丢失，代码只说明点了什么，不说明在做什么；数据硬编码，换个账号要改代码。更隐蔽的是第四个问题：等待被随手写成 <code>time.sleep</code>，因为它能立刻让测试变绿，而真正的等待条件没人定义。</p>
+        <p><a class="ilink" href="web-playwright-pagemodel.html">Page Object</a> 把这些收进一个类：一个页面一个类，类里声明元素与动作，用例只调用动作。但很多人停在把 <code>find_element</code> 包一层就结束了，这才是 PO 用不好的根源。包一层只解决了选择器集中，另外三个问题原样保留。</p>
+        <p>判断一个 PO 是否合格，有个很土的办法：把用例读出声。如果读出来是打开登录页、输入用户名、输入密码、点击按钮、断言标题包含仪表盘，说明 PO 只做了搬运；如果读出来是用管理员登录并进入仪表盘，说明它在表达业务。前者换个框架照样能写，后者才是 PO 的价值。</p>
+
+        <h2>二、业务动作还是原子操作：两层都留</h2>
+        <p>PO 方法该暴露什么粒度？只给原子操作的页面对象，用例里会充满步骤，和裸写差别不大；只给业务动作的页面对象，遇到需要验证中间态的用例就没法写，比如必须确认勾选记住我之后才继续。</p>
+        <p>我们的约定是同一个类里同时提供两层，靠命名区分：业务动作是动词短语，如 <code>login</code>、<code>add_to_cart</code>、<code>submit_order</code>；原子操作是元素级动作，如 <code>fill_username</code>、<code>click_login</code>、<code>error_text</code>。用例优先用业务动作，只有需要断言中间态时才降级到原子操作。</p>
+        <p>代价是类会变长。一个复杂页面可能有六个业务动作、十二个原子操作，接近两百行。这个长度可以接受；超过三百行就该拆 components，而不是硬扛。类变长本身不是问题，问题是长度来自重复的定位逻辑，那就说明拆分方向错了。</p>
+        <p>还有一种常见误判：把业务动作写成只调用一个原子操作的转发方法，比如 <code>submit</code> 里只有 <code>click(SUBMIT)</code>。这种一次调用的转发值得保留，因为业务名比元素名更稳定，页面把按钮换成键盘回车时，只改 <code>submit</code> 内部即可。</p>
+
+        <h2>三、定位器放哪：类属性、Locators 类与页面片段</h2>
+        <p>三种放法都有人用。类属性最简单，Locators 类把定位器集中到单独模块，元素级属性最啰嗦但支持惰性求值。选择依据是页面元素数量与定位表达式的复杂度，不是个人口味。</p>
+        <table>
+          <thead>
+            <tr><th>放法</th><th>写法</th><th>优点</th><th>代价</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>类属性</td><td>类顶部声明元组常量</td><td>改一行即生效，跳转方便</td><td>元素多时挤占类头部</td></tr>
+            <tr><td>Locators 类</td><td>独立模块集中声明</td><td>定位与动作彻底分离</td><td>多一个文件，跳转两次</td></tr>
+            <tr><td>元素级属性</td><td>property 惰性查找</td><td>支持动态拼选择器</td><td>每次访问都查一次元素</td></tr>
+          </tbody>
+        </table>
+        <p>类属性的问题是一个页面三十个元素时，类头部会堆成一片，业务方法被挤到看不见的地方。解决办法是分组注释加空行，而不是立刻上 Locators。多数页面的元素在十个以内，为了理论上的整洁多维护一个文件并不划算。</p>
+        <p>Locators 类适合元素多、且定位表达式很长的场景，比如带有五层嵌套的 XPath。此时把定位器集中起来，review 时能一眼看出有没有人在用绝对路径。元素级属性只在需要按运行时参数拼选择器时使用，比如按行号定位表格里的一格。</p>
+        <div class="code-head"><span>python — Locators 与页面对象</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># pages/locators/login_locators.py
+from selenium.webdriver.common.by import By
+
+
+class LoginLocators:
+    USERNAME = (By.CSS_SELECTOR, "#username")
+    PASSWORD = (By.CSS_SELECTOR, "#password")
+    SUBMIT = (By.CSS_SELECTOR, ".btn-login")
+    ERROR = (By.CSS_SELECTOR, ".error-msg")
+
+
+# pages/login_page.py
+from pages.base_page import BasePage
+from pages.locators.login_locators import LoginLocators as L
+
+
+class LoginPage(BasePage):
+    path = "/login"
+
+    def open(self) -&gt; "LoginPage":
+        self.driver.get(self.base_url + self.path)
+        return self
+
+    # 业务动作：一个方法表达一件事
+    def login(self, username: str, password: str) -&gt; "DashboardPage":
+        self.fill_credentials(username, password)
+        self.submit()
+        return DashboardPage(self.driver)
+
+    # 原子操作：需要断言中间态时才用
+    def fill_credentials(self, username: str, password: str) -&gt; None:
+        self.type(L.USERNAME, username)
+        self.type(L.PASSWORD, password)
+
+    def submit(self) -&gt; None:
+        self.click(L.SUBMIT)
+
+    def error_text(self) -&gt; str:
+        return self.text_of(L.ERROR)</code></pre>
+        <p>注意 <code>login</code> 内部调用的是同类里的业务动作，不是直接操作 driver。这样页面内的复用是免费的，改输入顺序只动 <code>fill_credentials</code> 一处。如果 <code>login</code> 里逐个写 <code>type</code>，那六个用例就要各写一遍顺序。</p>
+
+        <h2>四、返回约定：下一个 PO 还是 self</h2>
+        <p>这是 PO 设计里分歧最大的一点，两派都能自圆其说，而且都能跑通。区别在于失败时的可读性与页面对象之间的耦合度。</p>
+        <div class="code-head"><span>python — 三种返回约定</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 写法 A：返回下一个 PO，类型明确，但跨页面依赖
+def login(self, username, password):
+    self.fill_credentials(username, password)
+    self.submit()
+    return DashboardPage(self.driver)
+
+
+# 写法 B：返回 self，无跨页面依赖，但跳转失败会推迟暴露
+def login(self, username, password):
+    self.fill_credentials(username, password)
+    self.submit()
+    return self
+
+
+# 写法 C：按结果分支，我们采用的
+def login(self, username, password):
+    self.fill_credentials(username, password)
+    self.submit()
+    if self.wait_url_contains("/dashboard", timeout=8):
+        return DashboardPage(self.driver)
+    return self      # 停留在登录页，保留错误信息</code></pre>
+        <p>返回下一个 PO 的好处是用例读起来连贯，类型明确，编辑器能提示下一步可用的方法。代价是页面对象之间产生依赖：LoginPage 必须 import DashboardPage，而登录失败时返回什么？返回一个根本不存在的结果页，会让后续的报错出现在离<a class="ilink" href="ai-defect-rootcause.html">根因</a>很远的地方。</p>
+        <p>返回 self 的好处是没有跨页面依赖，链式调用短，失败时状态清晰。代价是链式调用隐藏了等待页面就绪这件事，一旦某一步没跳转，错误会推迟到下一个动作才暴露，堆栈指向错误的位置，新人往往从这里开始怀疑人生。</p>
+        <p>折中方案是按结果分支：成功返回下一个页面对象，失败返回 self，由用例根据当前状态判断。这要求方法名诚实，比如 <code>login_expect_success</code> 与 <code>login</code> 分开。登录这种失败属于正常业务分支的场景，返回值分支比抛异常更好读；接口超时这类非预期失败才适合异常。</p>
+
+        <h2>五、等待写在哪一层</h2>
+        <p>等待是页面对象里最容易写错的部分，也是 PO 被诟病变慢的主要原因。原则只有一条：等待挂在状态变化上，不挂在时间上。写完一个动作，你心里应该清楚它的完成标志是什么。</p>
+        <div class="code-head"><span>python — 等待的两种写法</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 错误：用时间等，快机器上浪费、慢机器上偶发失败
+self.click(L.SUBMIT)
+time.sleep(3)
+return DashboardPage(self.driver)
+
+
+# 正确：等具体状态，失败时异常信息也能说明等的是什么
+def submit_and_wait(self) -&gt; "DashboardPage":
+    self.click(L.SUBMIT)
+    self.wait.until(EC.url_contains("/dashboard"))
+    self.wait.until(EC.visibility_of_element_located(DashboardLocators.SIDE_MENU))
+    return DashboardPage(self.driver)</code></pre>
+        <p>正确做法是每个改变页面的动作自带后置条件：点击登录后等 URL 变化或目标元素出现，而不是等三秒。BasePage 可以提供 <code>wait_until</code> 包装，但具体等什么必须由页面自己声明，因为只有它知道这个动作的完成标志。</p>
+        <p>用例层原则上不写等待。如果某条用例需要额外等待，比如轮询异步任务的结果，那说明页面对象缺少一个等待任务完成的方法，应该补在页面层，并给它独立的超时。超时值写在页面里还有个好处：调优时集中，不用满项目搜索数字。</p>
+        <p>关于 <code>time.sleep</code> 的例外：只在调试定位问题时临时加，提交前必须删掉。代码评审里看到 sleep 一律要求改成<a class="ilink" href="web-wait-strategies.html">显式等待</a>，这条规则不能开口——一旦开口，三个月后到处是 sleep 五秒，全量耗时翻倍，而且没人说得清每个 sleep 在等什么。</p>
+
+        <h2>六、组件化：导航栏、弹窗与表格</h2>
+        <p>真实系统里有一批元素不属于某个页面：顶部导航、全局搜索、确认弹窗、数据表格、分页器。它们出现在多个页面，每个页面各写一遍的话，改一次样式要改十几处，而且漏掉一处就变成偶发失败。</p>
+        <p>两种组织方式。继承：BasePage 提供导航栏属性，所有页面自动能用。组合：每个页面在自己的构造函数里持有一个导航栏对象。我们的选择是组合，理由不是风格，而是继承表达的是「是一个」，而组件与页面是「有一个」的关系。</p>
+        <p>继承的实际问题是一深就失控：BasePage 变大之后，改基类会影响所有页面，测试红了没人敢动，只能往上加补丁。组合多写一行构造，换来的是边界清晰，某个组件坏掉时影响范围可枚举。</p>
+        <div class="code-head"><span>python — 组件组合</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># components/nav_bar.py
+from selenium.webdriver.common.by import By
+
+
+class NavBar:
+    AVATAR = (By.CSS_SELECTOR, ".nav-avatar")
+    SEARCH_BOX = (By.CSS_SELECTOR, ".nav-search input")
+
+    def __init__(self, page):
+        self.page = page          # 复用页面的 wait 与 find
+
+    def search(self, keyword: str) -&gt; "SearchPage":
+        self.page.type(self.SEARCH_BOX, keyword)
+        self.page.press_enter(self.SEARCH_BOX)
+        return SearchPage(self.page.driver)
+
+    def logout(self) -&gt; "LoginPage":
+        self.page.click(self.AVATAR)
+        self.page.click((By.LINK_TEXT, "退出登录"))
+        return LoginPage(self.page.driver)
+
+
+# pages/dashboard_page.py —— 组合，而不是继承
+class DashboardPage(BasePage):
+    def __init__(self, driver, base_url):
+        super().__init__(driver, base_url)
+        self.nav = NavBar(self)</code></pre>
+        <p>表格组件值得单独说。列表页的断言经常是第 3 行的状态列显示已发货，如果页面对象只暴露一个行列表，用例里会写满索引运算，页面加了一列就全错。正确的做法是组件提供按列名取值的方法，比如 <code>row_text(row_index, column)</code> 与 <code>find_row(by_column, value)</code>，让用例描述业务，而不是描述下标。</p>
+        <p>弹窗组件要处理两个细节：一是打开与关闭都算状态变化，关闭后要等到遮罩消失才能点下面的元素；二是同一个系统里往往有多种弹窗，用一个通用组件加不同参数，比每个页面各写一个更省事。</p>
+
+        <h2>七、数据驱动怎么与 PO 结合</h2>
+        <p>数据驱动的目标是把数据从流程里剥出来，但它与页面对象的交界常被搞混：参数该传给用例还是传给页面对象？答案取决于这个数据属于业务身份还是页面结构。</p>
+        <p>约定是：与业务身份相关的数据，比如账号、收货地址、优惠券，由用例传给页面方法；页面结构相关的常量，比如超时、下拉选项的顺序、默认分页大小，留在页面对象里。这样数据集可以独立维护，页面对象不需要知道数据从哪来。</p>
+        <div class="code-head"><span>yaml — data/checkout_cases.yaml</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>- name: 单件下单
+  keyword: 机械键盘
+  qty: 1
+  expect_status: 待发货
+- name: 多件下单
+  keyword: 机械键盘
+  qty: 3
+  expect_status: 待发货
+- name: 库存不足
+  keyword: 限量手办
+  qty: 99
+  expect_status: 下单失败</code></pre>
+        <p>参数化用 pytest 的 parametrize 加 ids，ids 用中文场景名，报告里直接可读。<code>pytest.mark.parametrize</code> 的 ids 支持传入函数，把字典里的 name 取出来即可，不需要在用例名里拼长串参数。</p>
+        <div class="code-head"><span>python — 参数化与断言</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+
+from flows.checkout_flow import CheckoutFlow
+from utils.data import load_cases
+
+
+@pytest.mark.parametrize(
+    "case",
+    load_cases("checkout_cases.yaml"),
+    ids=lambda c: c["name"],
+)
+def test_checkout(ctx, case):
+    result = CheckoutFlow(ctx).buy_now(case["keyword"], case["qty"])
+    assert result.order_status() == case["expect_status"], (
+        f"订单号={result.order_no()} 实际={result.order_status()}"
+    )</code></pre>
+        <p>一个常见的坏味道是：为了参数化，把整条流程写进 yaml，包括每一步点哪个元素。这实际上是把自动化代码搬进了配置文件，调试时既没有断点也没有类型提示，出错只能靠打印。数据只描述输入与预期，不描述步骤，这条边界守住，配置文件才不会长成第二套代码。</p>
+        <p>还有一个细节：数据文件里的期望值要和断言一一对应。如果同一个数据集里有的行有 <code>expect_status</code>、有的没有，用例里就会长出 if 分支，最后没人知道哪些行在测什么。宁可拆成两个文件。</p>
+
+        <h2>八、反例解剖：上帝类、PO 里断言、PO 里 sleep</h2>
+        <p>上帝类。一个 page.py 两千行，包含四十个方法，登录、下单、退款全在里面。成因通常是反正都能拿到 driver，放一起省事。症状是这个文件谁都不敢改，改一行要跑全量回归，最后变成只增不改的历史包袱。处置是按页面或按组件拆，先从被调用次数最多的方法开始。</p>
+        <p>PO 里写断言。症状是报告里十条用例指向同一行页面代码，看上去像产品 bug，实际是用例写错。成因是每个用例都要检查登录成功，不如写在页面对象里。处置是页面对象只返回值或状态，断言搬回用例；真正的前置检查用异常，别用断言，因为断言的语义是我预期它成立，而前置检查的语义是不成立就没法继续。</p>
+        <p>PO 里 sleep。症状是全量耗时随用例数线性增长，CI 上偶发超时。成因是加个 sleep 就过了，没人再回头看。处置是把 sleep 换成对目标状态的显式等待；如果说不清在等什么，说明这个动作的完成条件还没定义，那是设计问题，不是等待问题。</p>
+        <p>还有两个隐蔽的反例。一是构造函数里打开页面，new 一个对象就发一次请求，用例失败时分不清是构造失败还是动作失败；二是页面对象里缓存 WebElement，页面局部刷新后拿到的是过期引用，报 <code>StaleElementReferenceException</code>。这两条指向同一原则：页面对象持有 driver 与定位器，不持有元素句柄。</p>
+
+        <h2>九、完整示例：登录到下单</h2>
+        <p>把上面的约定落到一条真实链路上：管理员登录、搜索商品、加入购物车、提交订单。四层各司其职，任何一层改动都不该穿透到其他层。</p>
+        <div class="code-head"><span>python — flows 与用例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># flows/checkout_flow.py —— 只编排，不定位
+from pages.cart_page import CartPage
+from pages.checkout_page import CheckoutPage
+from pages.search_page import SearchPage
+
+
+class CheckoutFlow:
+    def __init__(self, ctx):
+        self.ctx = ctx
+
+    def buy_now(self, keyword: str, qty: int):
+        search = SearchPage(self.ctx.driver, self.ctx.config["base_url"]).open()
+        detail = search.open_first_result(keyword)
+        detail.add_to_cart(qty)
+        cart = detail.go_cart()
+        checkout = cart.go_checkout()
+        checkout.fill_address(self.ctx.config["address"])
+        return checkout.submit()      # 返回订单结果页
+
+
+# cases/test_checkout.py —— 只有业务与断言
+def test_buy_now(ctx, case):
+    result = CheckoutFlow(ctx).buy_now(case["keyword"], case["qty"])
+    assert result.is_success(), result.error_text()
+    assert result.order_status() == case["expect_status"]</code></pre>
+        <p>用例层读起来是纯业务描述，没有任何定位与等待。flows 层负责跨页面编排，pages 层负责单页面动作，components 负责导航与弹窗。这样的分工让失败定位变简单：异常出现在 flows 说明编排顺序有问题，出现在 pages 说明页面变了。</p>
+        <p>这条链路上有三处值得注意。搜索结果是异步加载的，<code>search</code> 内部等结果容器出现，而不是等固定时间；加购物车会弹提示条，<code>CartPage</code> 等提示条消失再继续，避免遮挡后续点击；提交订单后可能弹风控确认框，<code>CheckoutPage</code> 用可见性判断是否出现，出现才处理。三个等待各自绑定一个状态，没有一个是拍脑袋的秒数。</p>
+        <p>失败时的可读性也来自这个结构：断言消息里带订单号与状态文本，步骤日志里能看到走到了哪个页面方法。排查的人不需要读框架源码，只需要看报告里最后一条业务动作是什么。</p>
+
+        <h2>十、迁移与检查清单</h2>
+        <p>已经有一堆裸写用例的项目怎么迁？不要一次性重写。按被修改频率排序，先抽最近三个月改过三次以上的页面，每次改那条用例时顺手抽页面对象。这样迁移成本被摊到日常维护里，不需要专门排期，也不会出现迁到一半停摆的烂尾工程。</p>
+        <p>迁移中最容易犯的错是保留两套写法。新用例用页面对象，老用例继续裸写，半年后两套并存，谁也不知道该学哪套，评审时也没法统一标准。要约定一个截止点，之后新增用例必须走页面对象，老用例在改动时迁移。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>合格标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>定位器集中度</td><td>用例目录里没有 By 常量与 find_element</td></tr>
+            <tr><td>等待策略</td><td>无 time.sleep，每个动作有明确后置条件</td></tr>
+            <tr><td>断言位置</td><td>只出现在用例层，页面对象只返回值</td></tr>
+            <tr><td>返回约定</td><td>跨页面动作返回下一个页面对象，失败分支明确</td></tr>
+            <tr><td>组件复用</td><td>导航栏、弹窗、表格各只有一个实现</td></tr>
+            <tr><td>元素句柄</td><td>页面对象不缓存 WebElement</td></tr>
+            <tr><td>用例可读性</td><td>读出声是业务描述，不是操作步骤</td></tr>
+          </tbody>
+        </table>
+        <p>最后一句判断标准：页面改版后，你改了几个文件？答案始终是一个，这套页面对象就是合格的；如果是五个，那只是把裸写代码分散到了五个文件里，复杂度一点没少，还多了一层要维护的抽象。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://www.selenium.dev/documentation/test_practices/encouraged/page_object_models/" target="_blank" rel="noopener">Page object models — Selenium 官方文档</a></li>
+            <li><a href="https://martinfowler.com/bliki/PageObject.html" target="_blank" rel="noopener">PageObject — Martin Fowler</a></li>
+            <li><a href="https://martinfowler.com/eaaDev/PageObject.html" target="_blank" rel="noopener">Page Object 原始说明 — Martin Fowler</a></li>
+            <li><a href="https://www.selenium.dev/documentation/webdriver/waits/" target="_blank" rel="noopener">Waits：显式等待与预期条件 — Selenium 官方文档</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/parametrize.html" target="_blank" rel="noopener">Parametrizing tests — pytest 文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#selenium</span>
+          <span class="tag">#page-object</span>
+          <span class="tag">#design-pattern</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

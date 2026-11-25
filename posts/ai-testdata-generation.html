@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 设计测试数据：从字段约束到数据集 · 软件测试资料集</title>
+<meta name="description" content="把字段约束翻译成数据集说明与校验规则，含脱敏样例、历史踩坑数据与引用规范。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-testdata-generation.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="AI 设计测试数据：从字段约束到数据集">
+<meta property="og:description" content="把字段约束翻译成数据集说明与校验规则，含脱敏样例、历史踩坑数据与引用规范。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-testdata-generation.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AI 设计测试数据：从字段约束到数据集">
+<meta name="twitter:description" content="把字段约束翻译成数据集说明与校验规则，含脱敏样例、历史踩坑数据与引用规范。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"AI 设计测试数据：从字段约束到数据集","description":"把字段约束翻译成数据集说明与校验规则，含脱敏样例、历史踩坑数据与引用规范。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-testdata-generation.html","articleSection":"落地实践","keywords":"测试数据, 数据脱敏, llm","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>11 min read</span>
+        </div>
+        <h1>AI 设计测试数据：从字段约束到数据集</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="ai-testdata-generation">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <h2>造数据难的不是随机，是业务成立</h2>
+        <p>大部分造数据出问题，都不是格式错，而是业务不成立。手机号随机 11 位，跑出来 10 开头的号段；身份证随机 18 位，校验位不对，接口直接拒绝；优惠券面额随机一个数，比订单金额还大；金额用浮点随机，出现 0.0000001 这种业务上根本不存在的值。格式看起来都对，一提交就拦。</p>
+        <p>我们做过一次统计：手工造 200 条订单测试数据，第一次提交被接口拒绝 120 条，占 60%，原因集中在号段、校验位、金额精度和关联用户不存在这四类。返工整理花了一天。真正麻烦的不是这一天的成本，而是这类数据进了用例库之后没人敢复用，因为不知道哪条是哪次临时拼出来的。</p>
+        <p>后来我把造数据这件事拆成两半：一半是判断数据该长什么样，一半是把它批量生产出来。前者是设计与规则，后者是工程执行。这篇文章只讲前者，也就是这个 skill 负责的部分。全文不会出现生成脚本，也不讨论用什么库跑批，因为这些和约束本身是两件事。</p>
+
+        <h2>这个 skill 产出的是说明与规则，不是脚本</h2>
+        <p>skill 名叫 testdata-generation，它的产物是四类东西：字段规则表、数据集清单、校验规则表、待确认清单。字段规则表说清每个字段长什么样；数据集清单说清这次要造几组、每组多少条、先后顺序；校验规则表说清每条数据要被哪些条件检查；待确认清单说清哪些字段还没法定。</p>
+        <p>它不产出代码，也不该产出代码。原因有两个。第一，业务约束会变，脚本会把约束写死在控制流里，改一条规则要动代码，最后没人敢碰。规则表是声明式的，改一行字就完成变更。第二，规则表可以被评审，脚本不能。产品、开发、测试三方对着同一张表就能确认数据是否成立，而不需要谁先读懂一段程序。</p>
+        <p>所以判断这个 skill 用得好不好，标准不是它能不能直接跑出 CSV，而是它给出的规则表能不能让另一个人在不问你的情况下造出同样的数据。这一点和写代码的目标恰好相反，也是它值得单独做成 skill 的原因。</p>
+
+        <h2>三类数据：静态、动态、异常边界</h2>
+        <p>把数据一次想全很难，按三类拆就清楚了。三类数据的构造原则完全不同，混在一起讨论，最后一定漏掉异常边界。</p>
+        <table>
+          <thead><tr><th>类别</th><th>用途</th><th>构造原则</th><th>例子</th></tr></thead>
+          <tbody>
+            <tr><td>静态基础数据</td><td>用户、商品、门店等主数据</td><td>一次准备长期复用，保留关联关系</td><td>50 个已实名且已绑卡的用户</td></tr>
+            <tr><td>业务动态数据</td><td>订单、券、账单等流转数据</td><td>按外键顺序生成，状态必须合法</td><td>待支付订单迁到已支付，关联真实用户</td></tr>
+            <tr><td>异常边界数据</td><td>验证校验规则能否拦住</td><td>每条只违反一条约束</td><td>面额比订单金额上限多一分钱</td></tr>
+          </tbody>
+        </table>
+        <p>顺序不能乱。先定主实体，再按外键顺序往下造，避免先生成订单再回头找用户，那样必然出现悬空外键。异常数据最后单独成组，每组只违反一条约束，失败时才能一眼看出是哪条规则拦下的。我们早期的异常数据一次违反三条，接口报错只给一个笼统提示，排查花了半天，最后发现是三个问题叠在一起。</p>
+
+        <h2>上下文怎么给：字段、约束、样例、踩坑</h2>
+        <p>造数据的上下文比另外两个环节更依赖具体材料，因为它没有推理空间，字段是什么就得是什么。材料给不全，模型不会停下来问，它会用合理猜测填上，而合理猜测在数据环节几乎一定是错的。</p>
+        <table>
+          <thead><tr><th>材料</th><th>截取哪一部分</th><th>贴入格式</th><th>全文还是摘要</th></tr></thead>
+          <tbody>
+            <tr><td>表结构或字段清单</td><td>字段名、类型、长度、是否必填、枚举值</td><td>原表粘贴，一行一个字段</td><td>全文</td></tr>
+            <tr><td>字段级业务约束</td><td>每条约束一句话</td><td>编号后逐条列出</td><td>全文</td></tr>
+            <tr><td>真实脱敏样例</td><td>5 到 10 条完整记录</td><td>保留格式、替换原值，注明脱敏方式</td><td>样例摘要</td></tr>
+            <tr><td>历史踩坑数据</td><td>被接口拒绝的样本与报错</td><td>样本值、错误码、违反的约束</td><td>摘要，前 5 条</td></tr>
+            <tr><td>关联关系说明</td><td>主实体与外键顺序</td><td>画成父子关系列表</td><td>全文</td></tr>
+            <tr><td>数据用途与规模</td><td>接口自动化、压测、演示</td><td>写清条数与并发量</td><td>全文</td></tr>
+          </tbody>
+        </table>
+        <p>字段清单必须给全文。只给本次关心的几个字段，模型会默认其他字段无所谓，造出来的数据看着能用，一入关联表就缺列。字段级约束也一样，一条约束一句话，不要写成段落，段落里的「原则上」「尽量」这类词会让它无法判断该不该拦。</p>
+        <p>真实样例必须脱敏后再贴。手机号中间四位替换、身份证后八位替换，但要保留长度、前缀和校验位格式。保留格式的目的不是好看，而是让模型从样例里读出真实的取值规律，比如号码段、金额上限、状态枚举，这些信息在字段表里常常写不全。</p>
+        <p>历史踩坑数据是这份上下文里最值钱的部分，但只给前 5 条失败样本，加错误码和违反的约束，不给整份日志。整份日志会把日志字段混进表结构理解里，模型会开始给 traceId、耗时这类字段设计取值规则，完全跑偏。5 条足够让它识别出高频问题，比如号段、校验位、精度。</p>
+
+        <h2>历史文档怎么挂：数据字典与旧版造数说明</h2>
+        <p>造数据最怕口径漂移，同一个字段这次按文档、下次按接口、再下次按记忆，三批数据对不上。解决办法是只认一个来源，并且把来源写进数据集说明里。我们的数据字典放在 <code>data/dict/{库}/{表}.md</code>，一个字段一节；数据集说明放在 <code>data/datasets/{模块}/v{版本}/manifest.md</code>，校验规则单独放同目录 <code>rules.md</code>。</p>
+        <div class="code-head"><span>目录结构</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>data/
+  dict/
+    trade/
+      order.md
+      coupon.md
+  datasets/
+    coupon/
+      v2.3/
+        manifest.md
+        rules.md
+  legacy/
+    [已废止]-coupon-gen-note-v1.md</code></pre>
+        <p>引用格式固定为《文档名》v版本 §字段，例如《订单表数据字典》v3.1 §order_status。数据字典里的字段说明要包含类型、长度、枚举和历史变更，变更记录写在字段小节末尾，这样引用时能直接看到这个字段上一次改口径是什么时候。</p>
+        <p>旧版造数说明是最容易出错的地方。它通常写着某个枚举当时有哪几个值、金额当时精确到几位，看起来很具体，但已经过期。我们的约定是：旧版说明移入 <code>legacy/</code>，文件名前加 <code>[已废止]</code>，只用于提取约束，不继承里面的取值范围。里面写死的枚举必须回到数据字典核对一遍，对不上的以字典为准。</p>
+        <p>冲突处理有三条。第一，数据字典与接口文档不一致时，以接口实际校验为准，因为数据最终要过接口，冲突点写进待确认清单，不自行选一个。第二，旧版说明里出现、而当前字典已经删除的字段，不生成，不要因为以前有就补回来。第三，两份文档都缺的字段，直接进待确认，不用随机值填坑，随机值填出来的数据迟早要被推翻重造。</p>
+
+        <h2>输出规范：四张表与校验口径</h2>
+        <p>输出不追求好看，追求别人能照着复现。所以我把输出压成四张表，并且要求每条规则都带来源。提示词里还有一条硬要求：不许输出任何编程语言代码、命令行、库名或伪代码。这条不只是为了好看，而是防止模型用一段看起来能跑的代码替代规则说明，把判断责任藏进代码里。</p>
+        <div class="code-head"><span>提示词 — 数据集设计</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>你是测试数据设计助手。只依据我提供的字段清单、字段级约束、脱敏样例和历史踩坑数据输出，不补充材料以外的枚举值、阈值和关联关系。
+
+输出四张表：
+1. 字段规则表：字段名 | 类型 | 长度 | 是否必填 | 取值方式 | 约束 | 示例值 | 来源
+2. 数据集清单：数据集名 | 类别 | 条数 | 用途 | 依赖的主数据 | 生成顺序
+3. 校验规则表：规则编号 | 适用字段 | 判定条件（自然语言） | 不通过时的处理 | 来源
+4. 待确认清单：序号 | 缺失内容 | 影响 | 需要谁提供
+
+约束：
+- 只输出说明、表格与规则，不输出任何编程语言代码、命令行、库名或伪代码。
+- 每条规则必须标注来源，格式为《文档名》v版本 §章节。
+- 异常数据按「只违反一条约束」分组，每组给出一个具体取值。
+- 金额统一以分为单位，用整数；日期统一用 ISO 8601。
+- 没有样例的字段写入待确认，不许用随机值补齐。</code></pre>
+        <p>校验规则表是这份产出里最容易被忽略的一张。它不写实现，只写判定条件，例如「订单金额必须等于商品金额加运费减优惠，且不小于 0」。这条规则由谁来执行不重要，重要的是它被写下来了，下一批数据可以直接复用同一套判断。我们现在的做法是规则表和测试数据一起进版本库，规则改了要升版本，旧数据能不能继续用一目了然。</p>
+        <p>另外两个格式约定看起来琐碎，实际省了很多事。金额统一用分，避免浮点误差和精度争议；日期统一用 ISO 8601，避免 2026/11/23 和 23-11-2026 混用导致跨时区解析出错。这两条写进约束之后，数据从测试环境搬到压测环境基本不用改。</p>
+
+        <h2>脱敏与可复现</h2>
+        <p>脱敏最怕的是同一个原值每次映射出不同结果。同一个人两次查询得到不同手机号，关联分析全部失效，排查问题时连人都对不上。正确的做法是保留格式的映射：同样长度的号码、同样前缀的号段、同样规则的校验位，同一原值每次映射结果一致。</p>
+        <p>映射表必须单独存放，不随测试数据提交，更不能进 Git。这一点不商量。我们组的做法是映射表放在受控的共享目录，按数据集版本命名，只有负责造数的人有读权限。数据集说明里只写「已按保留格式映射，映射表版本 v2.3」，不写原值。</p>
+        <p>可复现靠两样东西：规则版本和随机种子来源。数据集说明里必须写清用的是哪一版规则表、种子从哪来、同一版本重跑是否应该得到同一批数据。我们要求同一版本同一组种子必须完全复现，否则这批数据不能进用例库，因为出了问题没法追。种子不需要写具体数值，但要写清获取方式，例如从数据集版本号派生。</p>
+        <p>还有一条合规边界：真实个人信息未经脱敏授权不要贴进任何对话，也不要写进 skill 的示例。这件事没有技术上的补救办法，只能靠流程卡住。涉及真实用户数据的场景，先走审批，再做映射。</p>
+
+        <h2>踩坑与边界</h2>
+        <ul>
+          <li><strong>手机号随机 11 位</strong>：出现 10 开头、19 开头的非法号段。处理是把号段规则写进字段约束，作为校验规则的一条。</li>
+          <li><strong>身份证校验位不合法</strong>：随机 18 位，接口直接拒绝。处理是要求校验位按国标算法生成，并在校验规则里单独列一条。</li>
+          <li><strong>金额用浮点</strong>：出现 0.0000001 这种值。处理是统一按分取整，规则表里写明单位与精度。</li>
+          <li><strong>先生成订单再找用户</strong>：外键悬空。处理是先定主实体，按父子顺序排进数据集清单。</li>
+          <li><strong>脱敏用随机替换</strong>：同一个人两次查询结果不同。处理是保留格式映射，保证同原值同结果。</li>
+          <li><strong>异常数据一次违反三条约束</strong>：失败时定位不到原因。处理是一条一反例，分组标注违反的规则编号。</li>
+          <li><strong>映射表进 Git</strong>：等于把脱敏白做了。处理是映射表单独存放，仓库里只留版本号。</li>
+        </ul>
+        <p>边界同样要说：只差一两条数据时不要用这套流程，手写更快；涉及真实个人信息又没有脱敏授权时不要用；需要跨系统严格一致性的复杂场景，先把数据编排关系理清楚，再谈生成规则，否则规则表会写成一张谁也执行不了的愿望清单。</p>
+
+        <div class="callout warn">
+          <p>这个 skill 的第一条硬性约束是：只依据引用文档与当前上下文输出，不许按想法自由发挥；信息不足的部分必须进入「待确认清单」，不许编造。</p>
+        </div>
+        <h2>Skill 完整展示</h2>
+        <p>这套流程对应的 skill 放在 Claude Code 的用户目录 <code>~/.claude/skills/skill-testdata-generation/SKILL.md</code>；Trae 放在 <code>C:\Users\你的用户名\.trae\skills\skill-testdata-generation\SKILL.md</code>，项目内则放 <code>.trae/skills/</code>。目录名与 front matter 的 name 保持一致，重启后加载。</p>
+        <div class="code-head"><span>markdown — SKILL.md</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>---
+name: testdata-generation
+description: 按业务约束生成可用的测试数据。把字段级约束翻译成生成规则，用 Faker 加自定义校验位算法产出静态数据、业务数据与异常边界数据，支持脱敏与可逆映射，并输出 CSV 与落库校验脚本。
+---
+
+# 测试数据生成：约束、脱敏与批量产出
+
+## 硬性约束（优先级最高，与其他章节冲突时以本节为准）
+
+1. 只能依据三类信息输出：用户提供的需求文档 / 接口文档 / 代码 / 日志原文、当前会话上下文、本 skill「输入」一节所列的文件。禁止凭想象补充业务规则、字段名、接口地址、阈值、状态码、版本号或历史数据。
+2. 每条产出都要可回溯，必须标注来源：文档章节或条款、文件路径与行号、日志片段、接口字段。标不出来源的条目不得进入正式产出。
+3. 信息不足时不许编造填补。缺失项一律进入「待确认清单」，逐条写清：缺什么、影响哪条结论、需要谁提供。
+4. 凡是基于经验补出的内容，必须以「推断：」开头，并写明依据与置信度（高 / 中 / 低）。置信度为低的推断不能当结论用。
+5. 禁止虚构引用：不编造文档条款号、版本号、链接、指标数值、报错原文。引用原文时逐字摘录并注明位置。
+6. 资料互相矛盾时（文档与代码不一致、两处规则冲突）不要自行取舍，把两种说法并列，标明冲突点和需要确认的问题。
+7. 输出前逐条自检：这条有来源吗？没有就移到「待确认清单」。自检不通过不许输出。
+
+## 待确认清单（输出必带）
+
+无论信息是否充足，输出末尾都保留这一节；没有待确认项时写「无」，不许省略该节。每行格式：
+
+| 序号 | 缺失或不确定的内容 | 影响 | 需要谁提供 |
+
+## 适用场景
+
+- 造数据还靠随手编，格式对但业务不成立，例如优惠券面额大于订单金额。
+- 需要一批可重复生成、可追溯到规则的数据，供自动化用例使用。
+- 生产数据要脱敏后放到测试环境，需保留格式与关联关系。
+- 压测或批量校验需要十万级数据，手工造不现实。
+
+以下情况不要用：
+
+- 只差一两条数据，直接手写更快。
+- 数据涉及真实个人信息，且没有脱敏授权与审批。
+- 需要跨系统一致性的复杂场景，应先建好数据编排脚本再考虑生成。
+
+## 输入
+
+必需：
+
+1. 目标表结构或接口字段清单，包含类型、长度、是否必填、枚举值。
+2. 字段级业务约束，一句话一条，例如「券面额不得大于订单金额的 50%」。
+3. 数据用途与规模，例如「接口自动化 200 条，压测 5 万条」。
+
+建议补充：
+
+4. 现有样例数据，用于对齐格式与取值范围。
+5. 唯一性要求，例如手机号是否允许重复。
+6. 关联关系说明，例如订单必须关联已支付用户。
+
+输入缺失时：把无法确定的字段标记为待确认，不要用随机值填坑。
+
+## 上下文与历史文档规范
+
+### 本次任务需要的材料
+
+| 材料 | 截取哪一部分 | 贴入方式 | 全文还是摘要 |
+| --- | --- | --- | --- |
+| 表结构或字段清单 | 字段名、类型、长度、必填、枚举值 | 原表粘贴，一行一个字段 | 全文 |
+| 字段级业务约束 | 每条约束一句话 | 编号后逐条列出 | 全文 |
+| 真实脱敏样例 | 5 到 10 条完整记录 | 保留格式、替换原值，注明脱敏方式 | 样例摘要 |
+| 历史踩坑数据 | 被接口拒绝的样本与报错 | 样本值、错误码、违反的约束 | 摘要，前 5 条 |
+| 关联关系说明 | 主实体与外键顺序 | 画成父子关系列表 | 全文 |
+| 数据用途与规模 | 接口自动化、压测、演示 | 写清条数与并发量 | 全文 |
+
+执行要求：
+
+1. 真实样例必须脱敏后才能贴入，手机号中间四位、身份证后八位替换，保留原长度与前缀特征。
+2. 没有样例时不许用随机值冒充，把该字段写入待确认清单。
+3. 踩坑数据只给失败样本与错误码，不给整份日志，避免模型把日志格式当成字段说明。
+4. 规模必须写具体数字，例如接口自动化 200 条、压测 5 万条，否则无法判断是否需要分批。
+
+### 历史文档目录约定
+
+```text
+data/
+  dict/
+    trade/
+      order.md
+      coupon.md
+  datasets/
+    coupon/
+      v2.3/
+        manifest.md
+        rules.md
+  legacy/
+    [已废止]-coupon-gen-note-v1.md
+```
+
+1. 数据字典路径为 `data/dict/{库}/{表}.md`，一个字段一节，包含类型、长度、枚举与历史变更。
+2. 数据集说明路径为 `data/datasets/{模块}/v{版本}/manifest.md`，校验规则单独放同目录 `rules.md`。
+3. 旧版造数说明只读，移入 `legacy/`，文件名前加 `[已废止]`。
+
+### 引用与冲突
+
+1. 字段口径以数据字典当前版本为准，引用格式为《订单表数据字典》v3.1 §order_status。
+2. 旧版造数说明只用于提取约束，不继承其中的取值范围；写死的枚举必须回到数据字典核对。
+3. 数据字典与接口文档冲突时，以接口实际校验为准，冲突点写入待确认清单，不自行取舍。
+4. 标注 `[已废止]` 的造数说明里出现、而当前字典已删除的字段，不生成该字段。
+5. 每份数据集说明必须写明规则版本与随机种子来源，保证同一版本可复现。
+
+## 执行步骤
+
+1. 把字段分成三类：静态基础数据、动态业务数据、异常边界数据。
+2. 逐字段把约束翻译成「生成器 + 校验规则」，例如手机号用前缀 13x 加随机 8 位，再用正则校验。
+3. 有关联关系的字段先定主实体，再按外键顺序生成，避免先生成订单再找用户。
+4. 需要校验位的字段用算法生成，不要随机拼数字。
+5. 异常数据单独成组，按「只违反一条约束」的原则构造，便于定位失败原因。
+6. 脱敏采用保留格式映射，同一原值每次映射结果一致，映射表单独存放。
+7. 生成后立刻做全量校验，统计每类约束的通过率，不通过就回退修正规则。
+8. 导出 CSV 与校验报告，报告里写明规则版本与随机种子。
+
+## 输出格式
+
+1. 生成规则表：字段、类型、生成方式、校验规则、示例值。
+2. 数据文件：CSV，首行为表头，编码 UTF-8。
+3. 校验报告：总条数、各约束通过率、失败样本前 5 条。
+4. 脱敏映射表：仅包含哈希值与原值，单独存储，不随测试数据提交。
+
+## 质量检查清单
+
+- 每条数据都通过全部字段级校验，通过率必须是 100%，不是 99%。
+- 唯一字段没有重复，且不是简单的 1、2、3 递增。
+- 关联字段指向的主实体真实存在，没有悬空外键。
+- 异常数据每条只违反一条约束。
+- 随机种子已记录，同一种子能复现同一批数据。
+- 脱敏后的数据保持原格式，例如身份证仍是 18 位且校验位正确。
+- 映射表未混入测试数据集或代码仓库。
+- 生成 5 万条耗时在 2 分钟以内，超过则改用批量写入。
+
+## 反例
+
+- 手机号直接随机 11 位，出现 10 开头、19 开头的非法号段。
+- 身份证随机 18 位，校验位不合法，接口直接拒绝。
+- 金额用 random 生成浮点数，出现 0.0000001 这种业务上不存在的值。
+- 先生成订单再随机找一个用户，导致用户 ID 不存在。
+- 脱敏用随机替换，同一个人两次查询得到不同手机号，关联分析全部失效。
+- 异常数据一次违反三条约束，失败时不知道是哪条规则拦下的。
+- 把脱敏映射表和测试数据一起提交到 Git。
+</code></pre>
+        <div class="callout">
+          <p>下载完整 skill 文件：<a href="../assets/downloads/skill-testdata-generation.md" download>skill-testdata-generation.md</a>。放到 <code>~/.claude/skills/skill-testdata-generation/SKILL.md</code> 即可被自动加载。</p>
+        </div>
+
+        <p>最后给一个判断标准：如果一份数据集说明，交给另一个同事，他能不看你的脚本、不问任何问题，造出一批通过全部校验规则的数据，说明这份说明是合格的。如果他还得回来问你某个字段到底能填什么，那说明规则还在你脑子里，没有写进 skill。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://faker.readthedocs.io/en/master/" target="_blank" rel="noopener">Faker documentation — Faker 官方文档</a></li>
+            <li><a href="https://www.gov.cn/xinwen/2021-08/20/content_5632486.htm" target="_blank" rel="noopener">中华人民共和国个人信息保护法 — 中国政府网</a></li>
+            <li><a href="https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview" target="_blank" rel="noopener">Prompt engineering overview — Anthropic</a></li>
+            <li><a href="https://help.aliyun.com/zh/model-studio/getting-started/models" target="_blank" rel="noopener">模型列表与计费 — 阿里云百炼</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#测试数据</span>
+          <span class="tag">#数据脱敏</span>
+          <span class="tag">#llm</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

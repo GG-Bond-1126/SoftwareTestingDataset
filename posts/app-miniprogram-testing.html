@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小程序自动化：miniprogram-automator 实战 · 软件测试资料集</title>
+<meta name="description" content="用调试协议驱动开发者工具：选择器、data 断言、路由校验与 CI 边界。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-miniprogram-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="小程序自动化：miniprogram-automator 实战">
+<meta property="og:description" content="用调试协议驱动开发者工具：选择器、data 断言、路由校验与 CI 边界。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-miniprogram-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="小程序自动化：miniprogram-automator 实战">
+<meta name="twitter:description" content="用调试协议驱动开发者工具：选择器、data 断言、路由校验与 CI 边界。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"小程序自动化：miniprogram-automator 实战","description":"用调试协议驱动开发者工具：选择器、data 断言、路由校验与 CI 边界。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-miniprogram-testing.html","articleSection":"APP 自动化","keywords":"miniprogram, automator, app-automation","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>13 min read</span>
+        </div>
+        <h1>小程序自动化：miniprogram-automator 实战</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="app-miniprogram-testing">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <h2>为什么值得做：小程序的回归成本被低估了</h2>
+        <p>我们那条电商小程序，一个版本平均四十来个提交，涉及登录、商品详情、下单、支付回调、订单列表、售后六个核心流程。上线前的手工回归，一个人点一遍大约二十五分钟，iOS 和 Android 各一遍，再加上企业微信入口，一轮下来接近一百分钟。一个迭代跑三轮，等于每周固定烧掉五个小时的纯点击。</p>
+        <p>更麻烦的是，这一百分钟里真正需要人判断的部分不到两成。大部分动作是进入页面、输入手机号、点获取验证码、点登录、看有没有进首页。这种活最适合交给脚本，人来负责判断「看到的东西对不对」。</p>
+        <p>但小程序不像原生 App 能直接上 Appium。它在微信内部运行，渲染层是 XWeb 内核，逻辑层跑在独立的 JS 引擎里，uiautomator 从上往下看只能看到一个巨大的 WebView 容器，里面是空的。微信官方给的答案是 <code>miniprogram-automator</code>：它不驱动真机，而是驱动微信开发者工具。</p>
+        <p>这篇文章讲的是这套方案在我们项目里跑了一年多的真实形态：它能覆盖什么、脚本怎么写才稳、以及在哪里必须放弃它换成真机。</p>
+
+        <h2>原理：调试协议加上 automator 是怎么接上的</h2>
+        <p>先把链路讲清楚，后面所有的坑都能对上号。</p>
+        <p>微信开发者工具本身是一个 Electron 应用，里面跑着两套东西：模拟器负责渲染层，appservice 负责逻辑层。工具启动时如果开启了服务端口，会在本机监听一个自动化服务，默认端口 9420。这个端口对外暴露了一组指令，包括编译、文件操作、页面查询和交互注入。</p>
+        <p><code>miniprogram-automator</code> 做的事情很薄：它通过 WebSocket 连上这个端口，把 <code>page.$()</code>、<code>tap()</code>、<code>input()</code> 翻译成调试协议指令，交给工具执行，再把结果序列化回 Node 进程。所以你手里的 <code>page</code>、<code>element</code> 都不是真实 DOM，而是协议层的代理对象。它们不持有状态，只持有引用。</p>
+        <p>理解这一点能直接推出三个结论：</p>
+        <ul>
+          <li><strong>快</strong>：没有真机安装、启动、截图回传的开销，一次 tap 往返通常二十到六十毫秒。</li>
+          <li><strong>不真</strong>：跑的是工具内置模拟器，微信版本、系统 WebView、厂商 ROM 的差异一个都测不到。</li>
+          <li><strong>依赖图形界面</strong>：工具是桌面应用，纯 headless 的 Linux 容器里起不来。这条直接决定了 CI 能做到什么程度。</li>
+        </ul>
+        <p>我们内部把这件事总结成三句话：连接靠端口，操作靠选择器，断言靠页面数据。</p>
+
+        <h2>环境准备：CLI、安全端口与依赖版本</h2>
+        <p>版本要锁。我们用的是开发者工具 1.06.2405020（stable 分支）、Node 18.20、<code>miniprogram-automator@0.12.1</code>、Jest 29.7。工具版本不建议追最新，automator 的协议偶尔会和最新工具错位，出现「连上了但 <code>currentPage</code> 一直超时」这种怪状态。锁一个验证过的组合，比任何调试技巧都有用。</p>
+        <p>服务端口必须手动打开：工具里进入「设置 → 安全设置」，勾上服务端口。这一步是纯 GUI 操作，没有命令行等价物，新机器初始化时要写进交接文档，否则接手的人会在第一步卡半小时。</p>
+        <p>日常调试用 <code>connect</code> 连已经开着的工具；自动化运行用 <code>launch</code>，它会带着端口参数自己拉起工具，避免连到上一次残留的实例。下面这段是准备动作：</p>
+
+        <div class="code-head"><span>powershell — 环境准备</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 打开服务端口：微信开发者工具 → 设置 → 安全设置 → 服务端口
+# 2. 用 CLI 打开项目并指定自动化端口（路径按本机安装位置改）
+&amp; "C:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat" open `
+  --project "D:\work\mall-mini" --auto-port 9420
+
+# 3. 安装依赖，版本锁在 package.json 里
+npm i -D miniprogram-automator@0.12.1 jest@29.7.0
+
+# 4. 探一下端口是否真的在监听
+node -e "const net=require('net');const s=net.connect(9420,'127.0.0.1',()=>{console.log('9420 open');s.end()});s.on('error',e=>console.log(e.code))"</code></pre>
+
+        <p>如果第四步打印 <code>ECONNREFUSED</code>，九成是两个原因：安全设置没勾，或者工具已经以另一个实例在跑、端口被占。<code>launch</code> 遇到后者会自动重启工具，<code>connect</code> 不会。</p>
+
+        <h2>拿到页面：连接、直达与复位</h2>
+        <p>拿到 <code>miniProgram</code> 之后，第一步永远是 <code>reLaunch</code> 到一个确定页面，而不是信任 <code>currentPage()</code>。上一轮用例挂在详情页，这一轮就从详情页开始跑，这是最典型的脏状态来源，也是脚本「单跑能过、全量就红」的常见原因。</p>
+        <p><code>launch</code> 的 <code>projectPath</code> 必须是绝对路径，而且路径里不要有中文。工具内部有一部分逻辑对非 ASCII 路径处理不一致，我们踩过一次：项目放在「我的文档」下，编译永远卡在百分之十，换到 <code>D:\work</code> 立刻正常。</p>
+        <p>下面是一条完整可跑的登录用例，包含连接、输入、点击、等待、页面数据断言和截图取证：</p>
+
+        <div class="code-head"><span>js — test/login.test.js</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>const automator = require('miniprogram-automator');
+const path = require('path');
+
+const CLI = 'C:\\Program Files (x86)\\Tencent\\微信web开发者工具\\cli.bat';
+const PROJECT = 'D:\\work\\mall-mini';
+
+let miniProgram;
+
+beforeAll(async () =&gt; {
+  miniProgram = await automator.launch({
+    cliPath: CLI,
+    projectPath: PROJECT,
+    port: 9420,
+    timeout: 60000,
+  });
+}, 90000);
+
+afterAll(async () =&gt; {
+  await miniProgram.close();
+});
+
+test('手机号登录后进入首页并写入 token', async () =&gt; {
+  const page = await miniProgram.reLaunch('/pages/login/login');
+  await page.waitFor(300);
+
+  await (await page.$('#phone-input')).input('13800000001');
+  await (await page.$('#code-input')).input('123456');
+
+  const submit = await page.$('.login-btn');
+  expect(await submit.text()).toBe('登录');
+  await submit.tap();
+
+  // 等首页横幅出现，最多 8 秒；条件不成立直接抛错并带页面路径
+  await page.waitFor(async () =&gt; (await page.$('.home-banner')) !== null, 8000);
+
+  const home = await miniProgram.currentPage();
+  expect(home.path).toBe('pages/index/index');
+
+  const data = await home.data();
+  expect(data.userInfo.phone).toBe('13800000001');
+  expect(data.token).toMatch(/^eyJ/);
+  expect(data.cartCount).toBe(0);
+
+  await miniProgram.screenshot({ path: path.join('shots', 'login-ok.png') });
+});</code></pre>
+
+        <div class="callout warn">
+          <p>不要把 <code>page</code> 存下来跨用例复用。每次 <code>reLaunch</code>、<code>navigateTo</code>、<code>navigateBack</code> 之后，旧的 <code>page</code> 引用都指向一个已经不存在的页面对象，继续调用不会报错，只会静默返回空结果，非常难查。规矩是：每次跳转后重新 <code>currentPage()</code>。</p>
+        </div>
+
+        <h2>元素操作：选择器、输入与等待</h2>
+        <p>选择器只支持 W<a class="ilink" href="web-security-testing.html">XSS</a> 的一个子集：类、id、标签、后代组合，以及部分伪类。<code>:nth-child</code> 有时候生效有时候不生效，属性选择器基本别指望，跨自定义组件也选不进去。我们在项目里立了一条硬规矩：凡是跨自定义组件的定位，一律写成「组件标签 + 内部类名」两段，例如 <code>product-card .price</code>。这条规矩把选择器失效导致的红灯减少了大约七成。</p>
+        <p><code>input()</code> 不走真实键盘。它是直接改 value 再派发 <code>input</code> 事件，对普通受控组件够用。但对带格式化逻辑的输入框（手机号自动加空格、金额千分位）会出现「值进去了但校验没通过」，因为格式化逻辑绑在真实的按键事件上。这种地方补一次 <code>trigger('input')</code>，或者干脆调页面的格式化方法。</p>
+        <p>等待不要用固定的 <code>sleep</code>。固定等待要么慢，要么在慢机器上偶发失败。统一封装一个轮询函数，条件成立立刻返回，超时则抛出带上下文的错误：</p>
+
+        <div class="code-head"><span>js — 轮询等待工具</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>async function waitUntil(fn, { timeout = 8000, interval = 200, label = '' } = {}) {
+  const start = Date.now();
+  let lastErr;
+
+  while (Date.now() - start &lt; timeout) {
+    try {
+      if (await fn()) return true;
+    } catch (e) {
+      lastErr = e;   // 页面正在切换时 $ 可能抛错，吞掉继续轮询
+    }
+    await new Promise((r) =&gt; setTimeout(r, interval));
+  }
+
+  const page = await miniProgram.currentPage();
+  throw new Error(
+    `waitUntil 超时 ${timeout}ms：${label}，当前页面 ${page.path}` +
+      (lastErr ? `，最后一次异常 ${lastErr.message}` : '')
+  );
+}
+
+// 用法：等商品列表首项渲染出来
+await waitUntil(async () =&gt; {
+  const items = await page.$$('.goods-item');
+  return items.length &gt;= 1;
+}, { label: '商品列表首项' });</code></pre>
+
+        <p>这段代码的价值不在实现，在错误信息。失败时日志里直接写出「等的是哪个条件、当时停在哪一页」，排查时间从十几分钟压到一两分钟。</p>
+
+        <h2>断言：优先看页面数据，其次看文本</h2>
+        <p>文本断言很脆。运营改一个字、加个角标、把「待付款」改成「待支付」，脚本立刻红，而且红得没有意义。相比之下 <code>page.data()</code> 拿的是页面实例的状态，语义稳定，还能断言到用户肉眼看不到的部分，比如 <code>pageNo</code>、<code>total</code>、<code>hasMore</code>。</p>
+        <p>但 <code>data()</code> 返回的是当前快照。<code>setData</code> 是异步的，渲染完成和数据可用之间有一个不确定的间隔，所以断言之前必须先用 <code>waitUntil</code> 把状态等到位。我们最早没等，二十条用例里稳定挂三条，补上等待后连跑三十轮零失败。</p>
+        <p>还有一点：<code>data()</code> 只返回当前页面自己的那一层数据，子组件的 <code>data</code> 不包含在内。要断言组件内部状态，先 <code>page.$(comp)</code> 拿到元素，再调它的 <code>data()</code>。</p>
+
+        <div class="code-head"><span>js — 订单列表的数据断言</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>test('订单列表：分页字段与状态字段一致', async () =&gt; {
+  const page = await miniProgram.reLaunch('/pages/order/list?tab=unpaid');
+  await waitUntil(async () =&gt; (await page.$('.order-list')) !== null, {
+    label: '订单列表容器',
+  });
+
+  const data = await page.data();
+  expect(Array.isArray(data.list)).toBe(true);
+  expect(data.pageNo).toBe(1);
+  expect(data.pageSize).toBe(10);
+  expect(data.total).toBeGreaterThanOrEqual(0);
+  expect(data.hasMore).toBe(data.list.length &gt;= data.pageSize);
+
+  // 业务约束：未支付订单必须带有效期，用来驱动倒计时
+  for (const order of data.list) {
+    expect(order.statusText).toBe('待付款');
+    expect(order.expireSeconds).toBeGreaterThan(0);
+  }
+
+  // 文本只做兜底，确认渲染没白屏
+  const firstItem = await page.$('.order-item');
+  expect(await firstItem.text()).toContain('待付款');
+
+  // 触发上拉加载，验证第二页
+  await page.callMethod('onReachBottom');
+  await waitUntil(async () =&gt; (await page.data()).pageNo === 2, { label: '第二页加载' });
+});</code></pre>
+
+        <h2>跳转与返回：把路由栈也断言掉</h2>
+        <p>小程序页面栈最多十层，超过之后 <code>navigateTo</code> 直接失败。这个失败在模拟器里没有任何用户可见提示，只有一条 warn 日志，脚本会莫名其妙卡在「什么都没发生」。所以列表 → 详情 → 再详情这类链路，我们都显式断言栈深度，一旦有人把 <code>navigateTo</code> 写成死循环式的层层跳转，用例能第一时间抓住。</p>
+        <p><code>miniProgram.pageStack()</code> 返回当前页面栈数组，每项有 <code>path</code> 和 <code>query</code>。<code>query</code> 是原始查询串，比如 <code>id=100&amp;from=list</code>，需要自己解析成对象再断言。</p>
+
+        <div class="code-head"><span>js — 路由与参数断言</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>test('列表进详情再返回：栈深度与参数都正确', async () =&gt; {
+  await miniProgram.reLaunch('/pages/order/list');
+  const list = await miniProgram.currentPage();
+  await waitUntil(async () =&gt; (await list.$('.order-item')) !== null, { label: '订单卡片' });
+
+  await (await list.$('.order-item')).tap();
+  await waitUntil(async () =&gt; (await miniProgram.currentPage()).path === 'pages/order/detail', {
+    label: '进入详情页',
+  });
+
+  const detail = await miniProgram.currentPage();
+  const query = Object.fromEntries(new URLSearchParams(detail.query));
+  expect(query.id).toBeTruthy();
+  expect(query.from).toBe('list');
+
+  let stack = await miniProgram.pageStack();
+  expect(stack.length).toBe(2);
+  expect(stack[1].path).toBe('pages/order/detail');
+
+  await detail.callMethod('goBack');
+  await waitUntil(async () =&gt; (await miniProgram.currentPage()).path === 'pages/order/list', {
+    label: '返回列表',
+  });
+
+  stack = await miniProgram.pageStack();
+  expect(stack.length).toBe(1);
+});</code></pre>
+
+        <h2>小程序和原生 App、公众号的差异</h2>
+        <p>很多团队以为「都是自动化，换个驱动就行」，实际差异大到会推倒重来。下面这张表是我们做技术选型时定下来的对比，后面新同学接手都先看它。</p>
+
+        <table>
+          <thead>
+            <tr><th>维度</th><th>微信小程序</th><th>原生 App</th><th>公众号 H5</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>驱动方式</td><td>开发者工具调试端口</td><td>UiAutomator2 / XCUITest</td><td>Chrome DevTools 协议</td></tr>
+            <tr><td>元素定位</td><td>WXSS 子集选择器</td><td>accessibility id / xpath</td><td>完整 CSS / XPath</td></tr>
+            <tr><td>跨页操作</td><td>同一进程内，快</td><td>跨应用需切换 context</td><td>同浏览器，需切 tab</td></tr>
+            <tr><td>能否测登录态</td><td>依赖工具内扫码</td><td>可预置账号</td><td>可注入 Cookie</td></tr>
+            <tr><td>并行能力</td><td>单实例，几乎不能并行</td><td>多设备可并行</td><td>多浏览器实例可并行</td></tr>
+            <tr><td>包体与性能</td><td>测不到，需真机</td><td>可测</td><td>不适用</td></tr>
+          </tbody>
+        </table>
+
+        <div class="callout">
+          <p>小程序底层虽然有 WebView，但不要指望用 Selenium 的思路去套。它的渲染层不是标准 DOM，很多元素在 DevTools 里能看到，在 automator 里选不到；反过来 automator 支持的类选择器，在 DevTools 里又需要展开组件树。两套心智模型，混用只会浪费时间。</p>
+        </div>
+
+        <h2>CI 上的限制，和我们的替代方案</h2>
+        <p>把 automator 塞进 CI 的尝试，我们做了三轮，最后接受了一个折中。三条硬限制绕不过去：</p>
+        <ol>
+          <li><strong>必须有图形界面</strong>。开发者工具是 Electron 桌面应用，Linux 无头容器里起不来；Windows Server 上如果以服务方式运行，没有交互式桌面会话，工具会白屏。必须留一个登录用户的桌面会话。</li>
+          <li><strong>必须有微信登录态</strong>。工具首次使用要扫码，登录信息落在用户目录。换机器就得重扫。我们的做法是把登录后的配置目录整体打包进自建镜像，并在过期时让流水线自动降级——跳过 UI 用例，只跑接口层，不阻塞发布。</li>
+          <li><strong>单实例</strong>。同一个自动化端口只能挂一个工具，同机并行多条用例会互相抢端口、抢页面栈，表现是随机串页。别试图用多端口硬撑，工具本身对多实例支持很差。</li>
+        </ol>
+        <p>所以最终分工是这样：</p>
+        <ul>
+          <li><strong>提交即跑</strong>：接口层用例，加上把页面 js 里的纯函数抽出来直接 <code>require</code> 做单元测试，四十秒左右出结果。这部分承担了大部分逻辑回归。</li>
+          <li><strong>每日定时</strong>：一台常驻 Windows 机器跑 automator 全量十二条链路，结果推到群里，失败自动附截图和当前页面路径。</li>
+          <li><strong>发版前</strong>：真机兜底。小程序在微信里可以打开 webview 调试，让 Appium 切到 <code>WEBVIEW_com.tencent.mm</code> 上下文去点，但 XWeb 的节点结构和模拟器并不一致，只适合少量冒烟。更稳的是直接上云测平台的真机，把最关键的六条链路跑一遍。</li>
+        </ul>
+
+        <h2>踩坑与边界</h2>
+        <p>下面四条是上线一年多里反复出现的，按「症状 → 原因 → 处理」写。</p>
+        <ul>
+          <li><strong>症状</strong>：<code>connect</code> 报 <code>ECONNREFUSED 127.0.0.1:9420</code>。<strong>原因</strong>：安全设置里的服务端口没勾，或者工具已经在跑另一个实例、端口被占。<strong>处理</strong>：先手工勾端口；批量环境一律用 <code>launch</code> 让它自己重启工具；再不行换端口，9420 到 9429 之间试。</li>
+          <li><strong>症状</strong>：元素 <code>$</code> 到了，<code>tap()</code> 也返回成功，但页面没反应。<strong>原因</strong>：元素在 <code>scroll-view</code> 视口之外，或者被固定定位的浮层盖住。协议层的 tap 是按坐标下发的，不可见就等于点了个寂寞。<strong>处理</strong>：先 <code>page.scrollTop</code> 或调页面的滚动方法把它带进视口，再用 <code>element.tap()</code>；浮层问题靠先关弹窗。</li>
+          <li><strong>症状</strong>：<code>data()</code> 断言十次里挂一次。<strong>原因</strong>：<code>setData</code> 异步，快照比渲染早一拍。<strong>处理</strong>：断言前 <code>waitUntil</code> 等字段就位，不要用 <code>sleep</code> 猜时间。</li>
+          <li><strong>症状</strong>：中文输入进去变成空或者乱码。<strong>原因</strong>：<code>input()</code> 绕过键盘直接改 value，某些组件库在 <code>compositionend</code> 上做了清洗。<strong>处理</strong>：输入后补 <code>trigger('input')</code>，或改用 <code>page.setData</code> 直接注入业务字段并调提交方法。</li>
+        </ul>
+        <p>边界也要说清楚：automator 测不到包体积、首屏耗时、真机兼容性、厂商 ROM 上的渲染差异，也测不到支付这种必须经过真实微信客户端的环节。凡是要过微信客户端 SDK 的，一律真机。</p>
+
+        <h2>效果度量</h2>
+        <p>改了三个月后的一组对比，采集口径是同一批十二条核心链路：</p>
+
+        <table>
+          <thead>
+            <tr><th>指标</th><th>改造前</th><th>改造后</th><th>说明</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>单轮回归耗时</td><td>98 分钟</td><td>7 分 20 秒</td><td>脚本并行度受限，主要时间花在编译和启动</td></tr>
+            <tr><td>每版本漏到线上的问题</td><td>平均 3.2 个</td><td>0.6 个</td><td>统计三个季度的线上缺陷</td></tr>
+            <tr><td>脚本月维护工时</td><td>—</td><td>约 6 小时</td><td>主要来自选择器随 UI 重构变更</td></tr>
+            <tr><td>失败用例定位耗时</td><td>15 分钟</td><td>2 分钟</td><td>靠错误信息里的页面路径与截图</td></tr>
+          </tbody>
+        </table>
+
+        <p>最后一句话总结：<code>miniprogram-automator</code> 不是「小程序版的 Appium」，它是「把开发者工具变成可编程的」。接受它跑在模拟器里这个前提，把逻辑回归交给它、把真实性交给真机，这套组合才跑得长。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://developers.weixin.qq.com/miniprogram/dev/devtools/auto/" target="_blank" rel="noopener">小程序自动化 — 微信开放文档</a></li>
+            <li><a href="https://developers.weixin.qq.com/miniprogram/dev/devtools/cli.html" target="_blank" rel="noopener">命令行 V2 — 微信开发者工具 CLI 文档</a></li>
+            <li><a href="https://github.com/wechat-miniprogram/miniprogram-automator" target="_blank" rel="noopener">miniprogram-automator — GitHub 仓库</a></li>
+            <li><a href="https://jestjs.io/docs/getting-started" target="_blank" rel="noopener">Jest 官方文档 — 测试框架配置</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#miniprogram</span>
+          <span class="tag">#automator</span>
+          <span class="tag">#app-automation</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

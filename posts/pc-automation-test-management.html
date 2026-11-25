@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC 自动化的用例管理与数据驱动 · 软件测试资料集</title>
+<meta name="description" content="用例数据放 Excel/CSV/JSON、参数化驱动、用例分组、数据隔离，配数据驱动 Excel 测试套件完整案例。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-test-management.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="PC 自动化的用例管理与数据驱动">
+<meta property="og:description" content="用例数据放 Excel/CSV/JSON、参数化驱动、用例分组、数据隔离，配数据驱动 Excel 测试套件完整案例。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-test-management.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="PC 自动化的用例管理与数据驱动">
+<meta name="twitter:description" content="用例数据放 Excel/CSV/JSON、参数化驱动、用例分组、数据隔离，配数据驱动 Excel 测试套件完整案例。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"PC 自动化的用例管理与数据驱动","description":"用例数据放 Excel/CSV/JSON、参数化驱动、用例分组、数据隔离，配数据驱动 Excel 测试套件完整案例。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-test-management.html","articleSection":"PC 自动化","keywords":"pc-automation, data-driven, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>PC 自动化的用例管理与数据驱动</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="pc-automation-test-management">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 PC 自动化工具
+pip install pyautogui pynput uiautomation pywinauto opencv-python
+# 验证
+python -c "import pyautogui; print(pyautogui.size())"</code></pre>
+<div class="code-head"><span>python — 验证环境</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui
+# 获取屏幕尺寸（验证）
+print(f"屏幕尺寸：{pyautogui.size()}")
+print("PC 自动化环境就绪 ✓")</code></pre>
+
+<h2>基础应用：自动操作桌面应用</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui, subprocess, time
+
+# 启动记事本
+subprocess.Popen(["notepad.exe"])
+time.sleep(1)
+
+# 输入 + 保存
+pyautogui.write("Hello, PC Automation!")
+time.sleep(0.3)
+pyautogui.hotkey("ctrl", "s")
+time.sleep(0.5)
+
+# 截图
+pyautogui.screenshot("result.png")
+print("基础操作完成 ✓")</code></pre>
+
+<h2>项目进阶：pytest + 多场景 + CI</h2>
+<div class="code-head"><span>python — pytest fixture</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># conftest.py
+import pytest, subprocess, time
+import uiautomation as auto
+
+@pytest.fixture
+def notepad():
+    subprocess.Popen(["notepad.exe"])
+    time.sleep(1)
+    win = auto.WindowControl(searchDepth=1, subTitle="无标题 - 记事本")
+    assert win.Exists(5)
+    yield win
+    auto.press_keys("alt+f4")
+
+# test_notepad.py
+def test_type(notepad):
+    import pyautogui
+    pyautogui.write("测试内容")
+    pyautogui.hotkey("ctrl", "s")
+    time.sleep(0.5)</code></pre>
+
+        <h2>用例数据放哪里</h2>
+        <p>PC 自动化「用例数据」（输入、期望、路径）放三种地方：</p>
+        <div class="code-head"><span>数据源对比</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># Excel（测试人员最熟，直接改）
+# - 优点：不用写代码，直接改表格
+# - 缺点：读要装 openpyxl，批量读慢
+# 适合：测试数据"经常改"、非技术人员维护
+
+# CSV（简单，纯文本）
+# - 优点：轻量、纯文本、Git 友好
+# - 缺点：列多时难读，没类型
+# 适合：参数化数据、Git 管理
+
+# JSON（结构化，嵌套）
+# - 优点：支持嵌套（用例有子步骤）、类型明确
+# - 缺点：写起来啰嗦
+# 适合：复杂用例（多步骤、多条件）</code></pre>
+
+        <h2>数据驱动 + 参数化</h2>
+        <p>把「用例数据」和「测试逻辑」分离，一条脚本跑 N 组数据：</p>
+        <div class="code-head"><span>python — CSV 数据驱动</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># test_cases/excel_operations.csv
+# operation,input_data,expected_result
+新建文件,hello,文件内容=hello
+修改单元格,A1=42,A1值=42
+删除行,行3,总行数=99
+保存,文件名=test,文件存在
+
+import pytest
+import csv
+
+@pytest.fixture(scope="module")
+def excel_cases():
+    """读 Excel 操作用例（CSV）。"""
+    cases = []
+    with open("test_cases/excel_operations.csv", "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            cases.append(row)
+    return cases
+
+@pytest.mark.parametrize("case", excel_cases(), ids=lambda c: c["operation"])
+def test_excel_operation(case, notepad_app):
+    """Excel 操作（参数化驱动）。"""
+    # 测试逻辑（一条脚本跑 N 组数据）
+    # case = {"operation": "新建文件", "input_data": "hello", "expected_result": "文件内容=hello"}
+
+    operation = case["operation"]
+    input_data = case["input_data"]
+    expected = case["expected_result"]
+
+    print(f"执行：{operation}（输入：{input_data}）")
+
+    # 执行操作
+    result = execute_excel_operation(notepad_app, operation, input_data)
+
+    # 断言
+    assert result == expected, f"期望 {expected}，实际 {result}"
+
+# 运行
+# pytest test_excel.py -v
+# 会跑 4 条（CSV 里 4 行）</code></pre>
+        <div class="code-head"><span>python — Excel 数据驱动（openpyxl）</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 用例数据放 Excel（测试人员直接改）
+# test_cases/excel_test_data.xlsx
+# 列：case_id | operation | input | expected
+
+import pytest
+from openpyxl import load_workbook
+
+@pytest.fixture(scope="module")
+def excel_cases_xlsx():
+    """读 Excel 用例数据。"""
+    wb = load_workbook("test_cases/excel_test_data.xlsx")
+    ws = wb.active
+
+    cases = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if row[0] is None:
+            continue
+        cases.append({
+            "case_id": row[0],
+            "operation": row[1],
+            "input": row[2],
+            "expected": row[3],
+        })
+    return cases
+
+@pytest.mark.parametrize(
+    "case",
+    excel_cases_xlsx(),
+    ids=lambda c: f"{c['case_id']}_{c['operation']}"
+)
+def test_excel_from_xlsx(case, notepad_app):
+    """Excel 数据驱动（用例从 Excel 读）。"""
+    print(f"用例 {case['case_id']}：{case['operation']}")
+
+    result = execute_operation(notepad_app, case["operation"], case["input"])
+    assert result == case["expected"]</code></pre>
+
+        <h2>用例分组：按功能模块</h2>
+        <div class="code-head"><span>python — 用例分组</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 用例按"功能模块"分组（目录 + 标记）
+
+# 目录结构
+test_suite/
+├── conftest.py
+├── test_excel/
+│   ├── test_file_ops.py      # 文件操作（新建/保存/关闭）
+│   ├── test_cell_ops.py      # 单元格操作（输入/修改/删除）
+│   └── test_formula.py       # 公式测试
+├── test_word/
+│   ├── test_document.py
+│   └── test_print.py
+└── test_browser/
+    ├── test_navigation.py
+    └── test_search.py
+
+# pytest 标记（按模块筛选用例）
+# pytest.ini
+[pytest]
+markers =
+    excel: Excel 相关测试
+    word: Word 相关测试
+    browser: 浏览器相关测试
+    smoke: 冒烟测试
+    regression: 回归测试
+
+# 用例（打标记）
+import pytest
+
+@pytest.mark.excel
+@pytest.mark.smoke
+def test_excel_new_file(notepad_app):
+    """Excel 新建文件（冒烟）"""
+    ...
+
+@pytest.mark.excel
+@pytest.mark.regression
+def test_excel_cell_formula(notepad_app):
+    """Excel 公式（回归）"""
+    ...
+
+# 运行
+# pytest -m excel              # 只跑 Excel 用例
+# pytest -m "excel and smoke"  # Excel 冒烟
+# pytest -m "not browser"      # 排除浏览器用例</code></pre>
+
+        <h2>数据隔离：每个用例独立数据</h2>
+        <div class="code-head"><span>python — 数据隔离</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+import os
+import uuid
+
+@pytest.fixture
+def isolated_data_dir(request):
+    """每个用例独立数据目录（避免用例间互相影响）。"""
+    # 唯一目录（用例名 + UUID）
+    unique_id = f"{request.node.name}_{uuid.uuid4().hex[:8]}"
+    data_dir = os.path.join("test_data", unique_id)
+    os.makedirs(data_dir, exist_ok=True)
+
+    yield data_dir
+
+    # 清理（用例结束删数据）
+    import shutil
+    if os.path.exists(data_dir):
+        shutil.rmtree(data_dir)
+
+# 使用（每个用例独立数据）
+def test_create_file(isolated_data_dir, notepad_app):
+    """创建文件（用独立数据目录）。"""
+    file_path = os.path.join(isolated_data_dir, "test.xlsx")
+    # 操作 file_path...
+    assert os.path.exists(file_path)
+
+def test_modify_file(isolated_data_dir, notepad_app):
+    """修改文件（用独立数据目录，不受上一个用例影响）。"""
+    file_path = os.path.join(isolated_data_dir, "test.xlsx")
+    # 操作 file_path...
+    # 这个用例的 file_path 是"干净的"（独立目录）</code></pre>
+
+        <h2>用例「依赖」管理：先跑前置用例</h2>
+        <div class="code-head"><span>python — 用例依赖</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># pip install pytest-dependency
+import pytest
+
+@pytest.mark.dependency(name="excel_start")
+def test_excel_start(notepad_app):
+    """前置：启动 Excel。"""
+    import subprocess
+    import time
+    subprocess.Popen(["excel.exe"])
+    time.sleep(5)
+    assert is_excel_running(), "Excel 没启动"
+
+@pytest.mark.dependency(name="create_file", depends=["excel_start"])
+def test_create_file(notepad_app):
+    """依赖：Excel 启动后创建文件。"""
+    ...
+
+@pytest.mark.dependency(name="save_file", depends=["create_file"])
+def test_save_file(notepad_app):
+    """依赖：创建文件后保存。"""
+    ...
+
+# 运行
+# pytest test_excel.py -v --last-failed
+# 前一条失败，后续依赖自动跳过</code></pre>
+
+        <h2>案例：数据驱动 Excel 测试套件</h2>
+        <p>把「用例数据 + 参数化 + 分组 + 隔离 + 依赖」串起来，写一个「数据驱动 Excel 测试套件」的完整案例：</p>
+        <div class="code-head"><span>项目结构</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>excel_test_suite/
+├── conftest.py                    # 公共 fixture
+├── test_data/
+│   └── excel_operations.xlsx      # 用例数据（Excel）
+├── test_excel/
+│   ├── test_file_ops.py           # 文件操作
+│   └── test_cell_ops.py           # 单元格操作
+├── pytest.ini
+└── requirements.txt
+
+pytest.ini:
+[pytest]
+markers =
+    excel: Excel 测试
+    file_ops: 文件操作
+    cell_ops: 单元格操作
+    smoke: 冒烟
+    regression: 回归</code></pre>
+        <div class="code-head"><span>test_data/excel_operations.xlsx（用例数据）</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 列：case_id | module | operation | input | expected | priority
+C001 | file | 新建文件 | test1.xlsx | 文件存在 | P0
+C002 | file | 保存文件 | test1.xlsx | 文件保存 | P0
+C003 | cell | 输入A1 | hello | A1=hello | P1
+C004 | cell | 修改A1 | world | A1=world | P1
+C005 | formula | 求和 | =SUM(A1:A5) | 求和正确 | P2</code></pre>
+        <div class="code-head"><span>conftest.py — 公共 fixture</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+from openpyxl import load_workbook
+import os
+import uuid
+
+@pytest.fixture(scope="session")
+def excel_app():
+    """启动 Excel（session 级，只启动一次）。"""
+    import subprocess
+    import time
+    subprocess.Popen(["excel.exe"])
+    time.sleep(5)
+    yield
+    import pyautogui
+    pyautogui.hotkey("alt", "f4")
+    time.sleep(1)
+
+@pytest.fixture(scope="module")
+def excel_cases():
+    """读用例数据（Excel）。"""
+    wb = load_workbook("test_data/excel_operations.xlsx")
+    ws = wb.active
+    cases = []
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if row[0] is None:
+            continue
+        cases.append({
+            "case_id": row[0],
+            "module": row[1],
+            "operation": row[2],
+            "input": row[3],
+            "expected": row[4],
+            "priority": row[5],
+        })
+    return cases
+
+@pytest.fixture
+def isolated_dir(request):
+    """每个用例独立数据目录。"""
+    unique_dir = os.path.join("test_data", f"{request.node.name}_{uuid.uuid4().hex[:8]}")
+    os.makedirs(unique_dir, exist_ok=True)
+    yield unique_dir
+    import shutil
+    shutil.rmtree(unique_dir, ignore_errors=True)</code></pre>
+        <div class="code-head"><span>test_excel/test_file_ops.py — 文件操作用例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+from conftest import excel_cases, excel_app
+
+@pytest.mark.excel
+@pytest.mark.file_ops
+@pytest.mark.parametrize("case", excel_cases, ids=lambda c: c["case_id"])
+def test_file_operations(case, excel_app, isolated_dir):
+    """文件操作（参数化驱动，按优先级筛）。"""
+    # 只跑 file 模块
+    if case["module"] != "file":
+        pytest.skip("非文件操作用例")
+
+    print(f"执行：{case['case_id']} - {case['operation']}")
+
+    # 执行操作
+    result = execute_operation(excel_app, case["operation"], case["input"], isolated_dir)
+
+    # 断言
+    assert result == case["expected"], \
+        f"用例 {case['case_id']} 失败：期望 {case['expected']}，实际 {result}"
+
+# 运行
+# pytest test_excel/ -m "excel and file_ops" -v
+# 只跑 Excel + 文件操作用例（C001、C002）</code></pre>
+        <div class="code-head"><span>terminal — 运行测试套件</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 跑所有 Excel 用例
+pytest test_excel/ -v
+
+# 只跑 P0 优先级（冒烟）
+pytest test_excel/ -m "excel and smoke"
+
+# 只跑文件操作
+pytest test_excel/ -m "excel and file_ops"
+
+# 生成报告
+pytest test_excel/ --html=report.html --self-contained-html</code></pre>
+        <div class="callout">
+          <p>PC 自动化「用例管理」核心思路：<strong>数据驱动</strong>（用例数据放 Excel/CSV，参数化驱动）、<strong>分组</strong>（按功能模块 + 标记筛）、<strong>隔离</strong>（每个用例独立数据目录）、<strong>依赖</strong>（前置用例先跑）。一条脚本跑 N 组数据，改数据不用改代码，用例「可管理、可筛选、可追溯」。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.pytest.org/en/stable/parametrize.html" target="_blank" rel="noopener">pytest 参数化官方文档</a></li>
+            <li><a href="https://openpyxl.readthedocs.io/" target="_blank" rel="noopener">openpyxl 官方文档</a></li>
+            <li><a href="https://pytest-dependency.readthedocs.io/" target="_blank" rel="noopener">pytest-dependency 官方文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#pc-automation</span>
+          <span class="tag">#data-driven</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web 自动化调试技巧：单步 / 慢速 / 录屏 · 软件测试资料集</title>
+<meta name="description" content="五类失败证据、trace 与 Selenium 取证差异、定位失败根因、录屏与 CI 存储策略，一次讲透。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-debugging-tools.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Web 自动化调试技巧：单步 / 慢速 / 录屏">
+<meta property="og:description" content="五类失败证据、trace 与 Selenium 取证差异、定位失败根因、录屏与 CI 存储策略，一次讲透。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-debugging-tools.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Web 自动化调试技巧：单步 / 慢速 / 录屏">
+<meta name="twitter:description" content="五类失败证据、trace 与 Selenium 取证差异、定位失败根因、录屏与 CI 存储策略，一次讲透。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Web 自动化调试技巧：单步 / 慢速 / 录屏","description":"五类失败证据、trace 与 Selenium 取证差异、定位失败根因、录屏与 CI 存储策略，一次讲透。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-debugging-tools.html","articleSection":"Web 自动化","keywords":"debugging, playwright, web-automation","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>23 min read</span>
+        </div>
+        <h1>Web 自动化调试技巧：单步 / 慢速 / 录屏</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-debugging-tools">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+
+        <h2>自动化调试到底在调什么</h2>
+        <p>这篇写给已经在维护几十到上千条用例、被流水线上「本地跑十次、红两次」折磨过的一线测试工程师。它不讲怎么写第一个 <code>click</code>，只回答一个更贵的问题：一条用例在 CI 上挂了，你手上该有什么，才能既不重启环境也不靠记忆，把那一刻说清楚。</p>
+        <p>多数团队的现状是构建日志只留一行 <code>TimeoutError</code>，加一段没有业务语义的堆栈。要定位就得本地重跑，而重跑往往不挂，于是同一批用例被反复标成环境问题，回归套件的可信度一点点掉光。把这件事拆开是三层能力：留存证据、回放过程、控制时间。</p>
+
+        <h2>失败现场要留什么：五类证据各答一个问题</h2>
+        <p>截图回答人眼看到什么，能一眼认出白屏、弹窗遮挡、遮罩没消失；DOM 快照回答选择器面对的是什么结构，元素换层级时截图看不出来；控制台日志回答页面脚本有没有抛异常，一个未捕获错误就能让按钮永远停在禁用态；HAR 回答请求发了没有、状态码是多少；trace 回答整个过程里每一步的页面长什么样。</p>
+        <p>只留一两样，排查就会卡在互相猜疑上。有截图没 DOM，分不清是定位器写错还是元素真没渲染；有 DOM 没日志，不知道接口 500 后页面是不是静默失败了。我们的做法是把证据写进同一个失败目录，文件名带用例标识与阶段，线下按用例名一次捞全。</p>
+        <p>实现上有个返工点：控制台日志必须在页面创建时就订阅，事后取不回来。很多人先写只在失败时读日志的钩子，跑一周才发现永远是空的。</p>
+        <div class="code-head"><span>python — conftest.py：失败现场三件套</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import collections
+import pathlib
+
+import pytest
+
+CONSOLE = collections.defaultdict(list)
+
+
+@pytest.fixture
+def page(browser, request):
+    context = browser.new_context(
+        viewport={"width": 1440, "height": 900},
+        timezone_id="Asia/Shanghai",
+        locale="zh-CN",
+    )
+    pg = context.new_page()
+    key = request.node.nodeid
+    # 订阅必须发生在 goto 之前，否则首屏报错会丢
+    pg.on("console", lambda m: CONSOLE[key].append(f"[{m.type}] {m.text}"))
+    pg.on("pageerror", lambda e: CONSOLE[key].append(f"[pageerror] {e}"))
+    yield pg
+    context.close()
+    CONSOLE.pop(key, None)
+
+
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    report = outcome.get_result()
+    if report.when != "call" or not report.failed:
+        return
+
+    pg = item.funcargs.get("page")
+    if pg is None or pg.is_closed():
+        return
+
+    case_dir = pathlib.Path("artifacts") / item.nodeid.replace("::", "_")
+    case_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        pg.screenshot(path=str(case_dir / "01-shot.png"), full_page=True)
+        (case_dir / "02-dom.html").write_text(pg.content(), encoding="utf-8")
+        (case_dir / "03-console.log").write_text(
+            "\n".join(CONSOLE[item.nodeid]), encoding="utf-8")
+        (case_dir / "04-url.txt").write_text(pg.url, encoding="utf-8")
+    except Exception as exc:
+        # 取证失败不得覆盖业务失败，否则连真正原因都看不到
+        print(f"取证失败: {exc}")</code></pre>
+
+        <h2>trace 与 Selenium：两种取证路线</h2>
+        <p>Playwright 的 trace 一次记录每步的 DOM 快照、网络请求、控制台输出与源码位置，拖动时间轴点任意一步就能看当时页面。它解决「最后一帧看不出问题」的场景：弹窗闪一下、列表先空后填、按钮在动画中间被点中，这些在截图里全是正常的。</p>
+        <p>Selenium 4 提供了 CDP 与 BiDi 通道，能订阅网络与控制台事件、截全页图、导出源码，但没有时间轴加 DOM 快照的一体化回放，录屏要靠容器抓屏。取舍很实际：新项目选 Playwright，一天配置换来全套证据链；存量套件不必为调试体验整体迁移，但至少补齐三件套；最不该做的是自研 trace，浏览器一升级、CDP 字段一改，维护成本会把人拖垮。</p>
+        <p>trace 的体积随步骤数与 DOM 大小增长，中等复杂度的下单流程通常几 MB 到几十 MB（示例值），所以生产配置是失败保留而非每次都开。还有个必踩的坑：trace 必须在上下文关闭前 stop，否则压缩包不完整，打开时直接报错。</p>
+        <div class="code-head"><span>python — trace 只在失败时保留</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+
+import pytest
+
+
+@pytest.fixture
+def context(browser, request):
+    ctx = browser.new_context()
+    ctx.tracing.start(screenshots=True, snapshots=True, sources=True)
+    yield ctx
+
+    trace = pathlib.Path("artifacts") / f"{request.node.name}.zip"
+    trace.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        ctx.tracing.stop(path=str(trace))   # 收尾阶段执行，业务异常也能走到
+    finally:
+        ctx.close()
+
+    rep = getattr(request.node, "rep_call", None)
+    if rep is not None and rep.passed:
+        trace.unlink(missing_ok=True)</code></pre>
+
+        <h2>单步调试：pdb 与 page.pause 各管一段</h2>
+        <p>在自动化代码里下断点，第一个拦住你的不是语法而是超时。Playwright 动作默认三十秒超时，你在断点上思考两分钟，恢复时页面早已跳走，看到的是一个和真实失败无关的新错误。所以断点前要关超时、保持有头，否则看不见浏览器在干什么。</p>
+        <p><code>page.pause()</code> 会原地拉起 Inspector，可以直接看 DOM、点元素、在控制台执行表达式，不必把调试器塞进 Python 进程；<code>breakpoint()</code> 进 pdb，更适合读 Python 变量。用 pytest-xdist 并行时，调试器只挂在主进程，worker 里的断点根本不命中，这是很多人以为断点坏了的真实原因。</p>
+        <p>更重要的局限是观察者效应：停下来能复现、不停下来不复现，说明问题本来就在时序上，这时该换 trace，而不是继续加断点。</p>
+        <div class="code-head"><span>python — 让断点停在有意义的地方</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>def test_checkout(page):
+    page.set_default_timeout(0)          # 断点期间不让动作超时
+    page.goto("https://shop.example.com/cart")
+
+    # page.pause()   拉起 Inspector，直接在浏览器里看 DOM
+    breakpoint()                         # 进 pdb，适合读 Python 变量
+
+    page.get_by_role("button", name="去结算").click()
+    page.get_by_role("button", name="提交订单").click()
+
+    page.set_default_timeout(15_000)     # 恢复后重新给断言设超时
+    expect(page.get_by_text("订单已提交")).to_be_visible()</code></pre>
+
+        <h2>slow_mo：最便宜，也最容易被滥用</h2>
+        <p><code>slow_mo</code> 的本质是每个动作后插固定休眠。一次结算流程约四十个动作，设五百毫秒就多出二十秒（示例值，按动作数换算），单条调试无所谓，五百条回归就多几个小时，所以它只该出现在本地和单条调试里。</p>
+        <p>更隐蔽的是它会治好一部分失败：等待变长，恰好替代了缺失的<a class="ilink" href="web-wait-strategies.html">显式等待</a>，用例变绿，你以为问题解决了，回到 CI 又红。正确用法是用慢放确认操作序列本身对不对，确认完立刻关掉，再连跑二十次看是否稳定。需要局部放慢时用 marker 只给目标用例传参，别全局开着跑整套。</p>
+        <div class="code-head"><span>python — 用 marker 控制是否慢放</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+from playwright.sync_api import sync_playwright
+
+# pytest.ini 里加 markers = slowmo，避免 unknown marker 警告
+
+
+@pytest.fixture
+def browser(request):
+    slow = 300 if request.node.get_closest_marker("slowmo") else 0
+    with sync_playwright() as p:
+        b = p.chromium.launch(headless=False, slow_mo=slow)
+        yield b
+        b.close()
+
+
+@pytest.mark.slowmo
+def test_coupon_apply(page):
+    page.goto("https://shop.example.com/coupons")
+    page.get_by_role("button", name="立即领取").click()</code></pre>
+
+        <h2>headless 与有头为什么表现不一致</h2>
+        <p>典型场景是 CI 上 headless 挂了、本地有头正常。原因通常不是 headless 有 bug，而是两边根本不等价：视口尺寸不同（headless 常是 1280×720，本地窗口 1920×1080，直接跨过响应式断点）、字体与行高导致换行位置不同、滚动条是否占位、是否开启减弱动效、时区与语言、后台标签页的定时器节流。</p>
+        <p>定位分两步：先对齐能对齐的，固定视口、像素比、时区、语言、UA，让本地尽量等于 CI；再二分，同一视口下切 headless，如果仍不复现，问题在窗口尺寸，如果复现了，再单独排除字体、GPU 与动效。不要一上来就改代码，先证明是环境差异而不是逻辑差异。</p>
+        <div class="code-head"><span>python — 本地与 CI 共用一套上下文参数</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>CI_CONTEXT = {
+    "viewport": {"width": 1280, "height": 720},
+    "device_scale_factor": 1,
+    "locale": "zh-CN",
+    "timezone_id": "Asia/Shanghai",
+    "reduced_motion": "reduce",
+    "user_agent": (
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) HeadlessChrome/131.0.0.0 Safari/537.36"
+    ),
+}
+
+
+def new_ci_context(browser):
+    # 本地与 CI 共用这一份配置，差异只剩「有没有头」
+    return browser.new_context(**CI_CONTEXT)</code></pre>
+
+        <h2>元素定位失败的五类根因</h2>
+        <p>定位失败是最常见的失败，但「找不到元素」只是表象。先分类再改代码，能省掉大量无效重跑。五类<a class="ilink" href="ai-defect-rootcause.html">根因</a>是：选择器失效或多匹配、元素在 iframe 或 shadow DOM 内、元素被遮挡或不可点、渲染时序未到、状态依赖不满足（未登录、权限不足、新窗口未切换）。</p>
+        <table>
+          <thead>
+            <tr><th>根因</th><th>典型报错或现象</th><th>排查手段</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>选择器失效/多匹配</td><td>strict mode violation，resolved to 2 elements</td><td>数匹配数量，改用 role 或 data-testid</td></tr>
+            <tr><td>iframe / shadow DOM</td><td>元素明明可见却找不到</td><td>检查 frames 列表，加 frame_locator</td></tr>
+            <tr><td>遮挡或不可点</td><td>元素 intercepts pointer events</td><td>看 bounding_box 与上层遮罩，先关弹窗</td></tr>
+            <tr><td>渲染时序</td><td>Timeout waiting for locator</td><td>看 trace 时间轴，等状态而非等时间</td></tr>
+            <tr><td>状态依赖</td><td>登录页反复出现、新标签页空白</td><td>确认登录态、权限与 window 切换</td></tr>
+          </tbody>
+        </table>
+        <p>排查时先用 <code>playwright codegen</code> 生成一份官方推荐定位，与自己写的对比；再用下面这段脚本把匹配数量、可见性、位置一次打出来。数量大于一就是选择器问题，数量为零再去查 frame，位置被别的元素覆盖就去查遮挡，三者都正常才怀疑时序。</p>
+        <div class="code-head"><span>python — 一次看清匹配数量、可见性与位置</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>def diagnose(page, selector: str) -&gt; None:
+    loc = page.locator(selector)
+    print("count =", loc.count())
+    for i in range(loc.count()):
+        item = loc.nth(i)
+        print(i, "visible =", item.is_visible(),
+              "box =", item.bounding_box(),
+              "text =", item.inner_text()[:40])
+    print("frames =", [f.url for f in page.frames])
+
+
+# Selenium 侧的等价排查：数量为 0 或大于 1 都不该直接 click
+# print(len(driver.find_elements(By.CSS_SELECTOR, selector)))</code></pre>
+
+        <h2>时区、字体与视觉差异</h2>
+        <p>时区问题最容易出丑：本地日志写 10:32，服务端按 UTC 写 02:32，两个人对着两份日志争半小时，才发现说的是同一件事。约定是存储统一用 UTC，报告里显式标出时区，跨系统对日志时先换算再讨论。</p>
+        <p>字体问题更隐蔽。CI 镜像通常不含中文字体，页面上的中文会渲染成方框或改变换行，截图看起来像布局坏了，实际只是缺字体。装 <code>fonts-noto-cjk</code> 并固定字体列表，比在每个用例里放宽断言便宜。<a class="ilink" href="web-visual-regression.html">视觉回归</a>也要分清：像素 diff 适合静态页，业务页更适合断言关键文本与状态，否则每次字体微调都会产生一堆误报。</p>
+
+        <h2>网络取证：HAR、拦截与 mock</h2>
+        <p>很多「点了没反应」根本不是元素问题，而是请求没发出去、返回 4xx 或 5xx、或响应回来了前端解析失败。这时盯 DOM 是浪费时间，应该直接看网络。HAR 适合离线回看「只有那个构建才出现」的接口问题，拦截适合打日志，mock 适合隔离后端确认前端行为，三者解决的问题不同。</p>
+        <p>边界必须说清：被 mock 掉的部分就是没被验证的部分，它只能帮你缩小范围，不能替代真实链路回归。另一个常见错误是拦截处理器既不放行也不返回，请求一直悬着，最后以 <code>net::ERR_ABORTED</code> 或整体卡死收场。HAR 默认会写响应体，涉及账号信息的接口要过滤。</p>
+        <div class="code-head"><span>python — HAR 记录 + 弱网复现 + mock 503</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import time
+
+
+def test_order_slow_api(browser):
+    context = browser.new_context(record_har_path="artifacts/order.har")
+    page = context.new_page()
+
+    def handler(route):
+        # 模拟弱网：只拖慢下单接口，其余放行
+        if "/api/orders" in route.request.url:
+            time.sleep(3)
+        route.continue_()
+
+    page.route("**/*", handler)
+    page.goto("https://shop.example.com/orders")
+    page.get_by_role("button", name="提交订单").click()
+    expect(page.get_by_text("提交失败，请重试")).to_be_visible(timeout=10_000)
+    context.close()
+
+
+def test_order_503_mock(browser):
+    page = browser.new_page()
+
+    def fail(route):
+        route.fulfill(
+            status=503,
+            content_type="application/json",
+            body='{"code": 503, "msg": "service unavailable"}',
+        )
+
+    page.route("**/api/orders", fail)
+    page.goto("https://shop.example.com/orders")
+    page.get_by_role("button", name="提交订单").click()
+    expect(page.get_by_text("服务繁忙")).to_be_visible()</code></pre>
+
+        <h2>录屏：三种方案与各自的代价</h2>
+        <p>录屏的价值不在定位而在沟通。给开发看一段二十秒视频，比贴十行堆栈有效；但它看不到元素层级与请求，不能替代 trace。它最适合「说不清操作到底做了什么」的争议，以及给产品同学演示复现路径。</p>
+        <table>
+          <thead>
+            <tr><th>方案</th><th>开启方式</th><th>成本</th><th>适用</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Playwright video</td><td>上下文参数</td><td>CPU 编码，按用例一文件</td><td>失败用例默认保留</td></tr>
+            <tr><td>ffmpeg 抓屏</td><td>外部进程录 Xvfb 或桌面</td><td>常驻编码，需管理进程</td><td>Selenium 或需要整机会话</td></tr>
+            <tr><td>CI artifact</td><td>上传目录</td><td>存储与带宽</td><td>把视频交付给他人查看</td></tr>
+          </tbody>
+        </table>
+        <p>Playwright 的视频只在上下文关闭后才写完，中途崩溃或进程被强杀，留下的是零字节文件，上传前必须校验大小。ffmpeg 抓屏适合容器里跑 Xvfb 的场景，也可以在 Windows 上用 gdigrab；录完用 CRF 压一遍，体积能降一个量级。</p>
+        <div class="code-head"><span>python / bash — video 按用例保留 + ffmpeg 压缩</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>ctx = browser.new_context(
+    record_video_dir="artifacts/video",
+    record_video_size={"width": 1280, "height": 720},
+)
+page = ctx.new_page()
+page.goto("https://shop.example.com/cart")
+ctx.close()                      # 必须先关闭，视频才落盘
+
+video = page.video.path()
+import pathlib
+f = pathlib.Path(video)
+if f.exists() and f.stat().st_size &gt; 1024:
+    print("录屏可用:", f)
+
+# Linux CI 里用 Xvfb 抓整机会话，结束后压缩
+# ffmpeg -f x11grab -video_size 1280x720 -framerate 15 -i :99 -t 300 -y raw.mp4
+# ffmpeg -i raw.mp4 -crf 30 -preset veryfast -an out.mp4</code></pre>
+
+        <h2>CI 里留证据，又不把存储跑爆</h2>
+        <p>原则只有一条：通过用例的证据一律不留。trace、video、HAR 都在用例结束后按结果决定去留，失败才上传，保留期设七天。一个中等规模的回归每天跑十次，全量留存一周就能把 artifact 配额吃光，而其中九成以上是没人看的绿灯。</p>
+        <p>目录按用例分、文件名带序号，上传时只传失败目录；大文件先压缩，视频去掉音轨。再加一步体积告警：单次构建产物超过设定上限就打印目录大小，提醒有人把全量 trace 打开了。真要长期归档，把每个迭代最后一次构建的证据推到对象存储，按日期建路径。</p>
+        <div class="code-head"><span>yaml — GitHub Actions：只上传失败证据</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>      - run: pytest -m "not retry" -n 4
+        continue-on-error: true
+      - name: 打印产物体积，超限告警
+        if: always()
+        run: du -sh artifacts || true
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: failure-evidence-${{ github.run_number }}
+          path: artifacts/
+          retention-days: 7
+          compression-level: 6</code></pre>
+
+        <h2>把失败压成最小复现脚本</h2>
+        <p>这是测试工程师最该练的手艺：拿到失败用例，目标不是重跑整条，而是得到一段三十行以内、能独立运行、复现率可量化的代码。它既是提交缺陷的证据，也是给开发的最短路径，还是判断是不是 flaky 的唯一客观依据。</p>
+        <p>流程四步：从 trace 找到真正失败的那一步；只保留到达该步的最短前置，通常是登录加一次跳转；删掉与被测行为无关的断言，只留最后一条；连跑二十到三十次记录失败次数。两个硬要求：不依赖共享登录态，否则别人跑不起来；数据和随机源固定，否则复现率没有意义。</p>
+        <div class="code-head"><span>python — 最小复现脚本骨架</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from playwright.sync_api import sync_playwright
+
+
+def run_once() -&gt; bool:
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1280, "height": 720})
+        page.goto("https://shop.example.com/login")
+        page.fill("#username", "qa_case_1024")
+        page.fill("#password", "P@ssw0rd")
+        page.click("button[type=submit]")
+        page.get_by_role("link", name="优惠券").click()
+        ok = page.get_by_role("button", name="立即领取").is_enabled()
+        browser.close()
+        return ok
+
+
+if __name__ == "__main__":
+    rounds = 30
+    fails = sum(not run_once() for _ in range(rounds))
+    print(f"{rounds} 次中失败 {fails} 次，复现率 {fails / rounds:.0%}")</code></pre>
+        <p>把复现率写进缺陷单，比写「偶现」有力得多。三十次挂七次就是两成多的概率，开发看到数字不会再推给环境；三十次一次不挂，那就先怀疑数据或环境差异，而不是急着提 bug。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>把调试能力当成框架的一部分来验收，而不是出了事再补。下面每条都能用一次真实的失败去验证。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>合格标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>失败证据</td><td>自动产出截图、DOM、控制台日志、URL</td></tr>
+            <tr><td>trace</td><td>失败保留，能直接用 show-trace 打开</td></tr>
+            <tr><td>录屏</td><td>仅失败保留，且校验文件大于 1KB</td></tr>
+            <tr><td>环境一致性</td><td>本地与 CI 共用视口、时区、语言、UA</td></tr>
+            <tr><td>定位排查</td><td>有 count、visible、frame 三项的一键诊断</td></tr>
+            <tr><td>存储</td><td>只传失败目录，保留 7 天，有体积告警</td></tr>
+            <tr><td>复现</td><td>每条失败用例都能给出三十行内的独立脚本</td></tr>
+          </tbody>
+        </table>
+        <p>判断标准很简单：把一条失败用例交给没参与编写它的人，如果他能只看 artifact 就说出在哪一步、当时页面是什么、请求是否异常，这套调试能力就合格；如果还要问原作者，那证据链就还没闭环。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://playwright.dev/python/docs/debug" target="_blank" rel="noopener">Debugging tests — Playwright Python</a></li>
+            <li><a href="https://playwright.dev/python/docs/trace-viewer" target="_blank" rel="noopener">Trace viewer — Playwright Python</a></li>
+            <li><a href="https://playwright.dev/python/docs/network" target="_blank" rel="noopener">Network — Playwright Python</a></li>
+            <li><a href="https://docs.python.org/3/library/pdb.html" target="_blank" rel="noopener">pdb — The Python Debugger — Python 文档</a></li>
+            <li><a href="https://www.selenium.dev/documentation/webdriver/browsers/chrome/" target="_blank" rel="noopener">Chrome 特定功能与日志偏好 — Selenium 文档</a></li>
+            <li><a href="https://developer.chrome.com/docs/devtools/network/reference" target="_blank" rel="noopener">Network panel reference — Chrome DevTools</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#debugging</span>
+          <span class="tag">#playwright</span>
+          <span class="tag">#web-automation</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

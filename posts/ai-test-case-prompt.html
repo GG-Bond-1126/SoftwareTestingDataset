@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 生成业务测试用例：从需求到可执行用例 · 软件测试资料集</title>
+<meta name="description" content="业务用例与接口用例的边界、六类上下文的粒度、历史文档挂载方式与十字段输出规范，附完整 skill。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-test-case-prompt.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="AI 生成业务测试用例：从需求到可执行用例">
+<meta property="og:description" content="业务用例与接口用例的边界、六类上下文的粒度、历史文档挂载方式与十字段输出规范，附完整 skill。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-test-case-prompt.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AI 生成业务测试用例：从需求到可执行用例">
+<meta name="twitter:description" content="业务用例与接口用例的边界、六类上下文的粒度、历史文档挂载方式与十字段输出规范，附完整 skill。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"AI 生成业务测试用例：从需求到可执行用例","description":"业务用例与接口用例的边界、六类上下文的粒度、历史文档挂载方式与十字段输出规范，附完整 skill。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-test-case-prompt.html","articleSection":"落地实践","keywords":"业务用例, 测试设计, llm","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>15 min read</span>
+        </div>
+        <h1>AI 生成业务测试用例：从需求到可执行用例</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="ai-test-case-prompt">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <h2>先把边界划清：业务用例与接口用例</h2>
+        <p>这篇文章只讲一条线：业务（功能）测试用例。它按用户场景和业务规则组织，回答的是「谁，在什么条件下，从哪个页面进入，做了什么，最终看到什么结果」。一个下单场景、一条退款规则、一次权限变更，都属于这条线。它关心的是业务是否按约定走通，而不是某个接口返回了什么。</p>
+        <p>接口测试用例是另一条线。它按接口契约组织，回答的是「传什么参数，命中哪条校验，返回什么字段和状态码」。字段必填、类型、长度、枚举、分页、幂等键、4xx 与 5xx 的区分，都是接口用例的断言对象。这部分内容另有一篇单独讲，本文不展开，也不在示例里出现任何接口断言。</p>
+        <p>混在一起生成，是很多团队第一个踩的坑。写业务用例时让模型顺手断言 <code>code=200</code> 与 <code>data.orderId</code>，结果用例既不像业务用例，也不能直接进接口自动化；写接口用例时让它从页面入口开始点，又被前端改版拖死。两类用例的输入材料、评审人、执行方式、失败定位全都不同，应该分开生成、分开维护。</p>
+        <table>
+          <thead><tr><th>维度</th><th>业务（功能）用例</th><th>接口测试用例</th></tr></thead>
+          <tbody>
+            <tr><td>组织维度</td><td>用户场景与业务规则</td><td>接口契约与参数组合</td></tr>
+            <tr><td>输入材料</td><td>需求点、业务规则、页面流程、数据字典</td><td>OpenAPI 文档、字段约束、错误码表</td></tr>
+            <tr><td>断言对象</td><td>页面文案、状态变化、消息、单据状态</td><td>响应字段、类型、错误码、幂等性</td></tr>
+            <tr><td>执行方式</td><td>人工执行或 UI 自动化</td><td>接口自动化</td></tr>
+            <tr><td>失败定位</td><td>定位到业务规则或页面</td><td>定位到接口与参数</td></tr>
+            <tr><td>归属 skill</td><td>business-case-generation</td><td>接口用例 skill</td></tr>
+          </tbody>
+        </table>
+        <div class="callout">
+          <p>一个实用判断标准：如果这条用例换一套前端实现仍然成立，它属于业务用例；如果它必须知道 URL、参数名或状态码才能执行，它属于接口用例。按这条标准分流，两类用例的边界基本不会打架。</p>
+        </div>
+
+        <h2>一句话 Prompt 为什么产出不可执行</h2>
+        <p>上个季度我们拿订单模块试过一次。38 个需求点，直接粘进对话框，加一句「生成测试用例」，温度用默认值，首轮回来 210 条。按「另一名测试同学能否照着执行」这条标准筛，能用的 62 条，可用率不到三成。返工的问题集中在三类，而且高度重复。</p>
+        <ul>
+          <li><strong>步骤写给已经懂业务的人</strong>：只写「进入订单页正常下单」，没有入口路径，没有控件名，换个人就不知道从哪开始。</li>
+          <li><strong>测试数据写成形容词</strong>：「有效手机号」「合理金额」「超时时间」，执行时还要自己造一遍数据。</li>
+          <li><strong>预期结果写成结论</strong>：「下单成功」「展示正确」，跑完之后无法判断这条到底算通过还是失败。</li>
+        </ul>
+        <p>三类症状指向同一个原因：模型没有拿到可判定的输入，也没有被要求按固定字段输出。它只能根据训练语料里的通用电商模板编一份看起来像用例的东西。要解决，不是换更大的模型，而是把三件事定清楚：上下文给什么、历史文档怎么挂、输出长什么样。这也是本文余下部分的全部内容。</p>
+        <div class="callout">
+          <p>本文不提供任何调用模型或解析结果的脚本。用例生成真正的成本在上下文治理和输出规范，脚本只是搬运。把脚本写进文章，反而会掩盖这两件事。</p>
+        </div>
+
+        <h2>上下文怎么给：六类材料，各有粒度</h2>
+        <p>我的经验是六类材料，缺一类就会在某一类用例上系统性失守。粒度比数量重要：把整份 PRD 扔进去，模型抓不住重点；把每个字段的校验都贴进去，又会把业务用例写成接口用例。下面这张表是我们现在实际使用的给法。</p>
+        <table>
+          <thead><tr><th>材料</th><th>给什么</th><th>粒度</th><th>缺失后果</th></tr></thead>
+          <tbody>
+            <tr><td>需求点</td><td>编号、角色、触发条件、期望结果</td><td>一个功能点一行，不超过 60 字</td><td>用例没有主线，场景散落</td></tr>
+            <tr><td>业务规则</td><td>规则编号、判定条件、结果、例外、优先级</td><td>一条规则一条，必须可判定</td><td>边界与例外全漏</td></tr>
+            <tr><td>数据字典</td><td>字段名、类型、取值或枚举、单位、脱敏要求</td><td>只给用例会碰到的字段</td><td>测试数据写不出具体值</td></tr>
+            <tr><td>页面流程</td><td>页面名、入口、跳转条件、返回路径、角色可见性</td><td>一个流程一张节点列表，标出分支</td><td>步骤断链，新人跑不通</td></tr>
+            <tr><td>历史用例</td><td>编号、标题、模块、优先级</td><td>只给标题级，不贴全文步骤</td><td>重复造用例，颗粒度不一致</td></tr>
+            <tr><td>历史缺陷</td><td>根因分类、发生次数、触发场景</td><td>归到根因，不复述单个缺陷</td><td>同类问题继续漏</td></tr>
+          </tbody>
+        </table>
+        <h3>需求点：一行一个，必须能判定</h3>
+        <p>合格的写法是「F-ORD-014 已支付订单在发货前可申请整单退款」，角色、条件、结果都在。不合格的写法是「订单支持退款」，模型只能按通用电商补一堆猜测。需求点里的每个编号都要能在输出里被引用，这是后面查覆盖率的基础。</p>
+        <h3>业务规则：写条件和结果，不写意图</h3>
+        <p>规则要写成可以拿数据去对照的形式。例如「R-ORD-07：订单状态为已支付且未发货，退款金额等于实付金额时原路退回；若使用过优惠券，按实付金额退回，优惠券不退还」。这条规则能直接推出三条用例。反过来，「退款要合理处理优惠券」这种话，模型只能各写各的。</p>
+        <h3>数据字典与页面流程：只给用例要用的部分</h3>
+        <p>数据字典给订单状态与退款状态这两个枚举就够，不必把整库表结构贴进去。页面流程给一条可走的路径：订单列表 → 订单详情 → 申请退款 → 选择退款原因 → 提交。分支条件要单独标出来，例如仅已支付且未发货的订单显示申请退款按钮。流程给到节点和条件，步骤才写得实。</p>
+        <h3>历史用例与历史缺陷：做校准和补漏，不做复读</h3>
+        <p>历史用例只给编号、标题、模块和优先级，用途有两个：判重和校准颗粒度。给了全文步骤，模型会倾向于照抄，连已经废弃的入口一起抄进来。历史缺陷只给<a class="ilink" href="ai-defect-rootcause.html">根因</a>分类和次数，例如「并发未加锁导致重复退款，3 次」，它会自然补出重复提交场景；给完整缺陷描述，它会把那个具体 bug 复述成一条用例。</p>
+        <p>六类材料都要带版本号与生效日期，同一模块放同一批次里给。一次给一个模块、20 到 40 个需求点，是我试下来最稳的批次大小；跨模块混喂，规则会串味，编号也会乱。</p>
+
+        <h2>历史文档怎么挂：目录、清单与冲突裁决</h2>
+        <p>历史文档不是越多越好。旧版需求、历史用例库、三年前的缺陷单一起塞给模型，它会认真地把已经下线的入口和旧规则写进用例，而且写得很顺。要做的是三件事：固定目录、维护清单、标清废弃。</p>
+        <h3>目录约定</h3>
+        <p>目录按模块和版本两级切分，当前生效版本单独一层，废弃版本整套挪走。这样引用路径本身就带版本信息，不需要再靠文件名猜。</p>
+        <div class="code-head"><span>text — 上下文与历史文档目录</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>docs/
+├─ INDEX.md                       文档清单：生效版本、负责人、替代关系
+├─ requirements/
+│  └─ order/
+│     ├─ v1.3/
+│     │  ├─ requirement.md
+│     │  ├─ rules.md
+│     │  ├─ data-dictionary.md
+│     │  └─ flow.md
+│     └─ v1.4/                    当前生效版本
+│        ├─ requirement.md
+│        ├─ rules.md
+│        ├─ data-dictionary.md
+│        └─ flow.md
+├─ cases/
+│  └─ order/
+│     ├─ v1.3/cases.md
+│     └─ v1.4/cases.md            当前版本用例库
+├─ defects/
+│  └─ 2026-H1-order-defects.md    缺陷根因汇总
+└─ deprecated/
+   ├─ DEPRECATED.md               废弃文档清单
+   └─ v1.2/                       旧版整套挪进来</code></pre>
+        <h3>引用方式：只认清单里的路径</h3>
+        <p>skill 不自由搜索目录。输入里给一份明确的引用清单，每条写「用途 + 路径 + 章节」，模型只允许读清单里的内容。我们实际给的形式大概是这样：</p>
+        <ul>
+          <li>需求点：<code>docs/requirements/order/v1.4/requirement.md</code> 第 2 节。</li>
+          <li>业务规则：<code>docs/requirements/order/v1.4/rules.md</code> 第 1 到 3 节。</li>
+          <li>数据字典：<code>docs/requirements/order/v1.4/data-dictionary.md</code> 的订单状态与退款状态两节。</li>
+          <li>历史用例：<code>docs/cases/order/v1.4/cases.md</code> 的编号与标题列。</li>
+          <li>历史缺陷：<code>docs/defects/2026-H1-order-defects.md</code> 的根因汇总表。</li>
+        </ul>
+        <p>不做自由搜索的原因很实际：目录里一定有废弃文件，模型分不清哪份是旧的。一旦它引用了旧规则，用例看起来更完整，错误也更隐蔽。</p>
+        <h3>过时文档怎么标记</h3>
+        <p>三个动作同时做：把文件挪进 <code>deprecated/</code>；在文件首行加 <code>STATUS: DEPRECATED</code> 和 <code>SUPERSEDED-BY: v1.4</code>；在 <code>DEPRECATED.md</code> 里登记。只做其中一个都不够，因为模型可能从文件正文、从清单、从同事转述三个渠道拿到旧内容。清单里只保留生效版本，引用清单一律不给旧路径。</p>
+        <h3>冲突以哪份为准</h3>
+        <p>我给的优先级是：当前生效版本的需求与规则，高于最新评审通过的规则表，高于当前版本历史用例，高于旧版需求与旧用例。前三层仍有冲突时，仍然不自行取舍，而是并列写进待确认清单，由需求负责人裁决。用例写错的代价，远高于多问一句。</p>
+        <table>
+          <thead><tr><th>冲突场景</th><th>处理方式</th></tr></thead>
+          <tbody>
+            <tr><td>需求正文与规则表不一致</td><td>以规则表为准并标注，同时列入待确认清单</td></tr>
+            <tr><td>代码行为与需求不一致</td><td>不按代码改需求，列为缺陷候选并进待确认</td></tr>
+            <tr><td>历史用例与当前规则不一致</td><td>以当前规则为准，旧用例标记失效</td></tr>
+            <tr><td>两份规则互相矛盾</td><td>并列两种说法，不选，交需求负责人</td></tr>
+          </tbody>
+        </table>
+
+        <h2>输出规范：一条业务用例的十个字段</h2>
+        <p>字段不是越多越好，但下面十个我一个都不建议省。省掉任何一个，评审或执行时都会有人来问。字段顺序也固定下来，导入用例库时可以按列直接映射。</p>
+        <table>
+          <thead><tr><th>字段</th><th>写法要求</th><th>示例</th></tr></thead>
+          <tbody>
+            <tr><td>编号</td><td>TC-模块缩写-需求序号-两位序号，模块内唯一</td><td>TC-ORD-014-02</td></tr>
+            <tr><td>模块</td><td>与需求模块名一致</td><td>订单-退款</td></tr>
+            <tr><td>场景</td><td>一句话：角色 + 条件 + 目标，不超过 40 字</td><td>已支付未发货订单按实付金额整单退款</td></tr>
+            <tr><td>前置条件</td><td>账号角色、数据状态、环境与开关，不写操作</td><td>买家已登录；订单 A 已支付未发货；实付 99.00 元；优惠券已使用</td></tr>
+            <tr><td>步骤</td><td>每步一个动作，写清页面与控件</td><td>订单列表点击订单 A；订单详情点击申请退款；选择原因后提交</td></tr>
+            <tr><td>测试数据</td><td>具体值，不用形容词</td><td>订单号 A20261123001；退款金额 99.00；原因 七天无理由</td></tr>
+            <tr><td>预期结果</td><td>可观察的现象，不写接口字段</td><td>提示退款申请已提交；订单状态变为退款中；退款单金额 99.00</td></tr>
+            <tr><td>优先级</td><td>P0 资金权限不可逆，P1 主流程，P2 展示文案</td><td>P0</td></tr>
+            <tr><td>关联需求</td><td>需求编号 + 规则编号，至少一条规则</td><td>F-ORD-014 / R-ORD-07</td></tr>
+            <tr><td>来源</td><td>文件路径 + 章节</td><td>docs/requirements/order/v1.4/rules.md 第 2.1 节</td></tr>
+          </tbody>
+        </table>
+        <h3>步骤：写给不熟悉业务的人</h3>
+        <p>三条硬要求：页面名用菜单里能看到的名称，控件名用界面上的文案，一步只做一个动作。提交之后如果页面有延迟，要把判定点写进预期结果，而不是在步骤里写「等待三秒」。验收方法很简单，找一个没做过这个模块的同事，只给他这条用例，看他能不能跑完。</p>
+        <h3>预期结果：只写看得见的东西</h3>
+        <p>业务用例的预期结果写页面提示、列表状态、详情字段、站内信或短信。不要写状态码，也不要写响应字段，那是另一类用例的事。这条边界如果守不住，用例会变成四不像：业务同学看不懂，接口自动化也用不上。</p>
+        <h3>优先级：写死规则，不让模型自由发挥</h3>
+        <p>我们的规则是：涉及资金、权限、不可逆状态变更的一律 P0；主流程与核心规则 P1；纯展示、文案、排序 P2。评审时先统计 P0 占比，超过 30% 就整批打回，因为这说明模型把规则当建议看了。</p>
+
+        <h2>提示词骨架：把上下文和护栏写死</h2>
+        <p>这是我给业务用例 skill 用的提示词骨架。它不追求让模型更聪明，只做三件事：固定输入槽位、固定输出列、固定不知道时的出口。槽位对应上一节的六类材料，出口对应待确认清单。</p>
+        <div class="code-head"><span>prompt — 业务用例生成</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>角色：你是一名有 8 年电商业务测试经验的测试工程师。
+
+任务：依据下方引用材料，为指定模块生成可执行的业务（功能）测试用例。
+
+一、输入（只允许使用以下内容，不要补充材料里没有的规则）
+1. 模块：{{module}}
+2. 需求点：{{requirement_points}}
+3. 业务规则：{{business_rules}}
+4. 数据字典：{{data_dictionary}}
+5. 页面流程：{{page_flow}}
+6. 历史用例编号与标题：{{history_cases}}
+7. 历史缺陷根因与次数：{{defect_root_causes}}
+8. 引用清单：{{reference_index}}（文件路径 + 章节）
+
+二、输出格式（Markdown 表格，列固定，顺序不可调整）
+编号 | 模块 | 场景 | 前置条件 | 步骤 | 测试数据 | 预期结果 | 优先级 | 关联需求 | 来源
+
+三、写作要求
+1. 每条用例必须绑定一个需求编号和至少一个业务规则编号。
+2. 前置条件写账号角色、数据状态、环境与开关；不写点击动作。
+3. 步骤按「页面 → 控件 → 动作」写，每步一个动作，用分号分隔。
+4. 测试数据必须是具体值；金额、时间、状态要写清构造方式。
+5. 预期结果只写可观察的页面文案、状态变化、消息与单据状态。
+6. 优先级只取 P0 / P1 / P2：涉及资金、权限、不可逆状态变更的 P0；主流程与核心规则的 P1；展示、文案、排序的 P2。
+7. 同一前置条件 + 同一动作 + 同一预期视为重复，只保留一条。
+8. 不写接口字段断言、HTTP 状态码、JSON 结构校验，那属于接口测试用例。
+
+四、不知道怎么办
+1. 材料没写清的，不要猜，全部进入「待确认清单」。
+2. 基于经验补出的内容用「推断：」开头，并标置信度（高 / 中 / 低）。
+3. 材料互相矛盾的，并列两种说法，不自行取舍。
+
+五、输出结尾必须包含
+## 待确认清单
+| 序号 | 缺失或不确定的内容 | 影响 | 需要谁提供 |
+没有待确认项时写「无」，不许省略这一节。</code></pre>
+        <p>这套骨架里真正起作用的是第四节。模型在缺信息时的默认行为是补一个看起来合理的规则，补得越顺越难发现。给它一个明确出口，它才会把不确定的部分留下来，而不是替你决定。</p>
+
+        <h2>评审与落地：从生成结果到用例库</h2>
+        <p>生成只是中间产物。我们的流程是：AI 出稿，测试同学按字段自检，模块负责人评审，导入用例库，下一版本再把本次用例回填成历史材料，形成闭环。每一步都有明确的拒绝条件，避免看起来差不多就放过去。</p>
+        <ol>
+          <li>自检看三样：有没有孤立用例，有没有形容词式测试数据，有没有接口断言混进来。</li>
+          <li>评审只细看 P0 和 P1，P2 抽查；P0 超过三成整批打回。</li>
+          <li>导入前统一编号，模块内连续，避免和存量用例撞号。</li>
+          <li>下一版把本版用例的编号与标题回填到历史用例槽位，用于去重和颗粒度校准。</li>
+        </ol>
+        <div class="callout warn">
+          <p>不要跳过评审直接入库。AI 生成用例最大的风险不是写错，而是写得像对的。一条「退款金额按实付金额退回」的用例，如果当前规则已经改成按商品金额分摊，读起来毫无破绽，跑起来才发现整条都是错的。</p>
+        </div>
+
+        <h2>踩坑与边界</h2>
+        <ul>
+          <li><strong>业务用例混进接口断言</strong>：模型看到数据字典里的字段名，会顺手写响应字段非空。处理方式是提示词明确禁止，并在自检时专看预期结果这一列。</li>
+          <li><strong>步骤依赖上一条用例</strong>：前置条件写「接上一条」，单独执行就失败。处理方式是前置条件必须能独立构造，数据状态写全。</li>
+          <li><strong>测试数据全是形容词</strong>：写「有效手机号」「合理金额」。处理方式是要求具体值，并在质量清单里禁用有效、合法、正常、合理四个词。</li>
+          <li><strong>旧文档污染</strong>：引用了已下线的旧入口。处理方式是只给清单里的生效路径，旧文档挪进废弃目录并标状态。</li>
+          <li><strong>场景拆得过碎</strong>：一个退款拆成 12 条，评审成本高于收益。处理方式是按业务规则合并，一条规则一到三条用例，异常单独成条。</li>
+          <li><strong>优先级通胀</strong>：全表 P1，等于没有优先级。处理方式是把规则写死，统计 P0 占比，超过 30% 打回重生成。</li>
+        </ul>
+
+        <h2>效果度量</h2>
+        <p>用同一个订单模块做前后对比，口径是「评审通过且能独立执行的用例占比」。手工基线取上一个版本，AI 取本版本三个迭代的平均值，避免单个迭代的偶然性。</p>
+        <table>
+          <thead><tr><th>指标</th><th>手工</th><th>AI 首轮 + 评审</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>产出耗时</td><td>3 天</td><td>40 分钟 + 90 分钟评审</td><td>38 个需求点</td></tr>
+            <tr><td>用例条数</td><td>96 条</td><td>128 条</td><td>去重后</td></tr>
+            <tr><td>可用率</td><td>—</td><td>78%</td><td>能独立执行且绑定需求</td></tr>
+            <tr><td>异常与规则分支占比</td><td>21%</td><td>34%</td><td>手工最容易漏的部分</td></tr>
+            <tr><td>评审后返工率</td><td>—</td><td>14%</td><td>重写或删除的占比</td></tr>
+            <tr><td>需求覆盖率</td><td>84%</td><td>97%</td><td>被用例引用的需求点占比</td></tr>
+          </tbody>
+        </table>
+        <p>剩下 3% 未覆盖的需求点，全部是需求文档本身没写清的条目，正好就是待确认清单里的内容。这反而成了它最大的价值：生成过程把需求的模糊处提前暴露出来，而不是等到提测第三天。</p>
+
+        <div class="callout warn">
+          <p>这个 skill 的第一条硬性约束是：只依据引用文档与当前上下文输出，不许按想法自由发挥；信息不足的部分必须进入「待确认清单」，不许编造。</p>
+        </div>
+        <h2>Skill 完整展示</h2>
+        <p>这套流程对应的 skill 放在 Claude Code 的用户目录 <code>~/.claude/skills/business-case-generation/SKILL.md</code>；Trae 放在 <code>C:\Users\你的用户名\.trae\skills\business-case-generation\SKILL.md</code>，项目内则放 <code>.trae/skills/</code>。目录名与 front matter 的 name 保持一致，重启后加载。</p>
+        <div class="code-head"><span>markdown — SKILL.md</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>---
+name: business-case-generation
+description: 依据需求点、业务规则、页面流程与历史文档生成可执行的业务（功能）测试用例，输出固定十字段表格并标注来源与待确认项，不涉及接口字段与状态码断言。
+---
+
+# 业务测试用例生成：从需求到可执行用例
+
+## 硬性约束（优先级最高，与其他章节冲突时以本节为准）
+
+1. 只能依据三类信息输出：用户提供的需求文档 / 接口文档 / 代码 / 日志原文、当前会话上下文、本 skill「输入」一节所列的文件。禁止凭想象补充业务规则、字段名、接口地址、阈值、状态码、版本号或历史数据。
+2. 每条产出都要可回溯，必须标注来源：文档章节或条款、文件路径与行号、日志片段、接口字段。标不出来源的条目不得进入正式产出。
+3. 信息不足时不许编造填补。缺失项一律进入「待确认清单」，逐条写清：缺什么、影响哪条结论、需要谁提供。
+4. 凡是基于经验补出的内容，必须以「推断：」开头，并写明依据与置信度（高 / 中 / 低）。置信度为低的推断不能当结论用。
+5. 禁止虚构引用：不编造文档条款号、版本号、链接、指标数值、报错原文。引用原文时逐字摘录并注明位置。
+6. 资料互相矛盾时（文档与代码不一致、两处规则冲突）不要自行取舍，把两种说法并列，标明冲突点和需要确认的问题。
+7. 输出前逐条自检：这条有来源吗？没有就移到「待确认清单」。自检不通过不许输出。
+
+## 待确认清单（输出必带）
+
+无论信息是否充足，输出末尾都保留这一节；没有待确认项时写「无」，不许省略该节。每行格式：
+
+| 序号 | 缺失或不确定的内容 | 影响 | 需要谁提供 |
+
+## 适用场景
+
+- 需求评审通过，需要把需求点与业务规则展开成可执行的业务（功能）用例。
+- 老模块补回归用例，已有历史用例需要对齐颗粒度，避免重复造。
+- 新人或外包接手模块，需要一套不依赖口口相传、照着自己就能跑完的用例。
+- 需求变更后，需要按当前生效版本重写受影响场景的用例。
+
+以下情况不要用：
+
+- 只需要评审覆盖、不写执行步骤，应使用测试点生成 skill。
+- 需要写接口契约、字段边界、状态码断言、幂等校验，属于接口测试用例 skill。
+- 性能、安全、兼容性等专项测试，应使用对应专项 skill。
+- 需求本身还没评审，输入里大量写着「待确认」，应先做需求拆解。
+
+## 输入
+
+必需：
+
+1. 需求点清单，每条含需求编号、角色、触发条件、期望结果。
+2. 业务规则表，每条含规则编号、判定条件、结果、例外与优先级。
+3. 页面流程，含页面名称、入口、跳转条件、返回路径、角色可见性。
+4. 引用清单，逐条写清用途、文件路径与章节，只允许引用清单内的内容。
+
+建议补充：
+
+5. 数据字典，含字段名、类型、取值或枚举、单位、默认值、脱敏要求。
+6. 历史用例的编号、标题、模块与优先级，用于去重和颗粒度校准。
+7. 近半年该模块的历史缺陷，归到根因分类并统计次数。
+8. 文档清单 INDEX.md，标明当前生效版本与废弃文档替代关系。
+
+输入缺失时：不猜、不补，缺口写进「待确认清单」；可以输出草稿，但必须在草稿开头说明哪些场景因缺料无法覆盖。
+
+## 执行步骤
+
+1. 先读引用清单与 INDEX.md，确认当前生效版本，列出本次实际引用的路径与章节。
+2. 按需求编号分组，一个需求点一组；组内先主流程，再规则分支，最后异常与权限。
+3. 每条用例绑定一个需求编号和至少一个业务规则编号；绑不上的场景不写进正式产出。
+4. 前置条件写到账号角色、数据状态、环境与开关，保证脱离其他用例也能独立复现。
+5. 步骤按「页面 → 控件 → 动作」组织，每步只做一个动作，页面名与控件名使用界面可见文案。
+6. 测试数据写具体值；金额、时间、状态类数据写清构造方式或来源。
+7. 预期结果只写可观察的现象：页面文案、状态变化、站内信或短信、单据状态，不写接口字段与状态码。
+8. 用历史用例做去重，同一前置条件 + 同一动作 + 同一预期视为重复，保留信息更全的一条。
+9. 用历史缺陷根因做反向补漏，同一根因至少对应一条用例。
+10. 标注每条用例的来源，来源写到文件路径加章节；标不出来源的移入待确认清单。
+11. 输出前按「质量检查清单」逐条自检。
+
+## 输出格式
+
+输出一张 Markdown 表格，列固定且顺序不可调整：
+
+| 编号 | 模块 | 场景 | 前置条件 | 步骤 | 测试数据 | 预期结果 | 优先级 | 关联需求 | 来源 |
+
+字段要求：
+
+1. 编号：TC-模块缩写-需求序号-两位序号，例如 TC-ORD-014-02，模块内连续不跳号。
+2. 模块：与需求模块名一致，例如 订单-退款。
+3. 场景：一句话写清角色、条件与目标，不超过 40 字。
+4. 前置条件：账号角色、数据状态、环境与开关，用分号分隔，不写点击动作。
+5. 步骤：每步一个动作，用分号分隔，格式为 页面名 + 控件名 + 动作。
+6. 测试数据：具体值，禁止出现「有效」「合法」「正常」「合理」这类形容词。
+7. 预期结果：可观察、可判定的现象，不写 HTTP 状态码、JSON 字段、数据库字段值。
+8. 优先级：只取 P0 / P1 / P2。涉及资金、权限、不可逆状态变更的 P0；主流程与核心规则的 P1；展示、文案、排序的 P2。
+9. 关联需求：需求编号 + 规则编号，例如 F-ORD-014 / R-ORD-07。
+10. 来源：文件路径加章节，例如 docs/requirements/order/v1.4/rules.md 第 2.1 节。
+
+表格之后输出两段：
+
+1. 覆盖说明：按需求编号统计用例条数，列出没有用例的需求点。
+2. 待确认清单：按硬性约束保留该节，没有条目时写「无」。
+
+不要输出接口断言、字段级校验、状态码说明；也不要输出调用脚本。
+
+## 质量检查清单
+
+- 每条用例都绑定需求编号和至少一个业务规则编号，没有孤立用例。
+- 前置条件可独立构造，不写「接上一条用例」。
+- 步骤里每个动作都指明页面与控件名称，不熟悉业务的人能照着执行。
+- 测试数据是具体值，没有「有效」「合法」「正常」「合理」这类词。
+- 预期结果可观察、可判定，没有「显示正确」「功能正常」这类结论。
+- 全表没有接口字段断言、JSON 结构校验、HTTP 状态码校验。
+- 覆盖至少主流程、规则分支、异常、权限四类，异常路径不为零。
+- 同一前置条件与动作的重复用例已合并，编号连续。
+- 每条都有来源，或已进入待确认清单。
+- 待确认清单存在，且与正文一致。
+
+## 反例
+
+- 步骤写「进入订单页正常下单」，没有入口路径和控件名，新人无法执行。
+- 测试数据写「有效手机号」「随机金额」「稍后重试」，无法复现。
+- 预期结果写「下单成功，数据正确」，执行时无法判定通过还是失败。
+- 在业务用例里写「断言 code=200，data.orderId 非空」，把两类用例混成一条。
+- 一条用例塞进五个场景，失败后无法定位是哪个规则出问题。
+- 直接抄历史用例，不核对当前版本规则，把已下线的入口写进前置条件。
+- 需求没写清的地方自己编一条规则，不留待确认，评审时才被发现。
+- 优先级全填 P1，等于没有优先级，冒烟子集无法裁剪。</code></pre>
+        <div class="callout">
+          <p>下载完整 skill 文件：<a href="../assets/downloads/skill-business-case-generation.md" download>skill-business-case-generation.md</a>。放到 <code>~/.claude/skills/business-case-generation/SKILL.md</code> 即可被自动加载。</p>
+        </div>
+
+        <p>最后留一个判断标准：一份业务用例交出去，如果另一个没做过这个模块的人能照着跑完，跑完还能说清失败卡在哪条规则上，它就达标了。如果对方第一句话是「这个按钮在哪个页面」，说明上下文和步骤还没写到位。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://martinfowler.com/bliki/GivenWhenThen.html" target="_blank" rel="noopener">Given When Then — Martin Fowler</a></li>
+            <li><a href="https://docs.claude.com/en/docs/claude-code/skills" target="_blank" rel="noopener">Extend Claude with skills — Claude Code Docs</a></li>
+            <li><a href="https://platform.openai.com/docs/guides/prompt-engineering" target="_blank" rel="noopener">Prompt engineering — OpenAI Platform</a></li>
+            <li><a href="https://www.istqb.org/certifications/certified-tester-foundation-level" target="_blank" rel="noopener">ISTQB Certified Tester Foundation Level — ISTQB</a></li>
+            <li><a href="https://help.aliyun.com/zh/model-studio/getting-started/models" target="_blank" rel="noopener">模型列表与计费 — 阿里云百炼</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#业务用例</span>
+          <span class="tag">#测试设计</span>
+          <span class="tag">#llm</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

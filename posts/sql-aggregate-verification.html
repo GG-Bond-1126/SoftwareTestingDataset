@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>用 GROUP BY 和 HAVING 快速验证统计接口返回是否对 · 软件测试资料集</title>
+<meta name="description" content="写一段 SQL 对比接口汇总值和数据库聚合值，5 分钟定位统计口径差异。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/sql-aggregate-verification.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="用 GROUP BY 和 HAVING 快速验证统计接口返回是否对">
+<meta property="og:description" content="写一段 SQL 对比接口汇总值和数据库聚合值，5 分钟定位统计口径差异。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/sql-aggregate-verification.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="用 GROUP BY 和 HAVING 快速验证统计接口返回是否对">
+<meta name="twitter:description" content="写一段 SQL 对比接口汇总值和数据库聚合值，5 分钟定位统计口径差异。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"用 GROUP BY 和 HAVING 快速验证统计接口返回是否对","description":"写一段 SQL 对比接口汇总值和数据库聚合值，5 分钟定位统计口径差异。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/sql-aggregate-verification.html","articleSection":"数据库测试","keywords":"sql, aggregate, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>9 min read</span>
+        </div>
+        <h1>用 GROUP BY 和 HAVING 快速验证统计接口返回是否对</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="sql-aggregate-verification">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 启动 MySQL（Docker）
+docker run -d --name test-mysql -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=test123 -e MYSQL_DATABASE=testdb mysql:8.0
+
+# 连接验证
+mysql -h localhost -u root -ptest123 testdb
+
+# 创建测试表
+CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(100), email VARCHAR(200) UNIQUE);</code></pre>
+
+<h2>基础应用：第一个 SQL 验证</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector
+
+conn = mysql.connector.connect(host="localhost", port=3306, user="root", password="test123", database="testdb")
+cur = conn.cursor()
+cur.execute("INSERT INTO users (name, email) VALUES (%s, %s)", ("测试", "t@e.com"))
+conn.commit()
+cur.execute("SELECT * FROM users WHERE name = %s", ("测试",))
+assert cur.fetchone() is not None
+print("基础验证通过 ✓")
+cur.close(); conn.close()</code></pre>
+
+<h2>项目进阶：并发测试 + 数据一致性</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector, threading
+
+def deduct(uid, qty):
+    c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+    cur = c.cursor()
+    cur.execute("UPDATE products SET stock=stock-%s WHERE product_id=1 AND stock>=%s", (qty, qty))
+    c.commit(); cur.close(); c.close()
+
+threads = [threading.Thread(target=deduct, args=(i, 2)) for i in range(10)]
+[t.start() for t in threads]
+[t.join() for t in threads]
+
+# 验证库存非负
+c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+cur = c.cursor()
+cur.execute("SELECT stock FROM products WHERE product_id=1")
+assert cur.fetchone()[0] >= 0
+print("并发测试通过 ✓")</code></pre>
+
+        <h2>统计接口为什么容易出 Bug</h2>
+        <p>统计接口的坑，几乎都出在「口径」上，而不是计算本身：</p>
+        <ul>
+          <li><strong>时间范围处理不一致</strong>：接口按「自然日 00:00-24:00」算，数据库查询时用了 <code>BETWEEN</code> 漏掉了边界那一秒，或者时区没对齐（服务器是 UTC，界面显示的是东八区）；</li>
+          <li><strong>状态过滤范围不一致</strong>：「已支付」到底包不包括「已退款」，开发和测试各理解各的；</li>
+          <li><strong>NULL 值处理</strong>：<code>SUM</code> 会把 NULL 直接跳过，但业务上可能期望按 0 处理，结果就悄悄偏了；</li>
+          <li><strong>分组维度不一致</strong>：按「用户」分组还是按「用户+渠道」分组，数字会差很多。</li>
+        </ul>
+        <p>所以测试统计接口，核心动作不是「看一眼数字对不对」，而是<strong>先把数据库侧的「基准值」算出来，再跟接口返回值做严格对比</strong>，差在哪就追到哪。</p>
+
+        <h2>GROUP BY + HAVING 基础速通</h2>
+        <p>先用一张小表把语感练出来：</p>
+        <div class="code-head"><span>setup.sql — 造一批订单数据</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>CREATE TABLE orders (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  status TINYINT NOT NULL DEFAULT 0,  -- 0 待支付 1 已支付 2 已退款
+  paid_at DATETIME NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO orders (user_id, amount, status, paid_at) VALUES
+ (1, 10, 1, NOW()),
+ (1, 20, 1, NOW()),
+ (1, 30, 2, NOW()),      -- 退款
+ (2, 50, 1, NOW()),
+ (2, 5,  1, NOW());</code></pre>
+        <p><strong>GROUP BY</strong> 是「按某个维度分组」，<strong>聚合函数</strong>（COUNT/SUM/AVG/MAX/MIN）是「每组算一个数」，两者配合就是统计的主力：</p>
+        <div class="code-head"><span>agg1.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 每个用户，已支付订单的笔数和总金额
+SELECT user_id,
+       COUNT(*) AS paid_orders,
+       SUM(amount) AS total_paid
+FROM orders
+WHERE status = 1
+GROUP BY user_id;</code></pre>
+        <p>结果：user 1 有 2 笔共 30 元，user 2 有 2 笔共 55 元（退款那笔因为 WHERE status=1 被提前排除了，不参与统计——这正是「口径过滤」的位置）。</p>
+        <h3>WHERE 和 HAVING 到底什么区别</h3>
+        <p>这是面试高频题，也是实际写统计 SQL 时最容易写错的地方。一句话：<strong>WHERE 在分组前过滤「行」，HAVING 在分组后过滤「组」</strong>。</p>
+        <table>
+          <thead><tr><th></th><th>WHERE</th><th>HAVING</th></tr></thead>
+          <tbody>
+            <tr><td>作用时机</td><td>分组之前，过滤原始行</td><td>分组之后，过滤分组结果</td></tr>
+            <tr><td>能用聚合函数吗</td><td>不能（比如不能写 WHERE COUNT(*) &gt; 1）</td><td>能</td></tr>
+            <tr><td>典型用途</td><td>「只看已支付订单」 <code>WHERE status = 1</code></td><td>「只看下单超过 3 笔的用户」 <code>HAVING COUNT(*) &gt; 3</code></td></tr>
+          </tbody>
+        </table>
+        <div class="code-head"><span>agg2.sql — WHERE + HAVING 配合</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 找出"已支付订单笔数 >= 2"的用户
+SELECT user_id, COUNT(*) AS paid_orders
+FROM orders
+WHERE status = 1          -- 先过滤行：只看已支付
+GROUP BY user_id
+HAVING COUNT(*) >= 2;     -- 再过滤组：只留笔数达标的</code></pre>
+
+        <h2>测试方法：DB 基准值 vs 接口返回值</h2>
+        <p>假设接口 <code>GET /api/stat/daily</code> 返回「今日成交单数」。验证分三步：</p>
+        <ol>
+          <li><strong>先算 DB 基准值</strong>：直接查库，把「该是多少」先钉死；</li>
+          <li><strong>调接口拿返回值</strong>；</li>
+          <li><strong>严格对比</strong>，不一致时按「时间口径→状态口径→分组维度」的顺序排查。</li>
+        </ol>
+        <div class="code-head"><span>check1.sql — 今天的成交基准值</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- "今天 00:00 起，到现在的已支付订单数"，左闭右开写法，避免边界缝隙
+SELECT COUNT(*) AS expected_paid_orders
+FROM orders
+WHERE status = 1
+  AND paid_at &gt;= CURDATE()
+  AND paid_at &lt; CURDATE() + INTERVAL 1 DAY;</code></pre>
+
+        <h2>Python 脚本：调接口 + 查库 + 断言对比</h2>
+        <div class="code-head"><span>verify_stat_api.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import requests
+import pymysql
+
+def db_expected_paid_orders():
+    """直接查库，算出'该是多少'的基准值"""
+    conn = pymysql.connect(
+        host="127.0.0.1", port=3306,
+        user="test_user", password="test_pwd",
+        database="shop", charset="utf8mb4",
+    )
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT COUNT(*) AS cnt
+                FROM orders
+                WHERE status = 1
+                  AND paid_at >= CURDATE()
+                  AND paid_at < CURDATE() + INTERVAL 1 DAY
+            """)
+            return cur.fetchone()["cnt"]
+    finally:
+        conn.close()
+
+def api_actual_paid_orders():
+    """调被测接口，拿到它返回的统计值"""
+    resp = requests.get("http://127.0.0.1:8000/api/stat/daily")
+    resp.raise_for_status()
+    return resp.json()["paid_orders"]
+
+def main():
+    expected = db_expected_paid_orders()
+    actual = api_actual_paid_orders()
+    print(f"数据库基准值 = {expected}，接口返回值 = {actual}")
+    if expected == actual:
+        print("✅ 统计一致")
+        return 0
+    print(f"❌ 不一致，差值 = {actual - expected}")
+    print("   排查方向：1) 时区/时间边界  2) status 过滤口径  3) 是否漏算/多算")
+    return 1
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main())</code></pre>
+
+        <h2>两个最容易踩的坑</h2>
+        <div class="callout warn">
+          <p><strong>时区没对齐</strong>：数据库里存的是 UTC 时间，接口展示和「今天」的判断用的是东八区，两边各自算「今天」，边界能差出 8 小时。写断言前，先确认库里的时间字段到底是哪个时区、接口返回的「今天」又是按哪个时区切的，两边统一口径再比。</p>
+        </div>
+        <p><strong>NULL 值悄悄漏掉</strong>：<code>SUM(amount)</code> 遇到 NULL 直接跳过，不会报错也不会算 0。如果业务上「未支付金额」应该按 0 参与统计，得先做 <code>COALESCE(amount, 0)</code> 再求和，否则汇总值会比真实值偏大（少算了那些 NULL 行对应的「0」）。写统计 SQL 时，<strong>先确认参与聚合的字段允不允许为 NULL，不允许就显式处理</strong>。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/select.html" target="_blank" rel="noopener">MySQL 官方文档：SELECT（含 GROUP BY / HAVING）</a></li>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/aggregate-functions.html" target="_blank" rel="noopener">MySQL 官方文档：聚合函数</a></li>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/date-and-time-considerations.html" target="_blank" rel="noopener">MySQL 官方文档：时区相关注意事项</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#sql</span>
+          <span class="tag">#aggregate</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

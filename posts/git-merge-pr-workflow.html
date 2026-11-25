@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git 合并请求（MR/PR）流程：测试工程师的评审要点 · 软件测试资料集</title>
+<meta name="description" content="Git 合并请求（MR/PR）流程：测试工程师的评审要点">
+<meta name="description" content="从开发提 MR 到测试评审再到合并的全流程，测试工程师该看什么、怎么批、怎么拒，附评审 checklist。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-merge-pr-workflow.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Git 合并请求（MR/PR）流程：测试工程师的评审要点">
+<meta property="og:description" content="Git 合并请求（MR/PR）流程：测试工程师的评审要点">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-merge-pr-workflow.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Git 合并请求（MR/PR）流程：测试工程师的评审要点">
+<meta name="twitter:description" content="Git 合并请求（MR/PR）流程：测试工程师的评审要点">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Git 合并请求（MR/PR）流程：测试工程师的评审要点","description":"Git 合并请求（MR/PR）流程：测试工程师的评审要点","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-merge-pr-workflow.html","articleSection":"Git 版本控制","keywords":"git, merge-request, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>Git 合并请求（MR/PR）流程：测试工程师的评审要点</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="git-merge-pr-workflow">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Git
+# 配置用户
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+# 验证
+git --version</code></pre>
+<div class="code-head"><span>terminal — 初始化仓库</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>mkdir my-project && cd my-project
+git init
+echo "hello" > test.py
+git add .
+git commit -m "初始提交"</code></pre>
+
+<h2>基础应用：分支操作</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 创建 + 切换分支
+git checkout -b dev
+git commit -m "dev 修改" --allow-empty
+git checkout main
+git merge dev
+
+# 查看日志
+git log --oneline --graph</code></pre>
+
+<h2>项目进阶：Feature 分支 + MR 流程</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># Feature 分支
+git checkout -b feature/login
+git commit -m "feat: 用户登录" --allow-empty
+
+# 提 MR（在 GitHub/GitLab 上）
+# 评审通过后合并
+git checkout main
+git pull origin main
+git merge --squash feature/login
+git commit -m "feat: 用户登录"
+git push origin main
+git branch -d feature/login</code></pre>
+
+        <h2>MR/PR 的完整生命周期</h2>
+        <p>不管用 GitLab（叫 MR）还是 GitHub（叫 PR），流程基本一样：</p>
+        <div class="code-head"><span>完整生命周期</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 开发在 feature 分支完成功能
+# 2. 开发提 MR/PR：feature → develop（或 main）
+# 3. CI 自动触发：跑 lint、单测、构建
+# 4. 测试评审：看 diff、确认影响范围
+# 5. 测试跑回归（CI 上或本地）
+# 6. 评审通过 + CI 通过 → 批准合并
+# 7. 合并（squash / merge commit / rebase）
+# 8. 合并后：CI 再跑一轮、部署、冒烟</code></pre>
+
+        <h2>测试工程师该看什么</h2>
+
+        <h3>看 diff（改动内容）</h3>
+        <p>重点不是「代码写得好不好」（那是开发评审的事），而是<strong>「改动会影响哪些测试用例」</strong>：</p>
+        <ul>
+          <li>改了接口参数？→ 接口用例要更新；</li>
+          <li>改了数据库表结构？→ 数据完整性测试要重新跑；</li>
+          <li>改了前端页面？→ UI 用例的元素定位可能失效；</li>
+          <li>改了配置？→ 不同环境的配置是否一致。</li>
+        </ul>
+
+        <h3>看提交信息（了解改动意图）</h3>
+        <p>好的提交信息会写清「做了什么 + 为什么 + 影响范围」。如果信息模糊（比如「修 bug」），评审时追问开发「具体修了什么、影响哪些模块」。</p>
+
+        <h3>看 CI 结果（有没有自动检查）</h3>
+        <p>CI 的 lint、单测、构建结果是最基础的关卡。CI 挂了不能合，这是底线。但 CI 过了不代表「测试过了」——CI 跑的是开发写的测试，测试工程师要跑的是<strong>自己写的回归</strong>。</p>
+
+        <h2>测试评审 Checklist</h2>
+        <p>评审一个 MR 时，按这个清单过一遍：</p>
+        <div class="code-head"><span>测试评审 Checklist</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># □ 改动范围是否清晰？（看 diff，改了哪些文件）
+# □ 影响哪些测试模块？（接口 / UI / 性能 / 数据）
+# □ 对应的测试用例是否已更新？（旧用例可能不适用了）
+# □ 有没有新增测试？（改了功能但没加测试 = 风险）
+# □ 配置变更是否同步到所有环境？（dev / test / prod）
+# □ CI 是否通过？（lint + 单测 + 构建）
+# □ 回归测试是否已跑？（在测试环境上）
+# □ 有没有引入新的依赖？（新包、新服务）
+# □ 数据库变更是否有迁移脚本？（改表结构必须有 migration）
+# □ 性能影响是否评估过？（慢查询、内存泄漏）</code></pre>
+        <div class="callout">
+          <p>评审不是「找茬」，是「把关」。看到明显问题就提出来，看到不确定的就追问，看到没问题的就点「批准」。三条原则：<strong>有疑点就追问，有阻塞就拒绝，没问题就放行</strong>。</p>
+        </div>
+
+        <h2>怎么批、怎么拒</h2>
+
+        <h3>批准（Approve）</h3>
+        <div class="code-head"><span>terminal / GitLab UI</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 在 GitLab/GitHub 上点"Approve"按钮
+# 或者命令行（GitLab 支持）
+# 直接在 UI 上操作最方便</code></pre>
+        <p>批准后，CI 全绿 + 至少一人批准 → 合并按钮亮起。注意：<strong>开发者不能批准自己的 MR</strong>（多数平台强制）。</p>
+
+        <h3>请求更改（Request Changes）</h3>
+        <div class="code-head"><span>示例评论</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 在 MR 上评论（指定文件和行号）
+# 文件：tests/test_payment.py，第 42 行
+# 评论："这里改了金额上限从 10000 到 100000，
+#        但对应的测试用例 test_max_amount 还是 10000，
+#        需要同步更新，否则 CI 会假通过。"
+
+# 或者全局评论（不针对某一行）
+# 评论："改动影响支付模块，建议在预发环境跑一轮
+#        性能回归（特别是大额支付场景）再合。"</code></pre>
+
+        <h3>拒绝（Reject / Close）</h3>
+        <p>改动太大、方向不对、或者「这个功能不该在这个版本做」。在 MR 上写清拒绝原因，开发调整后重新提。</p>
+
+        <h2>合并策略：squash、merge commit、rebase</h2>
+        <p>合并时有三种策略，测试工程师要理解各自的「历史长相」：</p>
+        <div class="code-head"><span>三种策略对比</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. Squash（推荐：feature 分支多条提交压成一条）
+# 合并前：feature 分支有 5 条提交
+# 合并后：main 上多 1 条提交（5 条压成 1 条）
+# 历史最干净，推荐用于"一个功能一条提交"的场景
+
+# 2. Merge Commit（保留分叉历史）
+# 合并前：feature 分支有 5 条提交
+# 合并后：main 上多 6 条（5 条 + 1 条合并提交）
+# 历史完整，能看清 feature 分支的演进
+
+# 3. Rebase（线性历史）
+# 合并前：feature 分支有 5 条提交
+# 合并后：main 上直接多 5 条（没有合并提交）
+# 历史最线性，但改写了 feature 分支的历史</code></pre>
+        <div class="callout">
+          <p>测试工程师不选策略（那是团队规范），但要理解「合并后 main 上的提交变了几条」，方便用 <code>git log</code> 回溯。</p>
+        </div>
+
+        <h2>案例：一次完整的 MR 评审</h2>
+        <p>假设开发提了一个 MR：feature/pay-flow → develop，改了支付接口和测试：</p>
+        <div class="code-head"><span>terminal — 评审流程</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 看 diff（在 GitLab/GitHub 上，或本地）
+git diff develop..feature/pay-flow
+
+# 2. 看改动文件清单
+git diff --stat develop..feature/pay-flow
+# app/controllers/payment.py | 45 +++++-
+# tests/test_payment.py       | 12 +--
+# config/settings.yaml        |  2 +-
+
+# 3. 检查每个改动文件
+# 控制器：新增了"大额支付"分支，改了什么？
+# 测试：旧用例有没有同步更新？有没有新增用例？
+# 配置：改了限额，测试环境配置同步了吗？
+
+# 4. 在测试环境跑回归
+python -m pytest tests/payment/ -v
+# 假设 2 条失败：test_max_amount（用例没同步）+ test_refund（配置影响）
+
+# 5. 在 MR 上评论
+# "test_max_amount 失败：限额从 10000 改到 100000，
+#  但断言还是 10000，请同步更新用例。
+#  test_refund 失败：配置改了但测试环境没同步，
+#  请在 config/test/settings.yaml 里也改一下。"
+
+# 6. 开发改完重新 push，CI 重跑
+# 7. 回归通过 → 批准 → 合并 → 部署 → 冒烟</code></pre>
+        <div class="callout">
+          <p>MR 评审是测试工程师「把质量卡在最前面」的关键环节。在 diff 里发现问题比在回归里发现问题便宜 10 倍——「一条评审评论」 vs 「一个 Bug 工单」。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.gitlab.com/ee/merge_request/" target="_blank" rel="noopener">GitLab Merge Request 官方文档</a></li>
+            <li><a href="https://docs.github.com/en/pull-requests" target="_blank" rel="noopener">GitHub Pull Request 官方文档</a></li>
+            <li><a href="https://www.atlassian.com/git/tutorials/comparing-workflows" target="_blank" rel="noopener">Atlassian Git 工作流对比</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#git</span>
+          <span class="tag">#merge-request</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

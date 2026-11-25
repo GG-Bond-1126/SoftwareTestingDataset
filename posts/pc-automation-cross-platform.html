@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC 自动化跨平台：Windows、macOS、Linux 差异与适配 · 软件测试资料集</title>
+<meta name="description" content="三平台鼠标键盘/控件树/权限差异、跨平台工具选择、Mac 辅助功能权限，配跨平台测试脚本完整案例。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-cross-platform.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="PC 自动化跨平台：Windows、macOS、Linux 差异与适配">
+<meta property="og:description" content="三平台鼠标键盘/控件树/权限差异、跨平台工具选择、Mac 辅助功能权限，配跨平台测试脚本完整案例。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-cross-platform.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="PC 自动化跨平台：Windows、macOS、Linux 差异与适配">
+<meta name="twitter:description" content="三平台鼠标键盘/控件树/权限差异、跨平台工具选择、Mac 辅助功能权限，配跨平台测试脚本完整案例。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"PC 自动化跨平台：Windows、macOS、Linux 差异与适配","description":"三平台鼠标键盘/控件树/权限差异、跨平台工具选择、Mac 辅助功能权限，配跨平台测试脚本完整案例。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-cross-platform.html","articleSection":"PC 自动化","keywords":"pc-automation, cross-platform, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>PC 自动化跨平台：Windows、macOS、Linux 差异与适配</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="pc-automation-cross-platform">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 PC 自动化工具
+pip install pyautogui pynput uiautomation pywinauto opencv-python
+# 验证
+python -c "import pyautogui; print(pyautogui.size())"</code></pre>
+<div class="code-head"><span>python — 验证环境</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui
+# 获取屏幕尺寸（验证）
+print(f"屏幕尺寸：{pyautogui.size()}")
+print("PC 自动化环境就绪 ✓")</code></pre>
+
+<h2>基础应用：自动操作桌面应用</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui, subprocess, time
+
+# 启动记事本
+subprocess.Popen(["notepad.exe"])
+time.sleep(1)
+
+# 输入 + 保存
+pyautogui.write("Hello, PC Automation!")
+time.sleep(0.3)
+pyautogui.hotkey("ctrl", "s")
+time.sleep(0.5)
+
+# 截图
+pyautogui.screenshot("result.png")
+print("基础操作完成 ✓")</code></pre>
+
+<h2>项目进阶：pytest + 多场景 + CI</h2>
+<div class="code-head"><span>python — pytest fixture</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># conftest.py
+import pytest, subprocess, time
+import uiautomation as auto
+
+@pytest.fixture
+def notepad():
+    subprocess.Popen(["notepad.exe"])
+    time.sleep(1)
+    win = auto.WindowControl(searchDepth=1, subTitle="无标题 - 记事本")
+    assert win.Exists(5)
+    yield win
+    auto.press_keys("alt+f4")
+
+# test_notepad.py
+def test_type(notepad):
+    import pyautogui
+    pyautogui.write("测试内容")
+    pyautogui.hotkey("ctrl", "s")
+    time.sleep(0.5)</code></pre>
+
+        <h2>三平台核心差异</h2>
+        <div class="code-head"><span>平台差异对比</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 维度 | Windows | macOS | Linux
+# 控件树 | Win32/UIA（丰富） | Accessibility API（可用） | 无（纯图像）
+# 鼠标键盘 | pyautogui/pynput | pyautogui/pynput | pyautogui/pynput
+# 截图 | pyautogui | pyautogui | pyautogui
+# 权限 | 一般不需要 | 需要"辅助功能"权限 | 一般不需要
+# 启动应用 | subprocess | open 命令 | xdg-open
+# 窗口操作 | pywinauto/uiautomation | AppleScript/pyobjc | xdotool
+# 图像识别 | OpenCV（通用） | OpenCV（通用） | OpenCV（通用）</code></pre>
+        <div class="callout">
+          <p>三平台「唯一通用」的工具：<strong>pyautogui</strong>（鼠标/键盘/截图/图像识别）+ <strong>OpenCV</strong>（图像匹配）。控件树「平台专属」：Windows 用 pywinauto/uiautomation，Mac 用 AppleScript，Linux 没有。</p>
+        </div>
+
+        <h2>跨平台工具选择</h2>
+        <div class="code-head"><span>工具选择</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 全平台通用（推荐）
+# - pyautogui：鼠标/键盘/截图/图像识别
+# - pynput：监听/控制
+# - OpenCV：模板匹配
+# - subprocess：启动应用
+
+# Windows 专属
+# - pywinauto：控件树（Win32/UIA）
+# - uiautomation：控件树遍历
+# - pywintypes：Windows API
+
+# macOS 专属
+# - AppleScript（osascript）：系统级脚本
+# - pyobjc：Python 调 macOS API
+# - Accessibility API（辅助功能）
+
+# Linux 专属
+# - xdotool：命令行窗口操作
+# - xlib：X11 窗口库
+# - scrot/gnome-screenshot：截图
+
+# 跨平台策略
+# 核心操作用 pyautogui（全平台）
+# 平台专属功能用 if/else 分支
+# 图像识别用 OpenCV（全平台）</code></pre>
+
+        <h2>Mac 辅助功能权限</h2>
+        <p>Mac 上 PC 自动化最大的坑：「没权限」。脚本能跑，但「点不动」。必须在系统设置里授权：</p>
+        <div class="code-head"><span>Mac 权限配置</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 系统设置 → 隐私与安全性 → 辅助功能
+#    添加你的终端（Terminal/iTerm）或 Python 解释器
+#    勾选"允许此应用控制您的电脑"
+
+# 2. 自动化权限（控制其他应用）
+# 系统设置 → 隐私与安全性 → 自动化
+# 勾选"允许控制以下应用"（比如 Excel、Finder）
+
+# 3. 屏幕录制权限（截图需要）
+# 系统设置 → 隐私与安全性 → 屏幕录制
+# 勾选你的终端
+
+# 4. 验证权限（脚本里）
+import subprocess
+import platform
+
+def check_mac_permissions():
+    """检查 Mac 权限（辅助功能 + 屏幕录制）。"""
+    if platform.system() != "Darwin":
+        return True   # 非 Mac 跳过
+
+    # 辅助功能权限（osascript 测试）
+    result = subprocess.run(
+        ["osascript", "-e",
+         "tell application \"System Events\" to get name of first process"],
+        capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        print("⚠️  辅助功能权限未授权")
+        print("   到 系统设置 → 隐私与安全性 → 辅助功能 添加你的终端")
+        return False
+
+    # 屏幕录制权限（截图测试）
+    import pyautogui
+    try:
+        screenshot = pyautogui.screenshot()
+        assert screenshot.size[0] > 0, "截图全黑（权限不足）"
+    except Exception as e:
+        print(f"⚠️  屏幕录制权限未授权：{e}")
+        return False
+
+    print("✅ Mac 权限检查通过")
+    return True
+
+# 脚本开头检查权限
+if not check_mac_permissions():
+    print("请授权后重新运行脚本")
+    exit(1)</code></pre>
+        <div class="callout warn">
+          <p>Mac 上 PC 自动化「三大权限」：<strong>辅助功能</strong>（控制鼠标键盘）、<strong>自动化</strong>（控制其他应用）、<strong>屏幕录制</strong>（截图）。任何一个没授权，脚本「能跑但不动」。先在系统设置里授权，再跑脚本。</p>
+        </div>
+
+        <h2>Linux 适配</h2>
+        <p>Linux 没有「控件树」（桌面环境多样：GNOME/KDE/XFCE），主要靠图像识别 + xdotool：</p>
+        <div class="code-head"><span>python — Linux 适配</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import platform
+import subprocess
+
+def start_app_linux(app_command):
+    """Linux 启动应用。"""
+    subprocess.Popen(app_command, shell=True)
+
+def start_app_cross_platform(app_name):
+    """跨平台启动应用。"""
+    system = platform.system()
+    if system == "Windows":
+        subprocess.Popen([f"{app_name}.exe"])
+    elif system == "Darwin":   # macOS
+        subprocess.Popen(["open", "-a", app_name])
+    elif system == "Linux":
+        # xdg-open（按文件类型打开）
+        # 或具体命令（比如 firefox）
+        subprocess.Popen([app_name], shell=True)
+
+def window_op_cross_platform(action, window_title):
+    """跨平台窗口操作（最小化/最大化/关闭）。"""
+    system = platform.system()
+    if system == "Windows":
+        import uiautomation as auto
+        window = auto.WindowControl(searchDepth=1, subTitle=window_title)
+        if action == "minimize":
+            window.minimize()
+        elif action == "close":
+            window.close()
+    elif system == "Darwin":
+        # AppleScript（Mac）
+        script = f'tell application "System Events" to set miniaturized of window 1 of process "{window_title}" to true'
+        subprocess.run(["osascript", "-e", script])
+    elif system == "Linux":
+        # xdotool（Linux）
+        if action == "close":
+            subprocess.run(["xdotool", "search", "--name", window_title, "windowclose"])
+        elif action == "minimize":
+            subprocess.run(["xdotool", "search", "--name", window_title, "windowminimize"])</code></pre>
+
+        <h2>跨平台测试脚本架构</h2>
+        <div class="code-head"><span>跨平台架构</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 跨平台测试脚本"三层架构"
+
+# 第一层：平台检测
+import platform
+CURRENT_PLATFORM = platform.system()   # Windows / Darwin / Linux
+
+# 第二层：平台适配（封装差异）
+class PlatformAdapter:
+    """平台适配层（隐藏三平台差异）。"""
+
+    def start_app(self, app_name):
+        """启动应用（三平台）。"""
+        if CURRENT_PLATFORM == "Windows":
+            subprocess.Popen([f"{app_name}.exe"])
+        elif CURRENT_PLATFORM == "Darwin":
+            subprocess.Popen(["open", "-a", app_name])
+        else:
+            subprocess.Popen([app_name], shell=True)
+
+    def click_button(self, location):
+        """点击按钮（全平台通用 pyautogui）。"""
+        pyautogui.click(location)
+
+    def take_screenshot(self, path):
+        """截图（全平台通用 pyautogui）。"""
+        pyautogui.screenshot(path)
+
+    def find_image(self, target_path, confidence=0.9):
+        """找图（全平台通用 OpenCV）。"""
+        # 用 OpenCV 模板匹配
+        ...
+
+# 第三层：测试用例（平台无关）
+def test_user_login(platform_adapter):
+    """登录测试（不关心平台）。"""
+    platform_adapter.start_app("目标应用")
+    time.sleep(3)
+
+    # 找"登录"按钮（OpenCV 图像识别，全平台通用）
+    location = platform_adapter.find_image("buttons/login.png", confidence=0.9)
+    if not location:
+        raise RuntimeError("登录按钮没找到")
+
+    platform_adapter.click_button(location)
+    time.sleep(2)
+
+    # 验证"成功弹窗"
+    success_loc = platform_adapter.find_image("popups/success.png")
+    assert success_loc, "成功弹窗没出现"
+
+    # 截图（全平台）
+    platform_adapter.take_screenshot("login_success.png")</code></pre>
+
+        <h2>案例：跨平台「打开浏览器 + 截图」测试</h2>
+        <p>把跨平台适配 + 图像识别串起来，写一个「打开浏览器 + 截图 + 验证」的完整案例：</p>
+        <div class="code-head"><span>python — 完整案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import platform
+import pyautogui
+import cv2
+import numpy as np
+import subprocess
+import time
+import os
+from datetime import datetime
+
+CURRENT_PLATFORM = platform.system()
+
+class CrossPlatformBrowserTest:
+    """跨平台浏览器测试（打开 + 截图 + 验证）"""
+
+    def start_browser(self):
+        """启动浏览器（三平台）。"""
+        if CURRENT_PLATFORM == "Windows":
+            subprocess.Popen(["chrome.exe", "https://example.com"])
+        elif CURRENT_PLATFORM == "Darwin":
+            subprocess.Popen(["open", "-a", "Google Chrome", "https://example.com"])
+        else:   # Linux
+            subprocess.Popen(["google-chrome", "https://example.com"])
+        time.sleep(5)   # 等浏览器启动
+
+    def find_page_element(self, target_path, confidence=0.9):
+        """找页面元素（OpenCV 图像识别，全平台通用）。"""
+        screenshot = pyautogui.screenshot()
+        screen_img = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+        target_img = cv2.imread(target_path)
+
+        if target_img is None:
+            return None
+
+        screen_gray = cv2.cvtColor(screen_img, cv2.COLOR_BGR2GRAY)
+        target_gray = cv2.cvtColor(target_img, cv2.COLOR_BGR2GRAY)
+
+        result = cv2.matchTemplate(screen_gray, target_gray, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, max_loc = cv2.minMaxLoc(result)
+
+        if max_val >= confidence:
+            th, tw = target_gray.shape[:2]
+            return (max_loc[0] + tw // 2, max_loc[1] + th // 2, max_val)
+        return None
+
+    def take_screenshot(self, name):
+        """截图（全平台通用）。"""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = os.path.join("screenshots", f"{name}_{timestamp}.png")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        pyautogui.screenshot(path)
+        print(f"截图：{path}")
+        return path
+
+    def test_open_and_verify(self):
+        """打开浏览器 + 验证页面。"""
+        print(f"平台：{CURRENT_PLATFORM}")
+
+        # 1. 启动浏览器
+        self.start_browser()
+
+        # 2. 等页面加载（固定等待 3s）
+        time.sleep(3)
+
+        # 3. 验证"Example Domain"标题（图像识别）
+        location = self.find_page_element("images/example_domain_title.png", confidence=0.9)
+        if location:
+            print(f"✅ 找到页面标题：{location[:2]}")
+        else:
+            print("⚠️ 没找到页面标题（可能加载慢）")
+
+        # 4. 验证"Learn more"链接
+        location = self.find_page_element("images/learn_more_link.png", confidence=0.85)
+        assert location, "Learn more 链接没找到"
+        print(f"✅ 找到 Learn more 链接：{location[:2]}")
+
+        # 5. 点击（全平台通用 pyautogui）
+        pyautogui.click(location[0], location[1])
+        time.sleep(3)
+
+        # 6. 截图（验证跳转）
+        self.take_screenshot("after_click")
+
+        print("\n=== 跨平台浏览器测试完成 ===")
+
+# 运行
+if __name__ == "__main__":
+    test = CrossPlatformBrowserTest()
+    test.test_open_and_verify()</code></pre>
+        <div class="callout">
+          <p>跨平台 PC 自动化「三层架构」：① <strong>平台检测</strong>（platform.system()）；② <strong>平台适配层</strong>（封装启动应用/窗口操作差异）；③ <strong>测试用例层</strong>（平台无关，用 pyautogui + OpenCV）。核心原则：<strong>通用操作用 pyautogui/OpenCV，平台差异用 if/else 封装</strong>，测试用例「不关心平台」。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://pyautogui.readthedocs.io/" target="_blank" rel="noopener">pyautogui 官方文档（跨平台）</a></li>
+            <li><a href="https://pynput.readthedocs.io/" target="_blank" rel="noopener">pynput 官方文档</a></li>
+            <li><a href="https://docs.opencv.org/master/d4/d7f/tutorial_py_template_matching.html" target="_blank" rel="noopener">OpenCV 模板匹配教程</a></li>
+            <li><a href="https://developer.apple.com/documentation/appkit/auxiliary-technology" target="_blank" rel="noopener">macOS Accessibility API</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#pc-automation</span>
+          <span class="tag">#cross-platform</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

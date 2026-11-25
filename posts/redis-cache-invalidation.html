@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>改了数据但页面还是旧的：缓存一致性测试怎么做 · 软件测试资料集</title>
+<meta name="description" content="讲穿透、击穿、雪崩三类场景，给每种场景写一段 Python 验证脚本。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/redis-cache-invalidation.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="改了数据但页面还是旧的：缓存一致性测试怎么做">
+<meta property="og:description" content="讲穿透、击穿、雪崩三类场景，给每种场景写一段 Python 验证脚本。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/redis-cache-invalidation.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="改了数据但页面还是旧的：缓存一致性测试怎么做">
+<meta name="twitter:description" content="讲穿透、击穿、雪崩三类场景，给每种场景写一段 Python 验证脚本。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"改了数据但页面还是旧的：缓存一致性测试怎么做","description":"讲穿透、击穿、雪崩三类场景，给每种场景写一段 Python 验证脚本。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/redis-cache-invalidation.html","articleSection":"数据库测试","keywords":"redis, cache, consistency","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>12 min read</span>
+        </div>
+        <h1>改了数据但页面还是旧的：缓存一致性测试怎么做</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="redis-cache-invalidation">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 启动 MySQL（Docker）
+docker run -d --name test-mysql -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=test123 -e MYSQL_DATABASE=testdb mysql:8.0
+
+# 连接验证
+mysql -h localhost -u root -ptest123 testdb
+
+# 创建测试表
+CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(100), email VARCHAR(200) UNIQUE);</code></pre>
+
+<h2>基础应用：第一个 SQL 验证</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector
+
+conn = mysql.connector.connect(host="localhost", port=3306, user="root", password="test123", database="testdb")
+cur = conn.cursor()
+cur.execute("INSERT INTO users (name, email) VALUES (%s, %s)", ("测试", "t@e.com"))
+conn.commit()
+cur.execute("SELECT * FROM users WHERE name = %s", ("测试",))
+assert cur.fetchone() is not None
+print("基础验证通过 ✓")
+cur.close(); conn.close()</code></pre>
+
+<h2>项目进阶：并发测试 + 数据一致性</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector, threading
+
+def deduct(uid, qty):
+    c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+    cur = c.cursor()
+    cur.execute("UPDATE products SET stock=stock-%s WHERE product_id=1 AND stock>=%s", (qty, qty))
+    c.commit(); cur.close(); c.close()
+
+threads = [threading.Thread(target=deduct, args=(i, 2)) for i in range(10)]
+[t.start() for t in threads]
+[t.join() for t in threads]
+
+# 验证库存非负
+c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+cur = c.cursor()
+cur.execute("SELECT stock FROM products WHERE product_id=1")
+assert cur.fetchone()[0] >= 0
+print("并发测试通过 ✓")</code></pre>
+
+        <h2>缓存三大问题，先分清是哪一种</h2>
+        <table>
+          <thead><tr><th>问题</th><th>一句话描述</th><th>最直接的验证动作</th></tr></thead>
+          <tbody>
+            <tr><td>缓存穿透</td><td>查一个<strong>根本不存在</strong>的 key，缓存永远没有，每次请求都穿透到数据库</td><td>反复查一个不存在的 id，看数据库是否每次都真被访问</td></tr>
+            <tr><td>缓存击穿</td><td>一个<strong>热 key 恰好过期</strong>的那一瞬间，大量并发同时打到数据库</td><td>让某个热门 key 过期，瞬间发一波并发请求，观察数据库连接数/响应时间</td></tr>
+            <tr><td>缓存雪崩</td><td>大批 key <strong>同时过期</strong>（或缓存服务整体挂掉），流量瞬间全压到数据库</td><td>让一批 key 在同一时刻集中过期，或直接把缓存实例停掉，观察数据库压力曲线</td></tr>
+          </tbody>
+        </table>
+        <p>三者的区别就在「量」和「性质」：穿透是<strong>查不存在的</strong>，击穿是<strong>单个热 key 过期</strong>，雪崩是<strong>大批 key 一起过期或缓存整体不可用</strong>。测试脚本要分别对应着设计，不能混着跑。</p>
+
+        <h2>每种问题的测试方法 + 验证脚本</h2>
+        <h3>穿透：反复查一个不存在的 key</h3>
+        <div class="code-head"><span>test_cache_penetration.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import redis
+
+r = redis.Redis(host="127.0.0.1", port=6379, db=0)
+GHOST_KEY = "user:999999999"   # 保证数据库里也不存在的 id
+
+def main():
+    r.delete(GHOST_KEY)
+    hits = misses = 0
+    for _ in range(100):
+        if r.get(GHOST_KEY):
+            hits += 1
+        else:
+            misses += 1
+    print(f"100 次查询：命中 {hits} 次，未命中 {misses} 次")
+    # 如果业务做了"负缓存"（查不到就缓存一个空值/TTL 兜底），
+    # 第 2 次起应该全部"命中"（命中的是那个空值），misses 最多只有 1
+    # 如果 misses 一直是 100，说明穿透没有任何兜底，数据库每次都在白白被访问
+if __name__ == "__main__":
+    main()</code></pre>
+        <h3>击穿：热 key 过期瞬间的并发冲击</h3>
+        <div class="code-head"><span>test_cache_breakdown.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import threading
+import redis
+
+r = redis.Redis(host="127.0.0.1", port=6379, db=0)
+HOT_KEY = "product:1"
+
+def main():
+    r.set(HOT_KEY, "v1", ex=2)   # 热 key，2 秒后过期
+    import time
+    time.sleep(2)                # 等到 key 真的没了
+    # 此时模拟 50 个并发同时请求这个热 key
+    results = []
+    def worker():
+        results.append(r.get(HOT_KEY))
+    threads = [threading.Thread(target=worker) for _ in range(50)]
+    for t in threads: t.start()
+    for t in threads: t.join()
+    none_count = sum(1 for v in results if v is None)
+    print(f"key 过期后的并发请求里，有 {none_count} 个直接打到数据库（未命中）")
+    # 如果业务用了"互斥锁重建缓存"或"逻辑过期"策略，none_count 应该远小于 50，
+    # 只有 1 个请求真正去查库并回填，其余等待结果</code></pre>
+        <h3>雪崩：大批 key 同一时刻过期 / 缓存整体不可用</h3>
+        <div class="code-head"><span>test_cache_avalanche.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import redis, time, threading
+
+r = redis.Redis(host="127.0.0.1", port=6379, db=0)
+
+def main():
+    # 1. 让 1000 个 key 在同一时刻集中过期（同一 TTL，同一秒写入）
+    for i in range(1000):
+        r.set(f"item:{i}", "v", ex=3)
+    time.sleep(3)   # 全部过期
+    alive = 0
+    for i in range(1000):
+        if r.get(f"item:{i}"):
+            alive += 1
+    print(f"集中过期后还活着的 key 数 = {alive}（预期 0，说明"雪崩式同时失效"确实发生了）")
+    # 2. 更硬核的验证：直接停掉整个缓存实例，观察业务侧
+    #    是否出现大量请求直接打到数据库、数据库连接池是否被打满、接口响应时间是否飙升
+if __name__ == "__main__":
+    main()</code></pre>
+
+        <h2>三种缓存更新策略，各该测什么</h2>
+        <p>光测「三大问题」还不够，业务到底用哪种「更新/失效」策略，决定了要重点验证的边界不一样：</p>
+        <table>
+          <thead><tr><th>策略</th><th>做法</th><th>测试重点</th></tr></thead>
+          <tbody>
+            <tr><td>Cache Aside（旁路缓存，最常用）</td><td>读：先查缓存，没有再查库并回填；写：先更新数据库，再删除缓存</td><td>写库成功但删缓存失败（网络抖动/缓存挂了）时，会不会长期留着旧值；并发读写交错下有没有「读到过期但还没被删的旧值」的窗口期</td></tr>
+            <tr><td>Read Through</td><td>读请求由缓存组件自己负责「查不到就去查库并回填」，业务代码不用手写这套</td><td>验证「回填」这一步在缓存侧是否真的原子完成（两个并发读同一个不存在的 key，是否都去查了一次库、还是只有一个查了另一个直接等结果）</td></tr>
+            <tr><td>Write Through</td><td>写请求同时写缓存和数据库，保证「两个都成功」才返回成功</td><td>验证「一致性」：写操作后立刻读，缓存和数据库必须一致；任何一方写失败，整个写操作要返回失败，不能出现「缓存更新了、数据库没更新」这种半成功状态</td></tr>
+          </tbody>
+        </table>
+        <div class="code-head"><span>test_cache_aside.py — 模拟 Cache Aside 写后立刻读</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import redis
+
+r = redis.Redis(host="127.0.0.1", port=6379, db=0)
+KEY = "user:1001:name"
+
+def main():
+    r.set(KEY, "alice", ex=3600)
+
+    # 模拟"写库成功、删缓存失败"的异常路径：
+    # 手动让"删除"这一步失败（比如操作一个不存在的 key 模拟网络抖动），
+    # 看缓存里的旧值会残留多久
+    r.set(KEY, "alice-updated")
+    try:
+        r.delete("user:1001:name")   # 这里故意删错 key 名（拼写错误），模拟"删除失败"
+    except Exception:
+        pass
+    print(f"删除失败后，缓存里的值 = {r.get(KEY)}")
+    # 期望：能发现这个"旧值残留"会一直存在到 TTL 到期，验证业务是否接受这种最长不一致窗口期
+if __name__ == "__main__":
+    main()</code></pre>
+
+        <h2>生产环境监控该盯什么</h2>
+        <ul>
+          <li><strong>缓存命中率</strong>：突然大幅下跌，往往意味着穿透/击穿正在发生，或者大批 key 集中过期（雪崩前兆）；</li>
+          <li><strong>缓存服务的内存使用率</strong>：接近上限且有大量 key 即将集中过期，要提前排查 TTL 是否设置得太整齐（都用了同一个固定值导致「同一秒集体失效」）；</li>
+          <li>关键业务的「写后立刻读」路径，建议单独打点，跟踪「读到的旧值」出现的频率和持续时间，而不只是看缓存命中率这一个笼统的数字。</li>
+        </ul>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://redis.io/docs/latest/operate/" target="_blank" rel="noopener">Redis 官方文档：运维相关（过期、内存等）</a></li>
+            <li><a href="https://redis.io/docs/latest/develop/data-types/" target="_blank" rel="noopener">Redis 官方文档：数据结构与命令</a></li>
+            <li><a href="https://redis-py.readthedocs.io/en/latest/" target="_blank" rel="noopener">redis-py 官方文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#redis</span>
+          <span class="tag">#cache</span>
+          <span class="tag">#consistency</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

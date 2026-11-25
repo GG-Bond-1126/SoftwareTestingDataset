@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>并发测试：两个用户同时扣库存，数据库怎么保证不多扣 · 软件测试资料集</title>
+<meta name="description" content="模拟并发 UPDATE 的 Python 脚本，展示隔离级别对结果的影响和行锁行为。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-concurrent-transactions.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="并发测试：两个用户同时扣库存，数据库怎么保证不多扣">
+<meta property="og:description" content="模拟并发 UPDATE 的 Python 脚本，展示隔离级别对结果的影响和行锁行为。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-concurrent-transactions.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="并发测试：两个用户同时扣库存，数据库怎么保证不多扣">
+<meta name="twitter:description" content="模拟并发 UPDATE 的 Python 脚本，展示隔离级别对结果的影响和行锁行为。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"并发测试：两个用户同时扣库存，数据库怎么保证不多扣","description":"模拟并发 UPDATE 的 Python 脚本，展示隔离级别对结果的影响和行锁行为。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-concurrent-transactions.html","articleSection":"数据库测试","keywords":"mysql, concurrency, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>12 min read</span>
+        </div>
+        <h1>并发测试：两个用户同时扣库存，数据库怎么保证不多扣</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="mysql-concurrent-transactions">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 启动 MySQL（Docker）
+docker run -d --name test-mysql -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=test123 -e MYSQL_DATABASE=testdb mysql:8.0
+
+# 连接验证
+mysql -h localhost -u root -ptest123 testdb
+
+# 创建测试表
+CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(100), email VARCHAR(200) UNIQUE);</code></pre>
+
+<h2>基础应用：第一个 SQL 验证</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector
+
+conn = mysql.connector.connect(host="localhost", port=3306, user="root", password="test123", database="testdb")
+cur = conn.cursor()
+cur.execute("INSERT INTO users (name, email) VALUES (%s, %s)", ("测试", "t@e.com"))
+conn.commit()
+cur.execute("SELECT * FROM users WHERE name = %s", ("测试",))
+assert cur.fetchone() is not None
+print("基础验证通过 ✓")
+cur.close(); conn.close()</code></pre>
+
+<h2>项目进阶：并发测试 + 数据一致性</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector, threading
+
+def deduct(uid, qty):
+    c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+    cur = c.cursor()
+    cur.execute("UPDATE products SET stock=stock-%s WHERE product_id=1 AND stock>=%s", (qty, qty))
+    c.commit(); cur.close(); c.close()
+
+threads = [threading.Thread(target=deduct, args=(i, 2)) for i in range(10)]
+[t.start() for t in threads]
+[t.join() for t in threads]
+
+# 验证库存非负
+c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+cur = c.cursor()
+cur.execute("SELECT stock FROM products WHERE product_id=1")
+assert cur.fetchone()[0] >= 0
+print("并发测试通过 ✓")</code></pre>
+
+        <h2>并发写场景：库存、余额、秒杀</h2>
+        <p>凡是「读出来 → 算一下 → 写回去」这种三段式逻辑，只要有两个执行体同时做，就可能出现「丢失更新」：两个请求都读到库存 100，都算出 99，都写回 99，实际扣了两次，库存却只少了 1。余额转账、秒杀抢单，全是这个模式。</p>
+        <p>先造一个最朴素的「不安全」版本，看问题长什么样：</p>
+        <div class="code-head"><span>setup.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>CREATE TABLE stock (
+  sku_id INT PRIMARY KEY,
+  qty INT NOT NULL,
+  version INT NOT NULL DEFAULT 0
+);
+
+INSERT INTO stock (sku_id, qty) VALUES (1, 100);</code></pre>
+        <h3>不安全写法：读改不是一步</h3>
+        <div class="code-head"><span>bad.sql — 典型的「先查后改」两步走</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 第 1 步：查出当前库存（读到 100）
+SELECT qty FROM stock WHERE sku_id = 1;
+-- 第 2 步：应用层算出 100 - 1 = 99，再写回
+UPDATE stock SET qty = 99 WHERE sku_id = 1;
+-- 两个请求同时走到第 1 步，都读到 100，都算出 99，都写 99 → 实际扣了 2 次，库存只减 1</code></pre>
+
+        <h2>隔离级别对并发结果的影响</h2>
+        <p>MySQL InnoDB 默认隔离级别是 <strong>REPEATABLE READ</strong>（可重复读），但要注意：<strong>隔离级别解决的是「读」的问题（脏读/不可重复读/幻读），并不天然解决「并发写覆盖」这种更新丢失问题</strong>——并发写覆盖要靠锁，跟隔离级别是两套机制。</p>
+        <table>
+          <thead><tr><th>隔离级别</th><th>能避免什么</th><th>并发写覆盖问题还在吗</th></tr></thead>
+          <tbody>
+            <tr><td>READ UNCOMMITTED</td><td>基本不防什么</td><td>在</td></tr>
+            <tr><td>READ COMMITTED</td><td>脏读</td><td>在</td></tr>
+            <tr><td>REPEATABLE READ（InnoDB 默认）</td><td>脏读、不可重复读，基本防幻读</td><td>在——更新丢失要靠锁解决</td></tr>
+            <tr><td>SERIALIZABLE</td><td>额外加了隐式锁，读写都要排队</td><td>天然避免，但代价是性能大幅下降</td></tr>
+          </tbody>
+        </table>
+        <p>换句话说：测试并发扣库存这类问题，不能指望「把隔离级别调高就万事大吉」，得明确业务用的是哪种锁方案，再针对性验证。</p>
+
+        <h2>两种锁方案，效果差在哪</h2>
+        <h3>悲观锁：SELECT ... FOR UPDATE</h3>
+        <div class="code-head"><span>pesimistic.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>START TRANSACTION;
+-- 把这一行锁住，别的会话想同时 UPDATE 这行得排队等锁
+SELECT qty FROM stock WHERE sku_id = 1 FOR UPDATE;
+-- 应用层拿到 qty，算出 qty - 1
+UPDATE stock SET qty = qty - 1 WHERE sku_id = 1;  -- 更稳妥的是直接写这个原子表达式，少一次应用层计算
+COMMIT;</code></pre>
+        <p>特点：<strong>行会被锁住，后到的请求要等前一个提交才能继续</strong>，天然串行化，不会丢失更新。代价是并发上不去、锁持有时间越长，排队越长。</p>
+        <h3>乐观锁：版本号校验</h3>
+        <div class="code-head"><span>optimistic.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 第 1 步：不带锁，普通读
+SELECT qty, version FROM stock WHERE sku_id = 1;
+-- 第 2 步：更新时带上"我读到的版本号"作为前提条件
+UPDATE stock
+SET qty = qty - 1, version = version + 1
+WHERE sku_id = 1 AND version = 读到的那个版本号;
+-- 如果两个请求同时走到第 2 步，只有一个的 version 条件还成立，另一个的 UPDATE 影响行数是 0，
+-- 业务层检测到"影响行数 = 0"就该重试整个流程</code></pre>
+        <p>特点：不加锁，读的时候不排队，但<strong>写的时候靠版本号「抢」，抢输了要整个流程重试</strong>。适合写冲突不频繁的场景；冲突很频繁时（比如爆款秒杀）重试会扎堆，反而不如悲观锁干脆。</p>
+
+        <h2>Python 脚本：多线程并发扣库存，两种方案各跑一遍</h2>
+        <div class="code-head"><span>test_concurrent_stock.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import threading
+import time
+import pymysql
+
+CONN = dict(host="127.0.0.1", port=3306, user="test_user",
+            password="test_pwd", database="shop")
+
+def reset_stock(qty=100):
+    conn = pymysql.connect(**CONN)
+    with conn.cursor() as cur:
+        cur.execute("DELETE FROM stock WHERE sku_id = 1")
+        cur.execute("INSERT INTO stock (sku_id, qty, version) VALUES (1, %s, 0)", (qty,))
+    conn.commit()
+    conn.close()
+
+def final_qty():
+    conn = pymysql.connect(**CONN)
+    with conn.cursor() as cur:
+        cur.execute("SELECT qty FROM stock WHERE sku_id = 1")
+        v = cur.fetchone()[0]
+    conn.close()
+    return v
+
+def deduct_pessimistic():
+    """悲观锁：FOR UPDATE 串行化"""
+    conn = pymysql.connect(**CONN)
+    with conn.cursor() as cur:
+        cur.execute("START TRANSACTION")
+        cur.execute("SELECT qty FROM stock WHERE sku_id = 1 FOR UPDATE")
+        cur.execute("UPDATE stock SET qty = qty - 1 WHERE sku_id = 1")
+        conn.commit()
+    conn.close()
+
+def deduct_optimistic():
+    """乐观锁：版本号校验，抢输就重试整个流程"""
+    for _ in range(50):  # 最多重试 50 次
+        conn = pymysql.connect(**CONN)
+        try:
+            with conn.cursor() as cur:
+                cur.execute("SELECT qty, version FROM stock WHERE sku_id = 1")
+                qty, ver = cur.fetchone()
+                if qty <= 0:
+                    return
+                affected = cur.execute(
+                    "UPDATE stock SET qty = qty - 1, version = version + 1 WHERE sku_id = 1 AND version = %s",
+                    (ver,))
+                conn.commit()
+                if affected == 1:
+                    return  # 抢到了，结束
+        finally:
+            conn.close()
+        time.sleep(0.01)  # 抢输了，稍等再重试
+
+def run_case(name, worker, n=30, initial=100):
+    reset_stock(initial)
+    threads = [threading.Thread(target=worker) for _ in range(n)]
+    for t in threads: t.start()
+    for t in threads: t.join()
+    left = final_qty()
+    print(f"[{name}] 初始 {initial}，{n} 个并发请求，最终库存 = {left}")
+    return left
+
+def main():
+    # 两种方案各跑一遍，最终库存都应等于 initial - n（在库存充足的前提下）
+    run_case("悲观锁", deduct_pessimistic)
+    run_case("乐观锁", deduct_optimistic)
+
+if __name__ == "__main__":
+    main()</code></pre>
+        <p>跑完看两个结论：① 两种方案最终库存都应该是 <code>initial - 30</code>，任何一个对不上，说明实现有漏；② 再对照「不安全写法」（先查后改、不加锁不带版本号）跑一遍，大概率会看到库存比预期扣得少（丢更新），这就是要证明「锁确实起作用了」的对照组。</p>
+
+        <h2>两个绕不开的坑：死锁和锁等待超时</h2>
+        <div class="callout warn">
+          <p><strong>死锁</strong>：两个事务互相等对方先放锁。常见于按不同顺序更新多行（A 先锁 1 再锁 2，B 先锁 2 再锁 1）。测试并发时，故意制造「反向操作顺序」的对照组，观察是否触发 <code>1213 Deadlock found</code> 报错，以及业务层有没有做好「捕获后重试」。</p>
+        </div>
+        <p><strong>锁等待超时</strong>：InnoDB 有一个参数 <code>innodb_lock_wait_timeout</code>（默认 50 秒），等锁超过这个时长会直接报错而不是无限等。压测时把并发拉高，要专门验证「等锁超时的请求」是不是被正确捕获、给用户返回了合理的失败提示（而不是 500 或者干脆卡死）。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">MySQL 官方文档：InnoDB 隔离级别</a></li>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/innodb-locking.html" target="_blank" rel="noopener">MySQL 官方文档：InnoDB 锁机制</a></li>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlocks.html" target="_blank" rel="noopener">MySQL 官方文档：死锁处理</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#mysql</span>
+          <span class="tag">#concurrency</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

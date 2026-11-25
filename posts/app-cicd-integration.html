@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Appium + LLM Agent：APP 测试 CI/CD 的 AI 自动化 · 软件测试资料集</title>
+<meta name="description" content="使用 Appium 驱动真实设备/模拟器，结合 GPT-4V 视觉 LLM 读取屏幕截图生成 Appium 操作序列…">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-cicd-integration.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Appium + LLM Agent：APP 测试 CI/CD 的 AI 自动化">
+<meta property="og:description" content="使用 Appium 驱动真实设备/模拟器，结合 GPT-4V 视觉 LLM 读取屏幕截图生成 Appium 操作序列…">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-cicd-integration.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Appium + LLM Agent：APP 测试 CI/CD 的 AI 自动化">
+<meta name="twitter:description" content="使用 Appium 驱动真实设备/模拟器，结合 GPT-4V 视觉 LLM 读取屏幕截图生成 Appium 操作序列…">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Appium + LLM Agent：APP 测试 CI/CD 的 AI 自动化","description":"使用 Appium 驱动真实设备/模拟器，结合 GPT-4V 视觉 LLM 读取屏幕截图生成 Appium 操作序列…","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-cicd-integration.html","articleSection":"APP 自动化","keywords":"Appium, LLM 视觉, GPT-4V, CI/CD","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统+AI 接口</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>15 min read</span>
+        </div>
+        <h1>Appium + LLM Agent：APP 测试 CI/CD 的 AI 自动化</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="app-cicd-integration">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<p>本方案在 Appium 2.x 基础上接入 GPT-4V 视觉 LLM：测试执行前截图 → LLM 分析界面元素 → 生成 Appium 操作指令 → 执行并断言。支持 Android（UiAutomator2）和 iOS（XCUITest）双平台。</p>
+
+<div class="code-head"><span>安装 Appium 2.x + 驱动</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 全局安装 Appium 2.x（需要 Node.js 18+）
+npm install -g appium
+
+# 安装 Android 驱动
+appium driver install uiautomator2
+
+# 安装 iOS 驱动（macOS 才需要）
+appium driver install xcuitest
+
+# 验证
+appium --version
+appium driver list</code></pre>
+
+<div class="code-head"><span>安装 Python 测试依赖</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>pip install Appium-Python-Client pytest openai pillow
+
+# Android 需要 ADB
+# macOS: 安装 Android SDK Platform Tools
+# Windows: 安装 platform-tools，加入 PATH
+adb devices  # 验证设备连接</code></pre>
+
+<div class="code-head"><span>启动 Appium 服务器</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 默认端口 4723，支持多会话
+appium &amp;
+# 验证服务
+curl http://localhost:4723/status
+# 输出: {"build":{"version":"2.x.x"},"ready":true}</code></pre>
+
+<div class="code-head"><span>配置 LLM 密钥（.env）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># .env
+OPENAI_API_KEY=sk-xxxxxxxx
+LLM_MODEL=gpt-4o
+APP_BASE_PACKAGE=com.example.myapp   # Android 包名
+APP_BASE_BUNDLE=com.example.myapp    # iOS bundle id
+APPIUM_URL=http://localhost:4723</code></pre>
+
+<div class="code-head"><span>验证完整链路（run-verify.py）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import os, subprocess, json, httpx
+
+# 1. Appium 服务可达
+r = httpx.get(os.environ.get("APPIUM_URL", "http://localhost:4723") + "/status", timeout=5)
+assert r.status_code == 200 and r.json().get("ready"), "Appium 未就绪"
+print("  [OK] Appium 服务已启动")
+
+# 2. ADB 设备在线
+adb_result = subprocess.run(["adb", "devices"], capture_output=True, text=True)
+assert "device" in adb_result.stdout, "未检测到 Android 设备"
+print("  [OK] Android 设备已连接")
+
+# 3. LLM 密钥有效
+from openai import OpenAI
+client = OpenAI()
+resp = client.chat.completions.create(
+    model=os.environ.get("LLM_MODEL", "gpt-4o"),
+    messages=[{"role": "user", "content": "ping"}],
+    max_tokens=5,
+)
+print(f"  [OK] LLM 响应: {resp.choices[0].message.content[:20]}")</code></pre>
+
+<div class="callout">iOS 测试需在 macOS 环境运行 Xcode 模拟器：<code>xcrun simctl list devices</code> 查看可用模拟器。Android 模拟器可在 Android Studio 中创建，<code>adb devices</code> 确认识别。</div>
+
+<h2>基础应用：LLM 截图分析 → 生成 Appium 操作 → 执行用例</h2>
+<p>核心思路：每步操作前截图 → 将截图 + 操作意图发给 GPT-4V → LLM 返回 Appium 指令 JSON → 执行 → 断言。这样即使元素 ID 变化，LLM 也能通过视觉定位重新找到目标。</p>
+
+<div class="code-head"><span>llm_appium_driver.py — 视觉驱动的 Appium 驱动</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+LLM 视觉驱动的 Appium 操作生成器
+每步：截图 → LLM 分析 → 生成指令 → 执行
+"""
+import base64, json, os, pathlib, time
+from openai import OpenAI
+from appium import webdriver
+from appium.options.android import UiAutomator2Options
+
+client = OpenAI()
+MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
+
+class LLMAppiumDriver:
+    def __init__(self, platform: str = "Android"):
+        caps = {
+            "platformName": platform,
+            "appPackage": os.environ.get("APP_BASE_PACKAGE", ""),
+            "appActivity": ".MainActivity",
+            "noReset": True,
+            "automationName": "UiAutomator2",
+            "deviceName": "emulator-5554",
+        }
+        if platform == "iOS":
+            caps = {
+                "platformName": "iOS",
+                "bundleId": os.environ.get("APP_BASE_BUNDLE", ""),
+                "deviceName": "iPhone 15",
+                "automationName": "XCUITest",
+                "platformVersion": "17.0",
+            }
+        url = os.environ.get("APPIUM_URL", "http://localhost:4723") + "/wd/hub"
+        opts = UiAutomator2Options().load_capabilities(caps) if platform == "Android" else caps
+        self.driver = webdriver.Remote(url, options=opts)
+
+    def _screenshot_b64(self) -> str:
+        return base64.b64encode(self.driver.get_screenshot_as_png()).decode()
+
+    def llm_analyze(self, intent: str, screenshot_b64: str) -> dict:
+        """
+        将截图 + 意图发给 LLM，返回操作指令
+        返回格式: {"action": "tap|input|swipe|assert|done",
+                   "target_desc": "描述目标元素",
+                   "appium_cmd": "完整的 Appium 调用代码字符串",
+                   "confidence": 0.0-1.0}
+        """
+        prompt = f"""
+        你是移动端测试自动化专家。
+        当前界面截图如下，用户意图是：「{intent}」
+
+        请分析截图中的 UI 元素，然后：
+        1. 找出最匹配「{intent}」的元素
+        2. 生成一条 Appium Python 代码（使用 self.driver）
+        3. 评估置信度（0-1）
+
+        以 JSON 格式输出（不要 markdown 包裹）：
+        {{
+          "action": "tap|input|swipe|assert|done",
+          "target_desc": "元素描述",
+          "appium_cmd": "self.driver.find_element(AppiumBy.XPATH, '...').click()",
+          "confidence": 0.95
+        }}
+        """
+        resp = client.chat.completions.create(
+            model=MODEL,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {
+                        "url": f"data:image/png;base64,{screenshot_b64}"
+                    }},
+                ],
+            }],
+            temperature=0.1,
+            max_tokens=512,
+        )
+        # 解析 LLM 返回的 JSON（容错：去掉可能的 markdown 包裹）
+        text = resp.choices[0].message.content.strip()
+        text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            return {"action": "done", "confidence": 0.0, "error": f"JSON 解析失败: {text[:200]}"}
+
+    def execute_intent(self, intent: str, max_steps: int = 5) -> dict:
+        """多步执行：每步截图→分析→执行，直到 done 或达到上限"""
+        history = []
+        for step in range(max_steps):
+            shot = self._screenshot_b64()
+            result = self.llm_analyze(intent, shot)
+            history.append(result)
+            action = result.get("action", "done")
+            print(f"  Step {step+1}: {action} — {result.get('target_desc', '')} "
+                  f"(confidence={result.get('confidence', 0)})")
+            if action == "done":
+                return {"status": "completed", "steps": history}
+            if action == "tap":
+                exec(result["appium_cmd"].replace("self.driver", "self.driver"))
+                time.sleep(1)
+            elif action == "input":
+                # 需要先找元素再输入，LLM 返回的 cmd 包含完整逻辑
+                exec(result["appium_cmd"].replace("self.driver", "self.driver"))
+                time.sleep(1)
+            elif action == "assert":
+                # 断言失败则终止
+                try:
+                    exec(result["appium_cmd"].replace("self.driver", "self.driver"))
+                except Exception as e:
+                    return {"status": "assertion_failed", "error": str(e), "steps": history}
+        return {"status": "max_steps_reached", "steps": history}
+
+    def quit(self):
+        self.driver.quit()</code></pre>
+
+<div class="code-head"><span>test_search_flow.py — 搜索流程测试示例</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest
+from llm_appium_driver import LLMAppiumDriver
+
+@pytest.fixture
+def app_driver():
+    d = LLMAppiumDriver(platform="Android")
+    yield d
+    d.quit()
+
+def test_search_flow(app_driver):
+    """意图：在搜索框输入 'python' 并点击搜索"""
+    result = app_driver.execute_intent(
+        "在顶部搜索框输入 'python'，然后点击搜索按钮",
+        max_steps=5,
+    )
+    assert result["status"] in ("completed",), f"搜索流程失败: {result}"
+    print(f"执行步骤: {len(result['steps'])} 步")
+
+def test_login_flow(app_driver):
+    """意图：完成登录（用户名 admin，密码 test123）"""
+    result = app_driver.execute_intent(
+        "输入用户名 admin，密码 test123，点击登录按钮，等待进入首页",
+        max_steps=6,
+    )
+    assert result["status"] == "completed", f"登录失败: {result}"</code></pre>
+
+<div class="callout">GPT-4V 截图分析成本约 $0.01–0.03/张（gpt-4o 视觉 token 计价）。一条 5 步用例约 $0.1，适合 CI 批量运行。</div>
+
+<h2>项目进阶：设备矩阵 + UI 自愈 + 失败根因分析</h2>
+<p>将 LLM Appium 驱动嵌入 CI 设备矩阵，UI 变化时自动重新定位元素；测试失败时 LLM 分析日志 + 截图，生成<a class="ilink" href="ai-defect-rootcause.html">根因</a>报告。</p>
+
+<div class="code-head"><span>healer.py — UI 变更自愈逻辑</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+当 Appium 元素定位失败时，调用 LLM 重新分析截图并生成新选择器
+"""
+import base64, json, os, time
+from openai import OpenAI
+
+client = OpenAI()
+MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
+
+def heal_selector(
+    driver,
+    original_locator: str,
+    element_desc: str,
+    screenshot_b64: str = None,
+) -> str:
+    """
+    元素找不到时，LLM 看截图重新推断选择器
+    返回新的 Appium 定位表达式（XPath/CSS/Accessibility ID）
+    """
+    if screenshot_b64 is None:
+        screenshot_b64 = base64.b64encode(driver.get_screenshot_as_png()).decode()
+
+    prompt = f"""
+    移动端 UI 自动化中，以下选择器定位失败：
+      原始选择器: {original_locator}
+      目标元素: {element_desc}
+
+    当前截图如下，请分析界面元素，生成新的 Appium 选择器。
+    优先级：Accessibility ID &gt; XPath（精确）&gt; XPath（模糊）&gt; 坐标
+    输出纯字符串（不要解释），格式示例:
+      //android.widget.EditText[@resource-id='com.app:id/search']
+    """
+    resp = client.chat.completions.create(
+        model=MODEL,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {
+                    "url": f"data:image/png;base64,{screenshot_b64}"
+                }},
+            ],
+        }],
+        temperature=0.0,
+        max_tokens=128,
+    )
+    new_selector = resp.choices[0].message.content.strip()
+    print(f"  [heal] 旧: {original_locator}")
+    print(f"  [heal] 新: {new_selector}")
+    return new_selector</code></pre>
+
+<div class="code-head"><span>root_cause.py — 失败根因分析</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+测试失败后，收集 Appium 日志 + 截图 + 错误信息，LLM 生成根因报告
+"""
+import base64, json, os, pathlib
+from openai import OpenAI
+
+client = OpenAI()
+MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
+
+def analyze_failure(
+    test_name: str,
+    error_message: str,
+    appium_logs: list[str],
+    screenshot_b64: str,
+) -> str:
+    """返回 Markdown 格式的根因分析"""
+    logs_str = "\n".join(appium_logs[-20:])  # 只取最后 20 行
+
+    prompt = f"""
+    移动端测试「{test_name}」失败，请分析根因。
+
+    错误信息:
+    {error_message[:500]}
+
+    Appium 日志（最后 20 行）:
+    {logs_str[:2000]}
+
+    截图已附。请输出：
+    1. 根因分类（UI 变更 / 超时 / 网络 / 权限 / 其他）
+    2. 具体分析（2-3 句）
+    3. 修复建议（具体步骤）
+    以 Markdown 输出。
+    """
+    resp = client.chat.completions.create(
+        model=MODEL,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {
+                    "url": f"data:image/png;base64,{screenshot_b64}"
+                }},
+            ],
+        }],
+        temperature=0.2,
+        max_tokens=512,
+    )
+    report = resp.choices[0].message.content.strip()
+    # 保存报告
+    out = pathlib.Path(f"reports/failure_{test_name}.md")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(report, encoding="utf-8")
+    return report</code></pre>
+
+<div class="code-head"><span>.github/workflows/app-device-matrix.yml</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>name: App Device Matrix Tests
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Android
+            device: "emulator-5554"
+            appium_driver: uiautomator2
+          - platform: Android
+            device: "pixel_6"
+            appium_driver: uiautomator2
+          - platform: iOS
+            device: "iPhone_15"
+            appium_driver: xcuitest
+            os: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install Appium-Python-Client pytest openai pillow
+
+      - name: Set up Android Emulator
+        if: matrix.platform == 'Android'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          arch: x86_64
+          profile: pixel_6
+          disable-window: true
+
+      - name: Run Appium tests with LLM heal
+        if: matrix.platform == 'Android'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_MODEL: gpt-4o
+          APP_BASE_PACKAGE: com.example.myapp
+          APPIUM_URL: http://localhost:4723
+        run: |
+          # 后台启动 Appium
+          npm install -g appium &amp;&amp; appium driver install uiautomator2 &amp;&amp; appium &amp;
+          sleep 5
+          pytest tests/ -v --allure-results=allure-results \
+            --allure-features=device-${{ matrix.device }}
+
+      - name: Generate Allure report
+        if: always()
+        run: |
+          npm install -g @allure/report-generator
+          npx allure generate allure-results --clean -o allure-report
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-${{ matrix.platform }}-${{ matrix.device }}
+          path: allure-report
+          retention-days: 14</code></pre>
+
+<div class="code-head"><span>conftest.py — 带自愈的 Appium fixture</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest, os, base64
+from appium import webdriver
+from appium.options.android import UiAutomator2Options
+from appium.webdriver.common.appiumby import AppiumBy
+from healer import heal_selector
+from root_cause import analyze_failure
+
+@pytest.fixture
+def appium_driver(request):
+    """
+    带 LLM 自愈的 Appium driver
+    元素找不到时自动调用 heal_selector 重新定位
+    失败时自动生成根因报告
+    """
+    platform = os.environ.get("PLATFORM", "Android")
+    caps = {
+        "platformName": platform,
+        "deviceName": os.environ.get("DEVICE_NAME", "emulator-5554"),
+        "appPackage": os.environ.get("APP_BASE_PACKAGE", ""),
+        "automationName": "UiAutomator2",
+        "noReset": True,
+    }
+    url = os.environ.get("APPIUM_URL", "http://localhost:4723") + "/wd/hub"
+    driver = webdriver.Remote(url, options=caps)
+
+    def find_with_heal(by, value, desc=""):
+        try:
+            return driver.find_element(by, value)
+        except Exception:
+            print(f"  [heal] 元素 {value} 未找到，启动 LLM 自愈...")
+            shot_b64 = base64.b64encode(driver.get_screenshot_as_png()).decode()
+            new_selector = heal_selector(driver, value, desc, shot_b64)
+            # 尝试新选择器
+            try:
+                return driver.find_element(AppiumBy.XPATH, new_selector)
+            except Exception:
+                return None
+
+    # 将 find_with_heal 注入到测试用例中
+    request.node._find_with_heal = find_with_heal
+    request.node._driver = driver
+
+    yield driver
+
+    # teardown
+    try:
+        driver.quit()
+    except:
+        pass</code></pre>
+
+<div class="callout warn">iOS 测试需要 macOS Runner，GitHub Actions 中用 <code>macos-latest</code> 标签。UiAutomator2 驱动在 Android 13+ 上需要设置 <code>disableWindowAnimation=true</code> 避免动画干扰截图。</div>
+
+<div class="callout">根因报告建议保留在 CI Artifacts 中，失败用例的截图 + LLM 分析可直接用于 Bug 单附件，减少手动复述时间。</div>
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+<li>Appium 2.x 官方文档 — <a href="https://appium.io/docs/en/latest/" target="_blank" rel="noopener">https://appium.io/docs</a></li>
+<li>OpenAI GPT-4V 视觉 API — <a href="https://platform.openai.com/docs/guides/vision" target="_blank" rel="noopener">https://platform.openai.com/docs/guides/vision</a></li>
+<li>Appium Python Client — <a href="https://github.com/appium/python-client" target="_blank" rel="noopener">https://github.com/appium/python-client</a></li>
+<li>Android Emulator Runner (GitHub Actions) — <a href="https://github.com/ReactiveCircus/android-emulator-runner" target="_blank" rel="noopener">https://github.com/ReactiveCircus/android-emulator-runner</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">Appium</span>
+          <span class="tag">LLM 视觉</span>
+          <span class="tag">GPT-4V</span>
+          <span class="tag">CI/CD</span>
+          <span class="tag">设备矩阵</span>
+          <span class="tag">自愈测试</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 读写 Excel 做测试：openpyxl 和 pandas 两个工具 · 软件测试资料集</title>
+<meta name="description" content="csv 的编码与换行、openpyxl 读写与公式缓存、pandas 的取舍，附表格用例组织与一用例一行的报告写法。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-csv-excel-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Python 读写 Excel 做测试：openpyxl 和 pandas 两个工具">
+<meta property="og:description" content="csv 的编码与换行、openpyxl 读写与公式缓存、pandas 的取舍，附表格用例组织与一用例一行的报告写法。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-csv-excel-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Python 读写 Excel 做测试：openpyxl 和 pandas 两个工具">
+<meta name="twitter:description" content="csv 的编码与换行、openpyxl 读写与公式缓存、pandas 的取舍，附表格用例组织与一用例一行的报告写法。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Python 读写 Excel 做测试：openpyxl 和 pandas 两个工具","description":"csv 的编码与换行、openpyxl 读写与公式缓存、pandas 的取舍，附表格用例组织与一用例一行的报告写法。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-csv-excel-testing.html","articleSection":"Python 进阶","keywords":"python, excel, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Python 进阶</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>21 min read</span>
+        </div>
+        <h1>Python 读写 Excel 做测试：openpyxl 和 pandas 两个工具</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-csv-excel-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>这篇解决的是数据在表格和代码之间往返的问题</h2>
+        <p>如果你在国内一线做功能或接口测试，迟早会接到两类活：一类是把用例从 Excel 或 CSV 里读出来，喂给 pytest 做参数化；另一类是把执行结果写成 Excel，交给主管、客户或者质量周会。这两类活看起来是调 API，实际上是处理一份没有类型、没有约束、还会被 Excel 悄悄改写的表格。真正让人加班的从来不是 openpyxl 的语法，而是编码、空值、隐式类型这三件小事。</p>
+        <p>表格是给人看的，代码是给机器读的，两者对同一个单元格的理解经常不一致。你在单元格里敲 00123，Excel 会当成数字显示成 123；你敲 2026-11-23，它会变成日期序列值；你敲一个 18 位身份证号，它会当成数字、用科学计数法显示，后几位直接归零。这些改动在界面上几乎看不出来，一旦进了断言就是莫名其妙的失败。</p>
+        <p>这篇按数据的流向来组织：读进来（CSV 与 xlsx）→ 归一化（类型、空值、日期）→ 写出去（报告）。每一节先说什么时候会遇到，再讲取舍和代价，最后给会崩的具体写法。读者画像很明确：能写 pytest、装过 openpyxl，但被中文乱码和类型推断反复坑过的工程师。文中涉及的耗时与内存都标了示例值，不作为基准数据使用。</p>
+
+        <h2>csv 的两个开关：newline 与编码</h2>
+        <p>最典型的一次事故是这样发生的：脚本生成了 cases.csv，双击用 Excel 打开，中文全是乱码；同事提示换成 UTF-8，再打开不乱码了，但每两行数据之间多出一个空行。两个小时就这么没了，而这两个现象分别对应两个参数，跟 csv 的业务逻辑一点关系都没有。</p>
+        <p>第一个是 <code>newline</code>。按官方文档的要求，用 <code>open</code> 打开文件时应当传入空字符串作为 newline，读取和写入都要。原因是 csv 模块自己会按方言写出 <code>\r\n</code>，而 Windows 的文本模式又会把 <code>\n</code> 翻译成 <code>\r\n</code>，两次翻译叠加，行尾就变成了 <code>\r\r\n</code>，Excel 和不少解析器会把它读成一条空记录。不传这个参数的代码在 Linux 上往往正常，一到同事的 Windows 机器上就露馅，所以它是最容易漏掉的一行。</p>
+        <p>第二个是编码。Windows 上的 Excel 在打开没有 BOM 的 csv 时，会按系统本地编码（简体中文环境是 GBK）去解析。你用 UTF-8 写的文件没有 BOM，Excel 就按 GBK 硬解，中文自然全是乱码。解决办法是写文件时用 <code>utf-8-sig</code>，它会在文件头写三个字节的 BOM，Excel 靠这三个字节判断出这是 UTF-8。</p>
+        <p>代价也要说清楚：BOM 会跟着第一个字段名一起被读进来。用 UTF-8 去读一个 utf-8-sig 文件，第一列的键会变成带不可见字符的 <code>case_id</code>，于是 <code>row[case_id]</code> 抛 KeyError，报错信息里的键看起来和代码里写的一模一样，非常难查。结论是写入用 utf-8-sig，读取也用 utf-8-sig，两边对称。</p>
+        <div class="code-head"><span>python — 写 CSV 的正确姿势</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import csv
+
+rows = [
+    {"case_id": "TC-001", "name": "登录-正确密码", "expected": "success"},
+    {"case_id": "TC-002", "name": "登录-密码错误", "expected": "error"},
+]
+
+# newline="" 避免 Windows 上多出空行
+# utf-8-sig 让 Excel 识别出 UTF-8，中文不乱码
+with open("cases.csv", "w", newline="", encoding="utf-8-sig") as f:
+    writer = csv.DictWriter(f, fieldnames=["case_id", "name", "expected"])
+    writer.writeheader()
+    writer.writerows(rows)</code></pre>
+        <p>反过来的情况更多：业务同学从系统里导出的 csv 是 GBK，你硬按 UTF-8 读，第一行就炸，报 <code>UnicodeDecodeError: 'utf-8' codec can't decode byte 0xd6 in position 0</code>。别去猜，给一个按顺序尝试的读取函数，把两三种常见编码都覆盖掉，失败时把文件路径带上，排查能省一半时间。</p>
+        <div class="code-head"><span>python — 读取时兼容 GBK 与 UTF-8</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import csv
+
+
+def read_rows(path):
+    # utf-8-sig 能同时吃下带 BOM 和不带 BOM 的 UTF-8
+    # gb18030 是 GBK 的超集，覆盖绝大多数国内导出文件
+    for encoding in ("utf-8-sig", "gb18030"):
+        try:
+            with open(path, "r", newline="", encoding=encoding) as f:
+                return list(csv.DictReader(f))
+        except UnicodeDecodeError:
+            continue
+    raise RuntimeError(f"无法识别文件编码，请人工确认：{path}")
+
+
+for item in read_rows("cases.csv")[:2]:
+    print(item["case_id"], item["name"])</code></pre>
+
+        <h2>列表还是字典：两种数据形态的取舍</h2>
+        <p>csv 模块给了两个入口：<code>csv.reader</code> 返回列表，<code>csv.DictReader</code> 返回字典。前者是位置寻址，后者是名字寻址。测试数据有个特点：列会随着需求增长，今天八列，下个迭代十二列，插入一列在中间是常事。用列表就意味着所有下标都要跟着改，改漏一个不会报错，只会拿着错误的字段去做断言，这种 bug 比崩溃更难查。</p>
+        <p>所以默认选字典。字段名本身就是文档，<code>row[expected_status]</code> 比 <code>row[3]</code> 可读，加列也不会波及已有代码。代价有两个：一是内存，每行多一个 dict 的开销，百万行级别的纯搬运会明显变慢；二是列名必须唯一，DictReader 遇到重复列名只保留最后一个值，前面的会被悄悄覆盖，而 Excel 里合并表头这种事太常见了。</p>
+        <p>什么时候用列表？做纯数据搬运的时候，比如把一份几十万行的 csv 转成另一种格式，中间不做任何字段级处理，这时列表更快也更省内存。判断标准很简单：这段代码里有没有出现按字段名取值，有就用字典，没有就用列表。另外，缺列和多列要用 <code>restval</code> 与 <code>restkey</code> 兜住，否则缺列拿到 None、多列直接丢掉，出问题时毫无提示。</p>
+        <div class="code-head"><span>python — 字典形态的完整往返</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import csv
+
+FIELDS = ["case_id", "name", "expected_status", "priority"]
+
+with open("cases.csv", "r", newline="", encoding="utf-8-sig") as f:
+    reader = csv.DictReader(
+        f,
+        fieldnames=None,          # 用文件首行做表头
+        restkey="_extra",         # 多出来的列塞进这个键
+        restval="",               # 缺失的列补空串，而不是 None
+    )
+    cases = [row for row in reader if row["case_id"]]
+
+# 写回时 fieldnames 必须覆盖行里所有键，否则 DictWriter 直接抛
+# ValueError: dict contains fields not in fieldnames
+with open("cases_clean.csv", "w", newline="", encoding="utf-8-sig") as f:
+    writer = csv.DictWriter(f, fieldnames=FIELDS, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(cases)</code></pre>
+
+        <h2>openpyxl 读 xlsx：多 sheet、定位与追加</h2>
+        <p>什么时候必须从 csv 升级到 xlsx？当文件里的人为格式本身就是信息的时候。用例手册按模块分了十几个 sheet，某些步骤合并了单元格，失败的用例被人用红色标了出来，评审意见写在批注里——这些东西 CSV 一个都表达不了，只能上 openpyxl。</p>
+        <p>读取有三个常用入口：<code>wb.sheetnames</code> 拿到全部表名，按表名遍历比按索引稳，因为有人会在中间插一个新 sheet，索引就全错位了；<code>wb[name]</code> 精确取表；<code>ws.iter_rows(values_only=True)</code> 一次拿到一行的值元组，比逐个 <code>cell.value</code> 快，代码也短。要注意 <code>values_only</code> 只给值不给样式，需要判断单元格类型时得用非 values_only 的形式。</p>
+        <p>写的时候用 <code>ws.append</code>，它从当前最大行之后往下追加，不需要自己算行号。但 <code>max_row</code> 并不可靠：只要某一行被设置过格式或曾经写过又清空，它就会被算进范围，于是你以为追加在第 100 行，实际落在第 5000 行。需要精确定位时先调 <code>ws.calculate_dimension()</code> 看一眼真实范围，或者干脆改成从下往上找最后一个非空行。</p>
+        <p>还有一个必须记住的细节：<code>read_only=True</code> 打开的工作簿一定要 <code>close()</code>。它持有文件句柄，不关的话在 Windows 上后续的删除、覆盖都会失败，报 <code>PermissionError: [WinError 32] 另一个程序正在使用此文件</code>，而报错的现场往往离真正的原因隔了几十行代码。</p>
+        <div class="code-head"><span>python — 多 sheet 遍历与追加</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from openpyxl import Workbook, load_workbook
+
+# 读：read_only 省内存，只能顺序遍历，用完必须 close
+wb = load_workbook("cases.xlsx", read_only=True, data_only=True)
+print(wb.sheetnames)                      # ['冒烟', '回归', '边界']
+
+for sheet_name in wb.sheetnames:
+    ws = wb[sheet_name]
+    rows = ws.iter_rows(values_only=True)
+    header = [str(h).strip() for h in next(rows)]
+    for values in rows:
+        record = dict(zip(header, values))
+        if record.get("case_id") is None:   # 跳过空行
+            continue
+        print(sheet_name, record["case_id"], record["expected_status"])
+wb.close()
+
+# 写：append 从 max_row 之后继续
+out = Workbook()
+sheet = out.active
+sheet.title = "执行结果"
+sheet.append(["case_id", "result", "duration_ms"])
+sheet.append(["TC-001", "通过", 120])
+print(sheet.max_row)                      # 2
+out.save("result.xlsx")</code></pre>
+
+        <h2>公式读取的陷阱：data_only 只返回别人算过的结果</h2>
+        <p>这是 openpyxl 被误解最多的一点：它不是计算引擎，不会执行公式。你写进去的 <code>=SUM(B2:B10)</code> 只是一段文本，openpyxl 既不知道也不关心它等于多少。用 <code>data_only=True</code> 打开时，它返回的是文件里缓存的计算结果，而这个缓存只有 Excel、WPS 这类真正的表格软件打开并保存过之后才会写进 xlsx。</p>
+        <p>所以现象很固定：脚本生成报告，第二页放一行 <code>=SUM(B2:B11)</code> 想统计耗时总和，再用脚本读回来做校验，拿到的是 None。很多人第一反应是公式写错了、范围错了，反复改公式，其实问题在于这个文件从来没有被 Excel 打开过，压根没有缓存值。这种情况下只能要么打开存一次，要么在 Python 里自己算。</p>
+        <p>比读不到更危险的是读到了又写回去。<code>load_workbook(data_only=True)</code> 之后 <code>save()</code>，所有公式会被它读到的缓存值原地替换，公式彻底消失，只剩一堆数字。所以规则很简单：要改内容就用默认的 <code>data_only=False</code>，要取计算结果才开 <code>data_only=True</code>，而且不要在同一个对象上做这两件事。</p>
+        <div class="code-head"><span>python — 对照验证缓存行为</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from openpyxl import load_workbook
+
+# data_only=False：拿到公式本身
+wb_formula = load_workbook("report.xlsx", data_only=False)
+print(wb_formula["统计"]["B2"].value)     # =SUM(B2:B11)
+
+# data_only=True：拿到缓存值；
+# 文件没被 Excel 保存过时，这里就是 None
+wb_cached = load_workbook("report.xlsx", data_only=True)
+value = wb_cached["统计"]["B2"].value
+print(value)
+
+if value is None:
+    print("没有缓存值：文件从没被 Excel 打开保存过，请改用 Python 侧求和")</code></pre>
+
+        <h2>把表格当数据源：表头、空值与类型转换</h2>
+        <p>表格驱动测试真正贵的不是代码，是约定。同一份 cases.xlsx 会被产品、开发、测试三方维护，只要没有硬约定，三个月后一定会出现中文表头、合并单元格、空行、以及一串写在备注里的隐性条件。下面这份约定是踩过坑之后定下来的，写进了团队的用例模板里。</p>
+        <table>
+          <thead>
+            <tr><th>项目</th><th>约定</th><th>不这样做的后果</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>表头</td><td>首行、英文小写下划线、列名唯一</td><td>中文表头一改名代码就得跟着改；重名列被 DictReader 静默覆盖</td></tr>
+            <tr><td>空值</td><td>留空，不写 None、null、NA、横杠</td><td>读出来是字符串，和真正的空值比较永远不相等</td></tr>
+            <tr><td>布尔</td><td>统一 1 与 0，或统一 TRUE 与 FALSE</td><td>出现是、Y、yes 混用后，转换函数漏一种就判错</td></tr>
+            <tr><td>日期</td><td>统一 YYYY-MM-DD 文本，或整列设为日期格式</td><td>一半是字符串一半是 datetime，比较时直接 TypeError</td></tr>
+            <tr><td>编号</td><td>工号、订单号、身份证一律设为文本</td><td>前导零丢失、超过 15 位后精度丢失</td></tr>
+            <tr><td>行结构</td><td>不留空行、不合并单元格</td><td>空行读成全 None 记录；合并区域只有左上角有值</td></tr>
+          </tbody>
+        </table>
+        <p>有了约定，还要有一个统一的归一化函数。原则是所有类型转换只在一个地方发生，读表的地方只负责喂原始值。这样以后新增一列，改动点只有一个；某个字段变成空值时，也只需要在一个函数里补默认值，而不是在几十个用例里加 <code>or 0</code>。顺便说一句，<code>int(float(text))</code> 这个写法看着别扭，但它能同时吃下 Excel 导出的 <code>120.0</code> 和纯文本 <code>120</code>，比裸的 <code>int()</code> 稳。</p>
+        <div class="code-head"><span>python — 集中式归一化</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>def to_int(value, default=0):
+    text = str(value).strip() if value is not None else ""
+    if text == "":
+        return default
+    return int(float(text))
+
+
+def to_bool(value):
+    return str(value).strip().lower() in ("1", "true", "y", "yes", "是")
+
+
+def normalize(row):
+    return {
+        "case_id": str(row.get("case_id") or "").strip(),
+        "name": str(row.get("name") or "").strip(),
+        "max_count": to_int(row.get("max_count"), default=10),
+        "enabled": to_bool(row.get("enabled")),
+        "note": str(row.get("note") or "").strip(),
+    }</code></pre>
+
+        <h2>日期与数字被自动推断：断言失败的头号原因</h2>
+        <p>最典型的失败长这样：用例里写的期望值是 <code>001</code>，跑起来报 <code>AssertionError: 期望 001，实际 1</code>。表格里看着确实是 001，问题在于读出表格的那一刻它已经变成整数 1 了。前导零在数值类型里没有意义，Excel 存的时候就把它丢了，代码只是把丢掉之后的结果读了出来。</p>
+        <p>同样的机制还制造了另外三种事故。18 位身份证号被当作数字，Excel 只保留 15 位有效数字，后三位变成 0，注册接口校验位算不对；<code>1-2</code> 这种输入会被识别成 1 月 2 日的日期，读出来是 datetime 对象；电话号码如果存成数字，导出到 csv 再被 pandas 读回，可能变成 <code>1.3812345679e+10</code> 这种形式。它们的共同点是：单元格显示正常，数据已经变了。</p>
+        <p>防线要做在两端。源头端把这类字段整列设成文本格式，或者输入时加一个英文单引号前缀让 Excel 强制当文本；读取端不要相信自动推断，pandas 用 <code>dtype=str</code> 加 <code>keep_default_na=False</code> 把所有列按原样读成字符串，openpyxl 则检查 <code>cell.data_type</code> 是不是 <code>s</code>、<code>number_format</code> 是不是文本。只做一端也能干活，但换个人维护就又会漏，两端都做才稳。</p>
+        <div class="code-head"><span>python — 关掉类型推断</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pandas as pd
+
+# dtype=str 关闭类型推断，keep_default_na=False 让空单元格保持空串
+df = pd.read_excel("cases.xlsx", dtype=str, keep_default_na=False)
+print(repr(df.iloc[0]["case_id"]))          # '001'，前导零还在
+
+# 默认参数下同一个文件
+df_bad = pd.read_excel("cases.xlsx")
+print(repr(df_bad.iloc[0]["case_id"]))      # 1 或 1.0，前导零已经丢了
+
+# 需要数值时再显式转换，转换失败要能看见
+df["max_count"] = df["max_count"].astype("int64")</code></pre>
+
+        <h2>写报告：一用例一行，只落盘一次</h2>
+        <p>结果的消费方通常不是测试自己。主管看整体通过率，开发只看自己模块的失败项，客户要一份能归档的表格。这三种需求能被同一份结构满足：一用例一行，列固定为用例编号、名称、模块、结果、耗时、失败原因。不要做多层表头，不要合并模块单元格，因为这些格式一旦被程序再读一次就会散架。</p>
+        <p>性能上有个必须避开的写法：每跑完一条用例就打开工作簿、写一行、保存。1000 条用例就是 1000 次全量解析和序列化，文件越大越慢，示例环境下从秒级涨到十分钟级很常见，具体取决于文件大小和磁盘。正确做法是全部跑完在内存里攒成一个列表，最后一次性写盘，失败也要写，所以这一步放在 pytest 的 session 级收尾里，而不是某条用例的 teardown。</p>
+        <p>样式只加真正有用的三样：表头加粗、冻结首行、失败行标红。加得越多，维护成本越高，而且一旦有人手动改过文件再被程序覆盖，样式差异会变成新的争论点。另外记得 <code>save</code> 是整体覆盖，不会保留文件里原有的其他 sheet，要保留就先 <code>load_workbook</code> 再往里写。</p>
+        <div class="code-head"><span>python — 一次性写报告</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
+
+HEADERS = ["用例编号", "用例名称", "模块", "结果", "耗时(ms)", "失败原因"]
+
+wb = Workbook()
+ws = wb.active
+ws.title = "执行结果"
+ws.append(HEADERS)
+for cell in ws[1]:
+    cell.font = Font(bold=True)
+
+red_fill = PatternFill("solid", fgColor="FFD9D9")
+for row in results:                 # results 是跑完后汇总的列表
+    ws.append(row)
+    if row[3] == "失败":
+        for cell in ws[ws.max_row]:
+            cell.fill = red_fill
+
+widths = [14, 28, 14, 8, 12, 40]
+for index, width in enumerate(widths, start=1):
+    ws.column_dimensions[chr(64 + index)].width = width
+ws.freeze_panes = "A2"
+wb.save("result.xlsx")</code></pre>
+
+        <h2>pandas 适合做什么，什么时候不要引入</h2>
+        <p>pandas 的强项是列式统计。报告里的通过率、失败数按模块分布、最慢的十条用例、两个版本的结果对比，用 groupby 加 agg 几行就写完了，用 openpyxl 手写循环要写几十行还容易错。它读 xlsx 时底层也调 openpyxl，所以两者不是竞争关系，是分工关系：openpyxl 负责格式和单元格，pandas 负责表级运算。</p>
+        <p>不该引入的场景也要说清楚。只是读二十行参数化数据，openpyxl 或者 csv 就够，多装一个几十 MB 的依赖不值；只是要改单元格颜色、合并表头，pandas 写出来的格式会全部丢失；跑在客户内网、装包要审批的环境，多一个依赖就是多一轮流程；需要原地保留文件里原有的图表、批注时，pandas 的往返会把这些一起丢掉。</p>
+        <p>还有一个必须知道的语义差异：pandas 默认把 <code>NA</code>、<code>null</code>、<code>None</code>、<code>NaN</code> 这些字符串也当成缺失值，读进来变成 NaN。测试数据里恰好有个字段值就叫 NA（比如状态枚举），它会被静默吃掉。所以读测试数据时我总是加 <code>keep_default_na=False</code>，把空值的判定权收回自己手里。</p>
+        <div class="code-head"><span>python — 报告统计的正确写法</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pandas as pd
+
+df = pd.read_csv("result.csv", encoding="utf-8-sig", keep_default_na=False)
+df["duration_ms"] = df["duration_ms"].astype(int)
+
+summary = (
+    df.groupby("模块")
+      .agg(
+          total=("用例编号", "count"),
+          failed=("结果", lambda s: int((s == "失败").sum())),
+          p95=("duration_ms", lambda s: s.quantile(0.95)),
+      )
+      .reset_index()
+)
+summary["通过率"] = (1 - summary["failed"] / summary["total"]).round(4)
+print(summary.to_string(index=False))</code></pre>
+
+        <h2>大文件：别让 openpyxl 把整本簿子读进内存</h2>
+        <p>默认模式下 <code>load_workbook</code> 会把每个单元格变成一个 Python 对象，值、样式、引用全在里面。十万行乘三十列就是三百万个对象，内存曲线会非常陡，示例环境下占用到几个 GB 并不罕见，具体取决于单元格内容和样式数量。如果这台机器同时在跑浏览器和被测服务，最先倒下的往往不是测试脚本。</p>
+        <p>三条路线按代价从低到高排：数据源本来就能用 CSV，就逐行生成器读，内存里永远只有一行；必须读 xlsx 且只做顺序扫描，用 <code>read_only=True</code>；需要做统计又要省内存，用 pandas 的 <code>chunksize</code> 分块聚合。判断标准不用很精确：文件几十 MB 以上、或者行数上万，就别一次性 load 了。</p>
+        <p><code>read_only</code> 有它的限制：不能随机访问单元格，用中括号按坐标取单个单元格的写法会报错；被跳过的空单元格可能直接不出现，取值时要给默认值；必须 <code>close()</code> 释放句柄。这些限制换来的是内存基本恒定，对于「扫一遍找失败的用例」这种需求完全够用。</p>
+        <div class="code-head"><span>python — 流式读取两种格式</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import csv
+from openpyxl import load_workbook
+
+
+def iter_csv(path):
+    with open(path, "r", newline="", encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            yield row
+
+
+def iter_xlsx(path, sheet_name):
+    wb = load_workbook(path, read_only=True, data_only=True)
+    ws = wb[sheet_name]
+    rows = ws.iter_rows(values_only=True)
+    header = [str(h).strip() for h in next(rows)]
+    try:
+        for values in rows:
+            yield dict(zip(header, values))
+    finally:
+        wb.close()
+
+
+if __name__ == "__main__":
+    failed = sum(1 for row in iter_csv("big_cases.csv") if row["结果"] == "失败")
+    print(f"失败用例：{failed}")
+    for record in iter_xlsx("big_cases.xlsx", "回归"):
+        if record.get("结果") == "失败":
+            print(record["用例编号"])</code></pre>
+
+        <h2>常见坑与排查</h2>
+        <p><strong>症状</strong>：Excel 打开 CSV，中文乱码。<strong>原因</strong>：文件是无 BOM 的 UTF-8，Excel 按本地 GBK 解析。<strong>处理</strong>：写入时改 <code>utf-8-sig</code>；如果文件是别人给的不能重写，就用 Excel 的数据导入向导手动指定 UTF-8，别指望双击打开能自动识别。</p>
+        <p><strong>症状</strong>：CSV 每隔一行是空的。<strong>原因</strong>：<code>open</code> 没传 <code>newline</code> 参数，Windows 文本模式把 <code>\r\n</code> 又翻译了一次。<strong>处理</strong>：读写都加 <code>newline</code> 参数并传空串，一行代码的事，但要在写脚本时就加，别等上线后在 Windows 上才暴露。</p>
+        <p><strong>症状</strong>：读出来的键带一个看不见的字符，KeyError 里的键看起来完全正确。<strong>原因</strong>：用 UTF-8 读了 utf-8-sig 文件，BOM 并进了第一个列名。<strong>处理</strong>：读取编码改成 <code>utf-8-sig</code>，或者对表头统一做一次去 BOM 与 strip。</p>
+        <p><strong>症状</strong>：<code>data_only=True</code> 读公式得到 None。<strong>原因</strong>：文件由 openpyxl 生成，从未被 Excel 打开保存，没有缓存值。<strong>处理</strong>：要么改用 <code>data_only=False</code> 拿公式自己算，要么在流水线里用表格软件打开另存一次，不要试图让 openpyxl 计算公式。</p>
+        <p><strong>症状</strong>：断言失败，期望值和实际值看起来一样，比如 <code>001</code> 和 <code>1</code>、<code>120</code> 和 <code>120.0</code>。<strong>原因</strong>：表格或 pandas 做了类型推断。<strong>处理</strong>：读取端统一 <code>dtype=str</code>，比较前用同一个归一化函数把两边都转成字符串；金额、耗时这类数值字段比较时用容差，不要直接等值比较浮点数。</p>
+        <p><strong>症状</strong>：脚本在 Windows 上删不掉刚生成的 xlsx，报文件被占用。<strong>原因</strong>：<code>read_only</code> 模式打开后没 <code>close</code>，句柄没释放。<strong>处理</strong>：用 <code>try/finally</code> 保证 <code>wb.close()</code>，或者干脆用上下文管理器包一层。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>把这套脚本交给团队之前，按下面的清单过一遍。它不是形式主义，每一条都对应过一次线上或准线上的翻车。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>通过标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>CSV 写入</td><td>带 <code>newline</code> 空串与 <code>utf-8-sig</code>，Windows 上打开无空行、无乱码</td></tr>
+            <tr><td>CSV 读取</td><td>有编码回退，失败时报错带文件路径</td></tr>
+            <tr><td>表头</td><td>首行固定、英文小写下划线、无重复列名</td></tr>
+            <tr><td>编号类字段</td><td>整列文本格式，前导零与 18 位数字完整</td></tr>
+            <tr><td>空值</td><td>只有一种表示，归一化函数里有默认值</td></tr>
+            <tr><td>公式</td><td>不在 Python 侧读公式缓存，统计值由代码计算</td></tr>
+            <tr><td>报告写入</td><td>只在收尾时 save 一次，失败用例也写入</td></tr>
+            <tr><td>文件句柄</td><td>所有 <code>read_only</code> 工作簿都被 close</td></tr>
+            <tr><td>依赖</td><td>requirements 里锁死 openpyxl 与 pandas 版本</td></tr>
+          </tbody>
+        </table>
+        <p>最后给一个判断标准：如果你的表格处理脚本换一个人接手，他能只看这份文件就说清楚某一行数据的类型和空值语义，那它才算合格。反过来，如果连你自己都要打开 Excel 看一眼才知道某个字段到底是文本还是数字，那这份数据源迟早会在一次断言里给你答案。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/library/csv.html" target="_blank" rel="noopener">csv — CSV 文件读写，含 newline 要求说明 — Python 官方文档</a></li>
+            <li><a href="https://docs.python.org/3/library/codecs.html" target="_blank" rel="noopener">codecs — 编码与 BOM 说明 — Python 官方文档</a></li>
+            <li><a href="https://openpyxl.readthedocs.io/en/stable/usage.html" target="_blank" rel="noopener">openpyxl 使用指南：读写工作簿与 data_only — openpyxl 文档</a></li>
+            <li><a href="https://pandas.pydata.org/docs/reference/api/pandas.read_excel.html" target="_blank" rel="noopener">pandas.read_excel 参数说明：dtype 与 na_values — pandas 文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#python</span>
+          <span class="tag">#excel</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

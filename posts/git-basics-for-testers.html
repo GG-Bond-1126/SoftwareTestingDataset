@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>测试工程师的 Git 第一课：从 clone 到 push 不迷路 · 软件测试资料集</title>
+<meta name="description" content="8 条最常用的 Git 命令配 20 个测试场景，附每个命令的下一步该干嘛提示。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-basics-for-testers.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="测试工程师的 Git 第一课：从 clone 到 push 不迷路">
+<meta property="og:description" content="8 条最常用的 Git 命令配 20 个测试场景，附每个命令的下一步该干嘛提示。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-basics-for-testers.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="测试工程师的 Git 第一课：从 clone 到 push 不迷路">
+<meta name="twitter:description" content="8 条最常用的 Git 命令配 20 个测试场景，附每个命令的下一步该干嘛提示。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"测试工程师的 Git 第一课：从 clone 到 push 不迷路","description":"8 条最常用的 Git 命令配 20 个测试场景，附每个命令的下一步该干嘛提示。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-basics-for-testers.html","articleSection":"Git 版本控制","keywords":"git, commit, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>9 min read</span>
+        </div>
+        <h1>测试工程师的 Git 第一课：从 clone 到 push 不迷路</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="git-basics-for-testers">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Git
+# 配置用户
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+# 验证
+git --version</code></pre>
+<div class="code-head"><span>terminal — 初始化仓库</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>mkdir my-project && cd my-project
+git init
+echo "hello" > test.py
+git add .
+git commit -m "初始提交"</code></pre>
+
+<h2>基础应用：分支操作</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 创建 + 切换分支
+git checkout -b dev
+git commit -m "dev 修改" --allow-empty
+git checkout main
+git merge dev
+
+# 查看日志
+git log --oneline --graph</code></pre>
+
+<h2>项目进阶：Feature 分支 + MR 流程</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># Feature 分支
+git checkout -b feature/login
+git commit -m "feat: 用户登录" --allow-empty
+
+# 提 MR（在 GitHub/GitLab 上）
+# 评审通过后合并
+git checkout main
+git pull origin main
+git merge --squash feature/login
+git commit -m "feat: 用户登录"
+git push origin main
+git branch -d feature/login</code></pre>
+
+        <h2>什么是 Git，为什么测试工程师必须懂</h2>
+        <p>Git 是一个<strong>分布式版本控制系统</strong>：它把你每一份改动（代码、测试脚本、配置、文档）都记成一条带时间戳的「快照」（commit），并且能在任意两个快照之间做对比、回退、分叉。测试工程师和开发用同一套仓库协作，所以你「跑脚本」这件事本身就依赖 Git：</p>
+        <ul>
+          <li>脚本是开发提交上来的，你得先 <strong>clone / pull</strong> 拿到最新；</li>
+          <li>你改了一条用例、加了一个断言，得 <strong>add / commit / push</strong> 让别人看到；</li>
+          <li>线上出 Bug，要 <strong>diff / log</strong> 找到是哪一次改动引入的。</li>
+        </ul>
+        <p>换句话说，<strong>不是「会跑脚本」就够了</strong>——你得知道脚本从哪来、改了什么、怎么合回去。下面 8 条命令就是测试工程师 90% 场景里会反复用的。</p>
+        <div class="callout">
+          <p>开始之前先装好 Git 并配置身份，否则 <code>commit</code> 会报错：</p>
+        </div>
+        <div class="code-head"><span>terminal — 一次性配置（只需执行一遍）</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 检查是否已安装
+git --version
+
+# 配置你的名字和邮箱（会写进每条 commit，请务必用公司邮箱）
+git config --global user.name "GG Bond"
+git config --global user.email "ggbond@example.com"</code></pre>
+
+        <h2>8 条核心命令：clone / status / add / commit / pull / push / log / diff</h2>
+        <p>按「从拿到仓库到交回改动」的完整生命周期排列。每条先说「下一步该干嘛」，再给测试场景。</p>
+
+        <h3>① clone —— 把整个仓库拉到本地</h3>
+        <p><strong>下一步该干嘛：</strong>进入目录（<code>cd 仓库名</code>），再 <code>git status</code> 确认工作区干净。</p>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 克隆测试仓库到当前目录
+git clone https://git.example.com/qa/test-scripts.git
+cd test-scripts</code></pre>
+        <ul>
+          <li>场景 A：第一天入职，clone 团队的测试用例仓库；</li>
+          <li>场景 B：clone 时加 <code>--depth 1</code> 只拉最新一层，仓库很大时省时间；</li>
+          <li>场景 C：clone 下来发现子模块是空的，需要 <code>git submodule update --init</code>（见第 7 篇）。</li>
+        </ul>
+
+        <h3>② status —— 看工作区现在是什么状态</h3>
+        <p><strong>下一步该干嘛：</strong>看到 <em>modified / untracked</em> 就决定要 <code>add</code> 哪些文件，或 <code>checkout</code> 还原误改。</p>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git status            # 查看：哪些文件改了、哪些没跟踪、当前在哪个分支
+git status -sb        # 简短版：一行显示分支 + 改动清单</code></pre>
+        <ul>
+          <li>场景 A：改完脚本先看 <code>status</code>，确认只改了目标文件，没误碰配置；</li>
+          <li>场景 B：看到 <em>Your branch is behind</em>，说明远端有新提交，该 <code>pull</code> 了。</li>
+        </ul>
+
+        <h3>③ add —— 把改动放进暂存区</h3>
+        <p><strong>下一步该干嘛：</strong>再 <code>git status</code> 确认「待提交」列表，然后 <code>commit</code>。</p>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git add test_login.py        # 只暂存这一个文件（推荐，改动可控）
+git add .                    # 暂存当前目录所有改动（注意：别把临时文件加进去）
+git add -p                   # 交互式逐块暂存，适合一个文件里只想提交一部分改动</code></pre>
+        <ul>
+          <li>场景 A：修了一条用例只 add 那一个文件，避免把调试用的临时打印带进仓库；</li>
+          <li>场景 B：<code>add -p</code> 把一个文件里「修 Bug」和「加日志」两段改动拆成两次提交。</li>
+        </ul>
+
+        <h3>④ commit —— 把暂存区写成一条历史</h3>
+        <p><strong>下一步该干嘛：</strong>提交完立即 <code>push</code>（如果是在特性分支上），或 <code>log</code> 确认刚写进去的内容。</p>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 普通提交，信息要写清"做了什么 + 为什么"
+git commit -m "fix: 登录用例超时从 5s 改为 10s，修复偶发失败"
+
+# 写多条信息时用 -m 多次
+git commit -m "refactor: 抽出公共登录方法" -m "影响：login / register 两个用例"
+
+# 提交时顺带暂存改动（省掉单独的 add）
+git commit -am "docs: 补充数据清理说明"</code></pre>
+        <ul>
+          <li>场景 A：提交信息带上「影响范围」，开发合并时一眼看懂改了什么；</li>
+          <li>场景 B：用 <code>git commit --amend</code> 修正刚提交的信息或补漏的文件（<strong>仅限还没 push 的提交</strong>）。</li>
+        </ul>
+
+        <h3>⑤ pull —— 拉取远端最新并合并到本地</h3>
+        <p><strong>下一步该干嘛：</strong>合并完看 <code>status</code> 确认干净，再重新跑一遍脚本，因为「最新」可能改了依赖。</p>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git pull                 # 等价于 fetch + merge
+git pull --rebase        # 等价于 fetch + rebase，历史更干净（见第 3 篇）</code></pre>
+        <ul>
+          <li>场景 A：每天早上开工先 <code>pull</code>，保证跑的是最新脚本；</li>
+          <li>场景 B：开发刚推了新代码，你 <code>pull</code> 后再跑回归，避免拿旧版本测出假 Bug。</li>
+        </ul>
+
+        <h3>⑥ push —— 把本地提交推上远端</h3>
+        <p><strong>下一步该干嘛：</strong>推送后在 GitLab/GitHub 上发一个 <em>Merge Request / Pull Request</em>，等评审。</p>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git push                 # 推送当前分支（首次需 git push -u origin main）
+git push -u origin feature/login-fix   # 首次推送并建立跟踪关系
+git push --force-with-lease   # 危险：强制覆盖远端（仅当你 rebase 自己的分支时用）</code></pre>
+        <ul>
+          <li>场景 A：特性分支开发完，<code>push</code> 后发 MR 让开发和另一个测试一起看；</li>
+          <li>场景 B：千万别对 <code>main</code> 用 <code>force push</code>，会抹掉别人的提交（见「常见新手错误」）。</li>
+        </ul>
+
+        <h3>⑦ log —— 看历史，回溯改动</h3>
+        <p><strong>下一步该干嘛：</strong>找到可疑提交后，用 <code>show</code> 或 <code>diff</code> 看它具体改了什么。</p>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git log --oneline -10    # 最近 10 条，一行一条
+git log --author=GG --oneline   # 只看自己提交的
+git log -p -3            # 最近 3 条并展开改动内容
+git show 8f3a2c1         # 看某一条 commit 的完整 diff</code></pre>
+        <ul>
+          <li>场景 A：某条用例突然挂了，<code>log -p</code> 看是哪个提交改了它的断言；</li>
+          <li>场景 B：配合 <code>git blame</code> 定位「这一行是谁哪次改的」。</li>
+        </ul>
+
+        <h3>⑧ diff —— 看改动内容</h3>
+        <p><strong>下一步该干嘛：</strong>看完 diff 决定是保留改动（<code>add</code>）还是还原（<code>checkout -- 文件</code>）。</p>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git diff                 # 工作区 vs 暂存区（改了还没 add 的）
+git diff --staged        # 暂存区 vs 上次提交（add 了还没 commit 的）
+git diff HEAD            # 工作区 + 暂存区 vs 上次提交（所有未提交改动）
+git diff main..feature   # 两个分支之间的差异（评审前自查常用）</code></pre>
+        <ul>
+          <li>场景 A：发 MR 前 <code>diff main..feature</code> 自查一遍，确认没把调试代码带进去；</li>
+          <li>场景 B：跑脚本前 <code>diff</code> 看远端到底改了什么，心里有数再执行。</li>
+        </ul>
+
+        <h2>常见新手错误：force push、忘记 add、提交到错误分支</h2>
+        <ul>
+          <li><strong>对公共分支 force push：</strong>会把别人已拉取的提交抹掉，导致协作事故。<code>main / master / release</code> 一律<strong>禁止</strong> <code>force push</code>，只在没人共用的特性分支上谨慎使用，且优先 <code>--force-with-lease</code>。</li>
+          <li><strong>忘记 add：</strong>只改了文件却直接 <code>commit</code>，结果是「提交了个空提交」或漏交。养成习惯：commit 前先 <code>status</code> 看暂存区。</li>
+          <li><strong>提交到错误分支：</strong>在 <code>main</code> 上直接改完提交。万一发生，<code>git reset --soft HEAD~1</code> 退回这条提交（改动还在工作区），再切正确分支重做。</li>
+        </ul>
+        <div class="callout warn">
+          <p>三条铁律：① 公共分支绝不 force push；② commit 前必看 <code>git status</code>；③ 动手改代码前先确认自己在哪个分支（<code>git branch</code>）。这三条能避开新手 80% 的事故。</p>
+        </div>
+
+        <h2>案例：从零 clone 一个测试仓库并跑通第一条脚本</h2>
+        <p>把上面 8 条串起来走一遍。假设团队仓库地址是 <code>https://git.example.com/qa/test-scripts.git</code>：</p>
+        <div class="code-head"><span>terminal — 完整走一遍</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. clone 到本地
+git clone https://git.example.com/qa/test-scripts.git
+cd test-scripts
+
+# 2. 确认工作区干净、在 main 分支
+git status
+
+# 3. 拉一次最新，保证脚本是新的
+git pull
+
+# 4. 看一眼最近提交，了解仓库大概有什么
+git log --oneline -10
+
+# 5. 跑第一条脚本（按仓库 README 的方式，这里示例）
+python -m pytest tests/test_login.py -v
+
+# 6. 你改了一条断言，提交并推送
+git status                       # 确认只改了 test_login.py
+git add tests/test_login.py
+git commit -m "fix: 登录断言改为校验 status=200 而非 2xx"
+git push -u origin main</code></pre>
+        <p>走完这一遍，你已经完成了一个测试工程师最基础、最完整的工作循环：<strong>拿脚本 → 跑脚本 → 改脚本 → 交回脚本</strong>。剩下要练的，只是把这个循环做得更稳、更快。</p>
+        <div class="callout">
+          <p>把这条命令表打印出来贴工位：clone / status / add / commit / pull / push / log / diff。每个命令旁边记一句「我下一步要干嘛」，两周后你会发现 Git 对你来说已经不再陌生了。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://git-scm.com/doc" target="_blank" rel="noopener">Git 官方文档</a></li>
+            <li><a href="https://git-scm.com/book/zh-cn/v2" target="_blank" rel="noopener">Pro Git 中文版（官方在线书）</a></li>
+            <li><a href="https://git-scm.com/training" target="_blank" rel="noopener">Git 官方培训与练习</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#git</span>
+          <span class="tag">#commit</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

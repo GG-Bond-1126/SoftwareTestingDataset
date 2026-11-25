@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web 性能测试：页面加载 + 接口耗时 · 软件测试资料集</title>
+<meta name="description" content="拆解前端核心指标与接口耗时分段，用真实浏览器采集，定基线与回归判定标准。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-performance-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Web 性能测试：页面加载 + 接口耗时">
+<meta property="og:description" content="拆解前端核心指标与接口耗时分段，用真实浏览器采集，定基线与回归判定标准。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-performance-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Web 性能测试：页面加载 + 接口耗时">
+<meta name="twitter:description" content="拆解前端核心指标与接口耗时分段，用真实浏览器采集，定基线与回归判定标准。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Web 性能测试：页面加载 + 接口耗时","description":"拆解前端核心指标与接口耗时分段，用真实浏览器采集，定基线与回归判定标准。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-performance-testing.html","articleSection":"Web 自动化","keywords":"performance, core-web-vitals, web-automation","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>20 min read</span>
+        </div>
+        <h1>Web 性能测试：页面加载 + 接口耗时</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-performance-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+
+        <h2>先分清两个口径：用户看到的慢与服务端的慢</h2>
+        <p>常见场景是这样：产品说首页太慢，你打开接口文档一测，核心接口 120ms，非常健康，于是回复后端没问题；用户却在群里说打开首页要四秒。两边都没错，你们测的根本不是同一件事。接口耗时只覆盖服务端处理，用户感受到的是从回车到内容可见的整条链路，中间还夹着 HTML 解析、样式与脚本下载执行、图片字体加载、渲染与布局。</p>
+        <p>所以性能测试先要定口径。浏览器端回答「一个真实用户要等多久」，必须在真实浏览器里采，带上缓存、网络与渲染；接口端回答「一次请求各阶段花了多久」，重点在分段；压测是第三件事，回答「并发升到多少时延迟开始失控」。</p>
+        <table>
+          <thead>
+            <tr><th>口径</th><th>回答的问题</th><th>采集位置</th><th>典型工具</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>页面性能</td><td>用户多久看到内容、会不会跳</td><td>浏览器渲染进程</td><td>Performance API、Lighthouse</td></tr>
+            <tr><td>接口耗时</td><td>一次请求各阶段分别多久</td><td>网络层与服务端</td><td>浏览器 timing、HTTP 客户端、APM</td></tr>
+            <tr><td>接口压测</td><td>多少并发下延迟开始恶化</td><td>独立压测机</td><td>JMeter、Locust、k6</td></tr>
+          </tbody>
+        </table>
+        <p>混在一起说，结论一定拧巴。接口 P95 好但页面慢，问题多半在前端资源；测试环境页面很快、一上量就崩，说明瓶颈在服务端并发；两个数字都好看用户还抱怨卡，那要去查真实用户的网络与设备分布。本文只讨论前两个口径，第三个只讲边界。</p>
+
+        <h2>前端五个指标：每个数各自回答什么问题</h2>
+        <p>指标不是越多越好，而是每一个都要能对应一种可执行的优化动作。行业最常引用的是 Core Web Vitals，加一个服务端指标 TTFB，正好覆盖「多久看到东西、主要内容多久出来、点得动吗、会不会跳、后端快不快」。</p>
+        <table>
+          <thead>
+            <tr><th>指标</th><th>回答的问题</th><th>良好阈值</th><th>常见拖慢原因</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>FCP</td><td>屏幕第一次出现内容是什么时候</td><td>1.8s 内</td><td>渲染阻塞的 CSS/JS、字体未就绪</td></tr>
+            <tr><td>LCP</td><td>大图、大标题多久出来</td><td>2.5s 内</td><td>首屏图未压缩未预加载、接口慢</td></tr>
+            <tr><td>TBT</td><td>主线程被长任务占住多久</td><td>200ms 内</td><td>大包 JS 同步执行、第三方脚本</td></tr>
+            <tr><td>CLS</td><td>加载中元素跳动多严重</td><td>0.1 内</td><td>图片无宽高、广告位后插入</td></tr>
+            <tr><td>TTFB</td><td>服务端多久吐出第一个字节</td><td>0.8s 内</td><td>后端处理慢、重定向、CDN 未命中</td></tr>
+          </tbody>
+        </table>
+        <p>这几档阈值来自 web.dev 的官方划分，按用户体感统计得出，不是业务 SLA。它们判断的是「有没有明显问题」，不是「你的业务能不能接受」：电商首页两秒出内容比官方良好线更严，内部后台三秒也能忍。阈值可以按业务调，但必须写清来源，别把团队拍脑袋写成行业标准。</p>
+        <p>两点容易被旧资料误导。第一，FID 已被 INP 取代，INP 衡量整个访问过程中所有交互的响应；实验室里通常用 TBT 作主线程阻塞的代理，因为 TBT 可稳定复现，INP 要有真实交互才有值。第二，Lighthouse 性能分是加权合成，分数高不等于用户不觉得慢，一旦眼睛只盯总分，优化动作就藏不住了。</p>
+
+        <h2>用 Performance API 采到这些数</h2>
+        <p>如果项目已有 Playwright 或 Selenium 冒烟用例，最省成本的方式是在现有流程里顺带采集，而不是另起一套性能平台。浏览器内置的 Performance API 已经把大部分数据算好了，只需要在对的时机读出来。</p>
+        <p>时机是关键。导航计时可以在 load 之后直接读；FCP 在 paint 条目里；LCP 与 CLS 必须用 <code>PerformanceObserver</code> 监听，而且要在页面脚本执行前注册，否则会错过早期条目。Playwright 的 <code>add_init_script</code> 正好在导航前注入，配合 <code>buffered: true</code> 能把已发生的条目补回来。</p>
+        <div class="code-head"><span>python — Playwright 注入并读取核心指标</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from playwright.sync_api import sync_playwright
+
+COLLECT = """
+window.__perf = { lcp: 0, cls: 0, fcp: 0, tbt: 0 };
+new PerformanceObserver((list) =&gt; {
+  for (const e of list.getEntries()) window.__perf.lcp = e.startTime;
+}).observe({ type: 'largest-contentful-paint', buffered: true });
+new PerformanceObserver((list) =&gt; {
+  for (const e of list.getEntries()) {
+    if (!e.hadRecentInput) window.__perf.cls += e.value;
+  }
+}).observe({ type: 'layout-shift', buffered: true });
+new PerformanceObserver((list) =&gt; {
+  for (const e of list.getEntries()) {
+    if (e.name === 'first-contentful-paint') window.__perf.fcp = e.startTime;
+  }
+}).observe({ type: 'paint', buffered: true });
+"""
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
+    page.add_init_script(COLLECT)
+    page.goto("https://app.example.com/home", wait_until="load")
+    page.wait_for_timeout(2000)      # 给 LCP 留出更新时间，示例值
+    perf = page.evaluate("window.__perf")
+    nav = page.evaluate(
+        "performance.getEntriesByType('navigation')[0].responseStart"
+    )
+    print({**perf, "ttfb": nav})
+    browser.close()</code></pre>
+        <p>两个细节决定数值可不可信。一个是等待窗口：LCP 在有用户交互后就不再更新，无交互的自动化页面要等 load 之后一到两秒再取值，等太短读到早期的小元素，等太久又会被懒加载内容拉高。另一个是 CLS：官方定义按会话窗口累计，单个偏移要落在同一窗口内才累加，上面这段取了简化累计值，会偏高，只适合粗筛。</p>
+        <p>还有一点：TBT 不是浏览器直接给的字段，要遍历 longtask 条目，把每次超过 50ms 的部分累加。上面预留了字段却没接观察器，漏了这一步会永远读到 0，然后误判主线程没问题。补上下面这段才完整。</p>
+        <div class="code-head"><span>javascript — 累加 TBT</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>new PerformanceObserver((list) =&gt; {
+  for (const e of list.getEntries()) {
+    // 只统计超过 50ms 的阻塞部分，短任务不叠加
+    window.__perf.tbt += Math.max(e.duration - 50, 0);
+  }
+}).observe({ type: 'longtask', buffered: true });</code></pre>
+
+        <h2>Lighthouse：实验室数据怎么用，别当唯一真相</h2>
+        <p>Lighthouse 是受控的实验室测量：固定视口、模拟移动端、节流 CPU 与网络，一次跑一个页面，给出指标数值与具体审计项。它的价值在于可复现、可比较，改动前后各跑一次能判断优化有没有效果，也能在 CI 上做成性能预算门禁。</p>
+        <div class="code-head"><span>terminal — 用 Lighthouse 生成结构化结果</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>npm install -g lighthouse@12.2.1
+lighthouse https://app.example.com/home \
+  --only-categories=performance \
+  --form-factor=mobile \
+  --throttling-method=simulate \
+  --output=json --output-path=./lighthouse.json \
+  --chrome-flags="--headless=new"
+
+# 从 JSON 里取指标，避免只看总分
+python -c "import json; m=json.load(open('lighthouse.json'))['audits']; \
+  print({k: m[k]['numericValue'] for k in \
+  ['first-contentful-paint','largest-contentful-paint','total-blocking-time','cumulative-layout-shift']})"</code></pre>
+        <p>局限也要说清。第一，单次采样，同一页面连跑三次 LCP 差出几百毫秒很正常，别拿一次结果当结论。第二，模拟节流与实际用户的网络分布不同，实验室数据只能做相对比较，不能直接推导「多少比例用户会超过三秒」。第三，登录态会彻底改变结果：未登录首页往往比登录后的工作台轻得多，测个游客页就宣布达标，是常见的自欺。</p>
+        <p>合理分工是：实验室数据定基线与门禁，真实用户监控（RUM）定结论。没有 RUM 条件时，至少用真实浏览器多轮运行取分位数，而不是拿 Lighthouse 的单次分数去汇报。</p>
+
+        <h2>接口耗时的分层拆解：别只知道一个总数</h2>
+        <p>一个接口总耗时 800ms，拆开可能是 DNS 200ms、TCP 与 TLS 250ms、等待响应 300ms、下载 50ms。不拆，你只知道慢；拆了，才知道该找网络、找运维还是找后端。这是接口排查里性价比最高的一步。</p>
+        <table>
+          <thead>
+            <tr><th>阶段</th><th>含义</th><th>异常时先找谁</th><th>典型修复</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>DNS</td><td>域名解析耗时</td><td>运维 / DNS 服务商</td><td>预解析、延长 TTL</td></tr>
+            <tr><td>TCP</td><td>三次握手建连</td><td>网络 / 服务端</td><td>连接复用、HTTP/2、就近接入</td></tr>
+            <tr><td>TLS</td><td>证书校验与密钥交换</td><td>运维 / 证书</td><td>会话复用、精简证书链</td></tr>
+            <tr><td>等待</td><td>请求发出到首字节返回</td><td>后端 / DBA</td><td>查慢查询、并行化下游、减少锁竞争</td></tr>
+            <tr><td>下载</td><td>响应体传输耗时</td><td>后端 / 网关</td><td>压缩、分页、字段裁剪</td></tr>
+          </tbody>
+        </table>
+        <p>浏览器已经把这些阶段算好了。Playwright 的 <code>response.request.timing</code> 直接给出 domainLookup、connect、secureConnection、request、response 各时间点，做差就是各阶段耗时。两个坑：命中缓存或连接复用时部分字段返回 0 或 -1，做差前要判断有效性，否则会算出负耗时；并发请求共用 HTTP/2 连接时，TCP 与 TLS 只体现在第一个请求上，后面的看起来「零握手」，那不是优化成果。</p>
+        <div class="code-head"><span>python — 用浏览器 timing 拆出接口各阶段</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from playwright.sync_api import sync_playwright
+
+
+def phases(t):
+    def span(start, end):
+        if start is None or end is None or start &lt; 0 or end &lt; 0:
+            return None
+        return round(end - start, 1)
+
+    return {
+        "DNS": span(t["domainLookupStart"], t["domainLookupEnd"]),
+        "TCP": span(t["connectStart"], t["connectEnd"]),
+        "TLS": span(t["secureConnectionStart"], t["connectEnd"]),
+        "等待": span(t["requestStart"], t["responseStart"]),
+        "下载": span(t["responseStart"], t["responseEnd"]),
+    }
+
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
+    with page.expect_response("**/api/orders/**") as info:
+        page.goto("https://app.example.com/orders")
+    timing = info.value.request.timing
+    print(phases(timing))
+    browser.close()</code></pre>
+        <p>口径差异在这里第一次出现。浏览器会复用连接、协商 HTTP/2、自动压缩，TCP 与 TLS 成本被摊薄；压测工具默认每次新建连接、可能不带压缩与缓存，同一接口两边差出一倍并不稀奇。HTTP/1.1 下同域六个连接用满后，请求还要排队，这段等待很多人直接忽略了。</p>
+        <p>另一个错误是拿客户端总耗时当服务端耗时。用 HTTP 客户端循环调用、记 <code>perf_counter</code> 差值，得到的是包含 DNS、握手、传输与队列的<a class="ilink" href="web-e2e-testing.html">端到端</a>时间；要判断后端处理慢不慢，必须看服务端指标或 TTFB 段，不能拿端到端数字去甩锅。</p>
+
+        <h2>用真实浏览器采到「用户视角」的数据</h2>
+        <p>用户视角至少包含两种场景：第一次访问（冷缓存）与回访（热缓存）。多数团队只测热缓存，因为脚本跑第二遍自然就命中了，于是报告很好看，线上新用户却在等四秒。两个场景都要采，冷启动必须显式关掉缓存。</p>
+        <p>还有网络条件。在办公室千兆网里测出的 LCP 没有意义，用户在地铁上用 4G。用 CDP 模拟带宽与延迟，把条件写进报告，才能说明这组数字是在什么前提下得到的。下面按 1.6 Mbps 下行、150ms 延迟模拟中低端移动网络，参数是示例值，按用户分布调整。</p>
+        <div class="code-head"><span>python — 冷缓存与限速下的采集</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from playwright.sync_api import sync_playwright
+
+COLLECT = "window.__perf = { lcp: 0, cls: 0 };"
+
+
+def measure(url, cold=True):
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        context = browser.new_context(viewport={"width": 390, "height": 844})
+        page = context.new_page()
+        cdp = context.new_cdp_session(page)
+        cdp.send("Network.enable")
+        cdp.send("Network.setCacheDisabled", {"cacheDisabled": cold})
+        cdp.send("Network.emulateNetworkConditions", {
+            "offline": False,
+            "latency": 150,
+            "downloadThroughput": 1_600_000 / 8,
+            "uploadThroughput": 750_000 / 8,
+        })
+        page.add_init_script(COLLECT + """
+          new PerformanceObserver((l) =&gt; {
+            for (const e of l.getEntries()) window.__perf.lcp = e.startTime;
+          }).observe({ type: 'largest-contentful-paint', buffered: true });
+        """)
+        page.goto(url, wait_until="load")
+        page.wait_for_timeout(2000)
+        metrics = page.evaluate("window.__perf")
+        browser.close()
+        return metrics</code></pre>
+        <p>每轮必须新建 context。复用同一个 context 会带走 Cookie、缓存、Service Worker 甚至连接，第二次测的就不是首访了。Service Worker 尤其隐蔽，它能在断网时返回缓存页面，测出来的数字漂亮得离谱。</p>
+        <p>样本数也别省。单次测量只能当冒烟，判定至少要五到十轮，取 P75 或 P95。示例值：同一页面十轮 LCP 落在 1800ms 到 2900ms 之间很常见，中位数 2200ms、P95 2800ms；只报最优的 1800ms，就是数据美化。</p>
+
+        <h2>接口压测与页面性能不要混为一谈</h2>
+        <p>两件事的目标函数不同。压测找系统拐点：并发从 50 加到 200，P95 从 300ms 涨到 3s、错误率从 0 到 5%，结论是容量上限在某个区间；页面性能找单用户体验：一个用户打开页面要多久、卡在哪一段。用压测结论论证页面快慢，或者用 LCP 论证服务端能扛多少并发，都是错位。</p>
+        <table>
+          <thead>
+            <tr><th>维度</th><th>接口压测</th><th>页面性能</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>核心指标</td><td>RPS、P95/P99、错误率</td><td>FCP、LCP、TBT、CLS</td></tr>
+            <tr><td>负载模型</td><td>持续并发、阶梯加压、峰值冲击</td><td>单用户、真实网络、冷热缓存</td></tr>
+            <tr><td>瓶颈位置</td><td>线程、连接池、数据库、下游</td><td>资源体积、渲染阻塞、主线程</td></tr>
+            <tr><td>结论用途</td><td>容量规划、扩容阈值、限流配置</td><td>体验达标、回归阻断</td></tr>
+          </tbody>
+        </table>
+        <p>正确的衔接是串起来看：压测发现服务端在某并发后延迟陡增，再用真实浏览器在同等负载下采一遍 LCP，才能回答「这时用户会受多大影响」。只做前者，得到没有体感结论的数字；只做后者，漏掉高峰期雪崩的风险。</p>
+        <p>还有一种典型误用：用十并发压出来的 P95 证明「接口很快，页面慢与后端无关」。十并发远低于生产峰值，这个数字只说明低负载下没问题；反过来拿一次 LCP 反驳「服务端需要扩容」也站不住，因为渲染占了大头。</p>
+
+        <h2>基线与回归判定：用 P95 和波动区间说话</h2>
+        <p>性能回归最难的不是测，而是判。同一页面连跑十次，LCP 从 1800ms 到 2600ms 都可能，你要在噪音里判断「这次改动是不是让它变慢了」。固定阈值太钝：平时 2400ms 的页面优化到 2000ms 没人知道，慢机器上偶尔一次 3100ms 又误报。</p>
+        <p>更稳的做法是建基线：在稳定环境、固定条件下跑一组样本，取 P75 与 P95 存成基线文件；之后每次取同样分位数，比较相对变化。判定用「超过基线 P95 的 20%」这类相对阈值，同时看中位数是否漂移——中位数涨是系统性变慢，只有 P95 涨多半是抖动。下面的 20% 与样本值都是示例。</p>
+        <div class="code-head"><span>python — 基线与 P95 相对变化判定</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+import pathlib
+
+
+def p95(samples):
+    ordered = sorted(samples)
+    index = max(int(len(ordered) * 0.95) - 1, 0)
+    return ordered[index]
+
+
+def compare(baseline_path, current, limit=0.2):
+    base = json.loads(pathlib.Path(baseline_path).read_text(encoding="utf-8"))
+    base_p95, now_p95 = p95(base["lcp"]), p95(current)
+    ratio = now_p95 / base_p95 - 1
+    print(f"基线 P95 {base_p95:.0f} ms，本次 P95 {now_p95:.0f} ms，"
+          f"变化 {ratio:.1%}")
+    return ratio &lt; limit
+
+
+if __name__ == "__main__":
+    samples = [2010, 2180, 1990, 2600, 2240, 2090, 2520, 2350, 2110, 2990]
+    ok = compare("perf-baseline.json", samples)
+    assert ok, "LCP 的 P95 较基线恶化超过 20%，阻断合并"</code></pre>
+        <p>基线本身也要维护。大版本升级、CDN 策略调整、第三方脚本变更都可能让基线整体位移，这时要重新采一组并写明原因，而不是挂着老基线让告警变成常态。基线文件进仓库、和代码一起评审，比放在某台机器的临时目录可靠得多。</p>
+        <p>还要承认测量的不确定性。少于五次样本不要下结论；CI 机器规格不一致时结果不可比，要么固定规格，要么用同一台机器做对照。阈值越严误报越多，最后团队会把门禁关掉，那比没有门禁更糟。</p>
+
+        <h2>定位顺序：先看瀑布，再看服务端，最后看渲染</h2>
+        <p>顺序错了会白干一整天。拿到「页面慢」的反馈，第一件事不是翻代码，而是打开网络瀑布图，看时间花在哪个资源上。这一步能排掉大部分误判：有时是第三方统计脚本阻塞渲染，有时是一张两兆的首屏图，有时是接口串行调用，一行代码都不用改。</p>
+        <ul>
+          <li><strong>先看瀑布</strong>：看关键路径上的资源数量、体积、是否串行、是否阻塞渲染。依据是关键请求的完成时间是否接近 LCP；修复手段是压缩图片、预加载关键资源、拆长任务、砍第三方脚本。</li>
+          <li><strong>再看服务端</strong>：TTFB 高说明第一个字节迟迟不来。用接口分段确认是等待段长还是下载段长，等待段长就去查后端日志、慢查询与下游调用，常见修复是加缓存、并行化下游、优化索引。</li>
+          <li><strong>最后看渲染</strong>：TTFB 正常、资源也不大，但 LCP 依然高，问题通常在渲染侧：图片没设尺寸导致布局抖动、字体加载引发重排、主线程被长任务占住导致绘制延后。此时看 TBT 与 longtask 分布比看总分有用。</li>
+        </ul>
+        <p>三步的依据来自同一份数据：瀑布图给资源级时间线，Performance 面板给主线程与渲染事件，Lighthouse 给审计建议，Playwright trace 能把两者串起来离线回放。工具不缺，缺的是顺序——先看后端的人，往往在日志里泡两小时，最后发现是一张没压缩的 PNG。</p>
+
+        <h2>数据造假的坑：三种「假快」</h2>
+        <p>性能报告最怕的不是数字难看，而是好看但不可信。有三种假快特别常见，每一种都能让团队在错误的方向上庆祝。</p>
+        <p><strong>本地缓存。</strong>脚本第二次跑同一页面，静态资源全部命中缓存，LCP 从 2800ms 掉到 900ms，于是报告写着提升 68%，而线上新用户没有这份缓存。防御很直接：冷启动场景禁用缓存并新建 context，报告里分别列冷、热两组数字。</p>
+        <p><strong>CDN 命中。</strong>测试环境反复访问同一批资源，边缘节点命中率极高，回源时间根本没测到。一发版刷新缓存或切到新区域，用户就要等回源。防御方法是记录命中率与缓存头，必要时用带随机查询串的地址强制回源测一次，两个数字都留下。</p>
+        <p><strong>首屏假快。</strong>骨架屏与占位图让 FCP 很小，看起来一秒就出东西，真正的内容 LCP 却在四秒；或者把核心内容改成交互后才懒加载，指标好看，用户点一下才开始等。防御方法是永远以 LCP 为准，并核对它对应的元素是不是用户真正要看的内容。</p>
+        <div class="callout warn">
+          <p>还有几种更隐蔽的：只测局域网、只测桌面视口、只测一条最快的路径、测试时关掉第三方脚本、用未登录页面代表登录后的工作台。防御原则只有一条：把采集条件（网络、视口、缓存状态、登录态、数据量级）写进报告，让别人看得出这组数字是在什么前提下得到的。</p>
+        </div>
+
+        <h2>上线前检查清单</h2>
+        <p>性能测试的产出不是一张截图，而是一组带条件的数字和一个可复现的判定方法。下面这张表适合在每次性能相关改动后过一遍。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>合格标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>口径分离</td><td>页面指标与接口耗时分表呈现</td></tr>
+            <tr><td>采集条件</td><td>网络、视口、缓存状态、登录态、样本数已记录</td></tr>
+            <tr><td>冷热对比</td><td>冷启动与回访各一组，冷启动已禁缓存</td></tr>
+            <tr><td>分位数</td><td>至少给出中位数与 P95，不只报最优值</td></tr>
+            <tr><td>分段归因</td><td>接口耗时已拆到 DNS/TCP/TLS/等待/下载</td></tr>
+            <tr><td>基线</td><td>基线文件在仓库内，阈值与判定规则写明</td></tr>
+            <tr><td>回归阻断</td><td>P95 恶化超过约定比例时能阻断合并</td></tr>
+          </tbody>
+        </table>
+        <p>性能结论最好和功能回归跑在同一条流水线上，而不是另开一份表格。用例通过、但 LCP 超过基线 P95 两成，这件事应该像功能失败一样出现在当次报告里，否则性能数据只会活在某个人的本地文件中。采集脚本、基线、阈值都进仓库，谁改了什么一眼可查。</p>
+        <div class="callout">
+          <p>结尾给一句判断标准：如果一份性能报告只能让人知道「快了」或「慢了」，却说不清是谁的活、在什么条件下、下次怎么复现，那它就只是一张图。合格的报告应该能让人直接决定下一步动作。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://web.dev/articles/vitals" target="_blank" rel="noopener">Web Vitals：核心指标与阈值 — web.dev</a></li>
+            <li><a href="https://web.dev/articles/lcp" target="_blank" rel="noopener">Largest Contentful Paint 定义与测量 — web.dev</a></li>
+            <li><a href="https://web.dev/articles/tbt" target="_blank" rel="noopener">Total Blocking Time 计算方式 — web.dev</a></li>
+            <li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Performance_API" target="_blank" rel="noopener">Performance API 概览 — MDN</a></li>
+            <li><a href="https://playwright.dev/python/docs/api/class-request" target="_blank" rel="noopener">Request timing 字段说明 — Playwright 官方文档</a></li>
+            <li><a href="https://developer.chrome.com/docs/lighthouse/overview" target="_blank" rel="noopener">Lighthouse 概览 — Chrome Developers</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#performance</span>
+          <span class="tag">#core-web-vitals</span>
+          <span class="tag">#web-automation</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

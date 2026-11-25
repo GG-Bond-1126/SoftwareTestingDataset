@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>学习路径 · 软件测试资料集</title>
+<meta name="description" content="按目标编排的阅读顺序：自动化入门、Web 进阶、AI 测试落地与大模型应用测试。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/paths.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="学习路径 · 软件测试资料集">
+<meta property="og:description" content="按目标编排的阅读顺序：自动化入门、Web 进阶、AI 测试落地与大模型应用测试。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/paths.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="学习路径 · 软件测试资料集">
+<meta name="twitter:description" content="按目标编排的阅读顺序：自动化入门、Web 进阶、AI 测试落地与大模型应用测试。">
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="index.html">首页</a>
+      <a href="index.html#posts">文章</a>
+      <a href="tags.html">标签</a>
+      <a href="paths.html" class="active">路径</a>
+      <a href="favorites.html">收藏</a>
+      <a href="about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main>
+  <div class="page-head">
+    <h1>学习路径</h1>
+    <p>124 篇笔记按目标重新编排成 4 条线。不必全读，挑一条按顺序走完，比随机跳读有效得多。</p>
+  </div>
+  <div class="page-body">
+  <section class="path-card">
+    <h2>路径 1 · 四周入门：从环境到第一条自动化用例</h2>
+    <p>适合刚转自动化或刚开始读这个站的人。按顺序读完，能独立写出一条稳定的端到端用例。</p>
+    <ol class="path-steps">
+        <li><a href="posts/python-variables-and-types.html">Python 变量与类型</a><small>先把语法补齐，不用学完整个 Python</small></li>
+        <li><a href="posts/python-control-flow.html">Python 流程控制</a><small>if/for/while 在测试脚本里的真实用法</small></li>
+        <li><a href="posts/python-functions-and-args.html">函数与参数</a><small>把重复步骤抽成可复用函数</small></li>
+        <li><a href="posts/git-basics-for-testers.html">Git 基础</a><small>提交、分支、回滚，测试代码也要版本管理</small></li>
+        <li><a href="posts/web-playwright-intro.html">Playwright 入门</a><small>装环境、跑通第一个浏览器脚本</small></li>
+        <li><a href="posts/web-wait-strategies.html">等待策略</a><small>自动化不稳定的头号原因</small></li>
+        <li><a href="posts/web-element-locators.html">元素定位</a><small>CSS 与 XPath 怎么选、为什么绝对路径会烂</small></li>
+        <li><a href="posts/web-e2e-testing.html">端到端测试设计</a><small>从用户场景切用例，而不是从页面切</small></li>
+    </ol>
+  </section>
+  <section class="path-card">
+    <h2>路径 2 · Web 自动化进阶：框架与稳定性</h2>
+    <p>已经能写脚本，但用例一多就乱、一上 CI 就飘。这一条路径解决结构与稳定性。</p>
+    <ol class="path-steps">
+        <li><a href="posts/web-framework-architecture.html">框架分层架构</a><small>用例层到驱动层怎么切</small></li>
+        <li><a href="posts/web-playwright-pagemodel.html">Page Object 实践</a><small>页面对象该返回什么、断言放哪</small></li>
+        <li><a href="posts/web-automation-pitfalls.html">常见坑清单</a><small>幽灵元素、多窗口、Cookie 共享</small></li>
+        <li><a href="posts/web-debugging-tools.html">调试与取证</a><small>失败现场要留下什么</small></li>
+        <li><a href="posts/web-visual-regression.html">视觉回归</a><small>样式错位这类问题怎么自动发现</small></li>
+        <li><a href="posts/web-test-report.html">测试报告</a><small>从跑通了到可汇报</small></li>
+        <li><a href="posts/web-cicd-integration.html">接入 CI/CD</a><small>PR 门禁、分片与缓存</small></li>
+        <li><a href="posts/web-load-testing.html">性能压测</a><small>QPS、分位与拐点怎么读</small></li>
+    </ol>
+  </section>
+  <section class="path-card">
+    <h2>路径 3 · AI 测试落地：从需求到回归</h2>
+    <p>这条路径按真实工作流排序：拆需求 → 出测试点 → 出用例 → 造数据 → 圈回归 → 定位缺陷 → 度量。</p>
+    <ol class="path-steps">
+        <li><a href="posts/ai-app-testing-intro.html">AI 应用测试入门</a><small>不确定输出下断言方式怎么变</small></li>
+        <li><a href="posts/ai-requirement-analysis.html">AI 拆需求</a><small>把 PRD 读成可测的需求点</small></li>
+        <li><a href="posts/ai-testpoint-generation.html">AI 生成测试点</a><small>输出可评审的检查项</small></li>
+        <li><a href="posts/ai-test-case-prompt.html">AI 生成业务用例</a><small>按用户场景组织</small></li>
+        <li><a href="posts/ai-api-testcase-generation.html">AI 生成接口用例</a><small>按字段、状态码、边界组织</small></li>
+        <li><a href="posts/ai-testdata-generation.html">AI 设计测试数据</a><small>从字段约束到数据集</small></li>
+        <li><a href="posts/ai-regression-scope.html">AI 圈回归范围</a><small>用改动影响面替代全量回归</small></li>
+        <li><a href="posts/ai-defect-rootcause.html">AI 缺陷根因分析</a><small>用上下文缩小排查面</small></li>
+        <li><a href="posts/ai-qa-metrics.html">AI 提效度量</a><small>别只看生成了多少条用例</small></li>
+    </ol>
+  </section>
+  <section class="path-card">
+    <h2>路径 4 · 大模型应用怎么测</h2>
+    <p>面向做 LLM 产品测试的人：提示词、幻觉、评测、RAG、安全，一条线打通。</p>
+    <ol class="path-steps">
+        <li><a href="posts/ai-prompt-testing.html">Prompt 测试</a><small>版本快照与全量回归</small></li>
+        <li><a href="posts/ai-hallucination-testing.html">幻觉测试</a><small>事实校验与引用可追溯</small></li>
+        <li><a href="posts/ai-llm-evaluation.html">大模型评测</a><small>评测集、指标与 LLM 裁判</small></li>
+        <li><a href="posts/ai-rag-testing.html">RAG 测试</a><small>召回、排序与拒答</small></li>
+        <li><a href="posts/ai-model-testing.html">模型测试</a><small>鲁棒性、一致性与偏见</small></li>
+        <li><a href="posts/ai-security-testing.html">安全测试</a><small>注入、越权与数据泄露</small></li>
+        <li><a href="posts/ai-cicd-monitoring.html">上线与监控</a><small>Prompt 回归门禁</small></li>
+        <li><a href="posts/ai-agent-testing-advanced.html">Agent 测试进阶</a><small>多步任务与工具调用</small></li>
+    </ol>
+  </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span>Built with plain HTML / CSS / JS · <a href="index.html">回到首页</a></span>
+  </div>
+</footer>
+
+<script src="assets/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Selenium 入门：用 Python 操控浏览器 · 软件测试资料集</title>
+<meta name="description" content="Selenium 四层架构与驱动管理、八种定位的代价、元素交互失败的四类原因、等待策略、取证与 Grid 适用规模。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-selenium-intro.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Selenium 入门：用 Python 操控浏览器">
+<meta property="og:description" content="Selenium 四层架构与驱动管理、八种定位的代价、元素交互失败的四类原因、等待策略、取证与 Grid 适用规模。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-selenium-intro.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Selenium 入门：用 Python 操控浏览器">
+<meta name="twitter:description" content="Selenium 四层架构与驱动管理、八种定位的代价、元素交互失败的四类原因、等待策略、取证与 Grid 适用规模。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Selenium 入门：用 Python 操控浏览器","description":"Selenium 四层架构与驱动管理、八种定位的代价、元素交互失败的四类原因、等待策略、取证与 Grid 适用规模。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-selenium-intro.html","articleSection":"Web 自动化","keywords":"selenium, web-automation, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span>
+          <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>22 min read</span>
+        </div>
+        <h1>Selenium 入门：用 Python 操控浏览器</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-selenium-intro">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>这篇写给谁</h2>
+        <p>写给出身手工测试、刚开始写 Web 自动化的同学，也写给接手了一套三年前 Selenium 脚本、现在只有你在维护的人。前者需要一条从装环境到第一条稳定用例的完整路径；后者需要弄清楚那些 <code>ElementNotInteractableException</code> 到底从哪来，以及现在还要不要继续投 Selenium。</p>
+        <p>市面上的 Selenium 教程大多停在「找到元素、点一下」这一步，代码能跑，但一放到真实业务里就开始抖。这篇的重点不是 API 清单，而是四层架构、定位方式各自的代价、交互为什么失败、取证怎么做。把这四件事想明白，脚本的稳定性会有一个台阶式变化。</p>
+        <p>文中所有耗时和并发数都是示例值，标注了测算前提；域名与账号是占位，不要直接照抄去跑生产环境。</p>
+
+        <h2>四层架构与版本演进</h2>
+        <p>Selenium 不是浏览器本身，它是一条四层链路：你的 Python 代码（Client 绑定）、协议层、浏览器驱动（Driver）、最后的真实浏览器。Client 把 <code>find_element</code> 这样的调用翻译成 HTTP 请求，按 W3C WebDriver 规范发出去；Driver 是一个由浏览器厂商维护的<a class="ilink" href="app-miniprogram-testing.html">小程序</a>，它接收命令，转成浏览器内部能理解的调试指令，再把结果按规范返回。</p>
+        <p>版本演进里只有两个节点值得记。Selenium 3 时代走的是 JSON Wire Protocol，各家驱动各自扩展，行为不一致；Selenium 4 全面转向 W3C 标准，顺带带来相对定位、CDP 直连、以及 4.6 之后内置的 Selenium Manager。协议统一之后，<a class="ilink" href="web-compatibility-testing.html">跨浏览器</a>的行为差异小了很多，也让第三方工具更容易接入。</p>
+        <p>为什么要理解分层？因为报错信息是按层归属的。<code>session not created</code> 属于驱动层，通常是驱动与浏览器版本不匹配；<code>element not interactable</code> 属于浏览器层，元素状态不满足操作条件；连接被拒绝属于协议层，多半是端口或 Grid 的 hub 地址写错。能分层，就知道该看哪一段日志，而不是把所有异常都当成「脚本写错了」。</p>
+        <div class="code-head"><span>python — 最小启动与版本自查</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from selenium import webdriver
+
+driver = webdriver.Chrome()          # 4.6+ 由 Selenium Manager 找驱动
+print(driver.capabilities["browserVersion"])
+print(driver.capabilities["chrome"]["chromedriverVersion"])
+
+driver.get("https://example.com")
+print(driver.title)
+driver.quit()</code></pre>
+        <p>把浏览器版本和驱动版本都打出来，是排查环境问题的第一步。线上构建里也建议把这两行写进日志，出问题时不用再问「你那边是什么版本」。</p>
+
+        <h2>driver 从哪里来</h2>
+        <p>三种方式，适用场景完全不同。Selenium Manager 是官方内置的，4.6 之后默认生效，它会在缓存目录里找匹配的驱动，找不到就联网下载。省事，代价是首次运行需要网络，公司代理环境下经常静默失败，报错还比较含糊。</p>
+        <p>webdriver-manager 是第三方 Python 包，逻辑类似，但缓存路径和失败提示更明确，还能锁定具体版本。老项目里大量使用，迁移到 Selenium Manager 时记得删掉重复逻辑，两套同时存在会互相覆盖缓存。</p>
+        <p>手动指定 Service 的路径适合内网和固定镜像：把驱动和浏览器一起打进镜像，版本永久对齐，不依赖外网。代价是每次升级浏览器都得同步换驱动，需要有人负责。</p>
+        <div class="code-head"><span>python — 三种驱动来源</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
+
+options = Options()
+options.add_argument("--headless=new")
+
+# 1. 官方内置：零配置，需要网络
+driver = webdriver.Chrome(options=options)
+
+# 2. 手动指定本地驱动：内网与固定镜像
+service = Service(r"D:\drivers\chromedriver.exe")
+driver = webdriver.Chrome(service=service, options=options)
+
+# 3. 连远程 Grid：地址由环境变量注入
+driver = webdriver.Remote(
+    command_executor="http://grid.example.com:4444/wd/hub",
+    options=options,
+)
+driver.quit()</code></pre>
+        <p>常见坑是代理。CI 机器走公司代理时，Selenium Manager 下载驱动会超时，日志里只有一句下载失败。解法是提前把驱动放进镜像，或显式配置代理环境变量，别指望它在受限网络里自动成功。</p>
+
+        <h2>八种定位方式的代价</h2>
+        <p>Selenium 提供八种查找方式，但它们的稳定性、速度、可读性差异很大。选错的代价不是报错，而是半年后前端改版时批量失效。</p>
+        <table>
+          <thead>
+            <tr><th>方式</th><th>特点</th><th>主要代价</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>ID</td><td>唯一、最快</td><td>依赖开发保留 id，框架自动生成的 id 会变</td></tr>
+            <tr><td>NAME</td><td>表单字段常用</td><td>重名时静默取第一个，错误延后暴露</td></tr>
+            <tr><td>CLASS_NAME</td><td>写法短</td><td>只能传单个类名，极易匹配到一批元素</td></tr>
+            <tr><td>TAG_NAME</td><td>适合统计列表</td><td>几乎没有区分度，不能单独用于操作</td></tr>
+            <tr><td>LINK_TEXT</td><td>语义直观</td><td>文案改一个字就失效，多语言站点必崩</td></tr>
+            <tr><td>PARTIAL_LINK_TEXT</td><td>比上者宽松</td><td>短词容易命中多个链接，语义模糊</td></tr>
+            <tr><td>CSS_SELECTOR</td><td>速度快、表达力够用</td><td>与 DOM 结构强耦合，改版首当其冲</td></tr>
+            <tr><td>XPATH</td><td>能按文本、能走轴</td><td>慢，可读性差，最脆，调试成本最高</td></tr>
+          </tbody>
+        </table>
+        <p>实践排序是 ID、CSS、XPATH，其余按需。ID 是开发给你的契约，最值得推动；CSS 在结构稳定时够用；XPATH 留给那些没有 id、没有稳定 class、只能靠文本定位的角落，比如表格里某一行。绝对 XPath 和带索引的 XPath 应该禁止，它们把「第几个」写死，列表一变全废。</p>
+        <div class="code-head"><span>python — 八种定位写法</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from selenium.webdriver.common.by import By
+
+driver.find_element(By.ID, "kw")
+driver.find_element(By.NAME, "wd")
+driver.find_element(By.CLASS_NAME, "search-input")
+driver.find_element(By.TAG_NAME, "input")
+driver.find_element(By.LINK_TEXT, "帮助中心")
+driver.find_element(By.PARTIAL_LINK_TEXT, "帮助")
+driver.find_element(By.CSS_SELECTOR, "form#search input[name=wd]")
+driver.find_element(By.XPATH, "//button[normalize-space()='搜索']")
+
+# 列表场景用 find_elements，注意它返回空列表而不是抛异常
+rows = driver.find_elements(By.CSS_SELECTOR, "table tbody tr")
+print(len(rows))</code></pre>
+        <p><code>find_element</code> 找不到会抛 <code>NoSuchElementException</code>，<code>find_elements</code> 找不到返回空列表。这个差异常被误用：用 find_elements 判断元素是否存在时，请务必判断长度而不是真值，空列表和「查到 0 个」在语义上是一回事。</p>
+
+        <h2>元素交互为什么会失败</h2>
+        <p>自动化里最难缠的报错集中在点击和输入上，原因可以归成四类。第一类是不可见：<code>display:none</code>、<code>visibility:hidden</code>、宽高为 0，或者元素在未展开的折叠面板里。这类会抛 <code>ElementNotInteractableException</code>，先确认元素真的显示出来了，而不是 DOM 里有就算数。</p>
+        <p>第二类是被遮挡：吸顶导航、Cookie 同意条、模态框盖住了目标。典型报错是 <code>ElementClickInterceptedException</code>，信息里会写明是哪个元素拦截了点击。解法是等遮挡物消失，或者关闭它，而不是用 JS 直接点。</p>
+        <p>第三类是不在视口：元素存在、可见、没被挡，但坐标在可视区域之外，浏览器拒绝点击。第四类是动画中：元素正在位移，Selenium 取到的坐标是上一帧的，点击落到了空处。第四类最阴险，它不抛异常，表现为「点了没反应」，然后在断言时才失败。</p>
+        <p>JS 点击（<code>execute_script</code> 调 click）能绕过前三类，但代价很大：它跳过了真实的事件链和坐标命中，等于把产品 bug 一起绕过去。只在确认是自动化环境特有问题时才用，且必须写注释说明原因，否则后来的人会以为这是标准写法。</p>
+        <div class="code-head"><span>python — 一个可复用的安全点击</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from selenium.common.exceptions import (
+    ElementClickInterceptedException,
+    StaleElementReferenceException,
+)
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+
+
+def click_safely(driver, locator, timeout=10):
+    wait = WebDriverWait(driver, timeout, poll_frequency=0.2)
+    end = wait.until(EC.element_to_be_clickable(locator))
+    driver.execute_script(
+        "arguments[0].scrollIntoView({block: 'center'})", end
+    )
+    try:
+        end.click()
+    except ElementClickInterceptedException:
+        wait.until(EC.invisibility_of_element_located(
+            (By.CSS_SELECTOR, ".cookie-banner")))
+        end.click()
+    except StaleElementReferenceException:
+        raise AssertionError("元素在点击前被重新渲染，请改用稳定定位器")</code></pre>
+        <p>这段封装做了三件事：等到可点击、滚动到视口中央、对遮挡做一次针对性重试。注意它没有吞掉 StaleElementReferenceException，而是转成断言失败——元素被重新渲染说明定位方式本身有问题，静默重试只会把问题藏起来。</p>
+
+        <h2>等待策略与混用陷阱</h2>
+        <p>Selenium 有三种等待。<a class="ilink" href="web-wait-strategies.html">显式等待</a>针对具体条件，最可控；隐式等待是全局的，作用于所有 <code>find_element</code>；强制 sleep 只在调试时用一下。官方文档明确警告不要混用隐式和显式等待，因为两者叠加会让实际等待时间不可预测，排查时你算不出到底等了多久。</p>
+        <p>显式等待的关键是条件要选对。<code>presence_of_element_located</code> 只保证在 DOM 里，不保证可见；<code>visibility_of_element_located</code> 保证可见；<code>element_to_be_clickable</code> 还要求可点击。点一个按钮却只等到 presence，是新手最常犯的错，报错会在下一行才出现。</p>
+        <p>显式等待也不该包住整条用例。正确用法是一个动作一个等待，等待条件与动作强相关。把十几个条件串在一个 until 里，失败时你只知道「超时了」，不知道卡在第几个。</p>
+        <p>至于 sleep，唯一合理的场景是本地调试时观察页面。写进提交的代码里，它会把「可能失败」变成「一定慢」，而且掩盖了本该暴露的时机问题。</p>
+
+        <h2>取证：截图与页面源码</h2>
+        <p>失败之后最省时间的事，是让报告自己说明现场。<code>save_screenshot</code> 默认只截当前视口，长页面会被切掉；要全页截图，Chrome 下需要走 CDP 的 <code>Page.captureScreenshot</code> 并设置 <code>captureBeyondViewport</code>，或者临时把窗口高度调到页面高度。</p>
+        <p><code>page_source</code> 是渲染后的 DOM 快照，不是原始 HTML，这点很多人搞混。它能看到 JS 执行后的结构，但看不到 CSS 计算样式，也看不到 Shadow DOM 内部。当元素明明在页面上却定位不到时，把 page_source 存下来搜一下，往往能立刻发现它藏在 iframe 或 shadow root 里。</p>
+        <p>控制台日志需要提前开启能力：给 Chrome 设置 <code>goog:loggingPrefs</code>，之后用 <code>get_log('browser')</code> 取。前端接口 500、脚本报错，都会在这里留下痕迹，比截图更有诊断价值。</p>
+        <div class="code-head"><span>python — 失败现场三件套</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+import time
+
+ARTIFACTS = pathlib.Path("artifacts")
+
+
+def dump_failure(driver, case_name):
+    ARTIFACTS.mkdir(exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    base = ARTIFACTS / f"{case_name}-{stamp}"
+
+    driver.save_screenshot(str(base.with_suffix(".png")))
+    base.with_suffix(".html").write_text(
+        driver.page_source, encoding="utf-8")
+
+    logs = driver.get_log("browser") if driver.capabilities.get(
+        "goog:loggingPrefs") else []
+    lines = [f"{item['level']} {item['message']}" for item in logs]
+    base.with_suffix(".console.log").write_text(
+        "\n".join(lines), encoding="utf-8")</code></pre>
+        <p>截图、DOM、控制台三样东西用同一个时间戳前缀命名，事后按文件名就能对上。体积上要注意：全页 PNG 在长列表页上能到几 MB，三百条用例全存会撑爆 artifact，建议失败才存，并把截图转成 JPEG 压到 720 宽。</p>
+
+        <h2>headless 与有头模式的差异</h2>
+        <p>无头模式不是「没有界面」这么简单，它改变了好几项环境参数。旧版 headless 默认窗口是 800x600，很多元素因此被判定为不在视口，点击失败；新版 <code>--headless=new</code> 与有头共用同一套渲染栈，行为接近得多，能升级就升级。</p>
+        <p>另外三个差异要留意。字体：CI 镜像里常缺中文字体，页面文字渲染成方块，按文本定位或截图对比都会出问题。UA：默认 UA 里带 HeadlessChrome，有风控的站点会直接拦。下载：无头下的下载目录和权限策略与有头不同，需要显式设置 <code>download.default_directory</code>。</p>
+        <div class="code-head"><span>python — 无头与有头的统一配置</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+
+options = Options()
+options.add_argument("--headless=new")        # 新版无头，别用旧的
+options.add_argument("--window-size=1440,900")
+options.add_argument("--lang=zh-CN")
+options.add_argument("--disable-dev-shm-usage")   # 容器内共享内存小
+options.add_argument("--no-sandbox")             # 仅在容器内使用
+options.add_experimental_option("prefs", {
+    "download.default_directory": "/tmp/downloads",
+    "download.prompt_for_download": False,
+})
+
+driver = webdriver.Chrome(options=options)</code></pre>
+        <p>有头模式的价值在于排查：本地用有头复现一次，看滚动位置、看动画、看点击落点，往往比读日志快。团队里保留一条「本地有头调试」的入口，是很实用的习惯。</p>
+
+        <h2>Grid 适合多大规模</h2>
+        <p>Grid 解决的是「一台机器跑不完、或者要跑多种浏览器」的问题。它的结构是 hub 接收会话请求，node 注册可用的浏览器能力，按匹配规则分配。Selenium 4 之后 hub 与 node 合并成一个可分布式部署的进程，Docker 镜像也简化了很多。</p>
+        <p>什么规模才值得上 Grid？一个粗略的判断：单机用 pytest-xdist 起四到六个并发，如果一整轮回归能在半小时内跑完，就不需要 Grid。真正需要它的场景是浏览器矩阵（Chrome、Firefox、Safari 多版本）、异构系统（Windows 专属 IE 兼容场景）、或者已经有设备农场要复用。</p>
+        <p>代价要算清楚：Grid 需要有人维护镜像、清理僵尸会话、监控 node 健康度。会话泄漏是最常见的问题，node 上的浏览器进程没退干净，几分钟后就报不了新会话。没有专人负责时，一套自建 Grid 的稳定性往往不如单机并发。</p>
+        <div class="code-head"><span>terminal — Grid 的最小验证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># hub 与 node 都跑在容器里，浏览器能力由镜像决定
+docker run -d -p 4444:4444 --shm-size=2g selenium/standalone-chrome:latest
+
+# 查看已注册的能力
+curl http://localhost:4444/status
+
+# 用例侧只需把 driver 换成 Remote，其余代码不动
+# webdriver.Remote(command_executor=..., options=options)</code></pre>
+        <p>如果只是想并行，先把用例设计成互不依赖、各自造数据，再上并发。用例之间共享账号和订单号时，Grid 只会把冲突放大，不会让回归变快。</p>
+
+        <h2>最小工程结构</h2>
+        <p>一个能长期维护的最小工程，目录结构比代码量重要。把驱动创建收进 conftest 的 fixture，把页面操作收进 pages 目录，把用例按业务域分文件，产物统一落到 artifacts。requirements.txt 锁版本，pytest.ini 固定运行参数。</p>
+        <div class="code-head"><span>python — conftest 与首条用例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># conftest.py
+import pytest
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+
+
+@pytest.fixture
+def driver():
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--window-size=1440,900")
+    drv = webdriver.Chrome(options=options)
+    drv.implicitly_wait(0)        # 统一只用显式等待
+    yield drv
+    drv.quit()
+
+# tests/test_search.py
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+
+
+def test_search_returns_results(driver):
+    driver.get("https://example.com/search")
+    box = WebDriverWait(driver, 10).until(
+        EC.visibility_of_element_located((By.NAME, "q")))
+    box.send_keys("回归测试" + Keys.ENTER)
+
+    WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, ".result-list")))
+    assert len(driver.find_elements(By.CSS_SELECTOR, ".result-item")) &gt; 0</code></pre>
+        <p>结构上刻意没有引入 <a class="ilink" href="web-playwright-pagemodel.html">Page Object</a> 基类。真实项目里，页面对象只有在「同一个页面被三条以上用例操作」时才值得抽；过早抽象会得到一堆只转发一行调用的方法，读代码时反而要多跳一层。</p>
+
+        <h2>和 Playwright 的边界</h2>
+        <p>Selenium 值得继续用的场景很具体：存量脚本已经稳定运行、团队以 Java 为主、已有 Grid 或设备农场需要复用、业务必须验证真实 Safari、或者招聘市场上要求 Selenium 的岗位占多数。这些都不是技术优劣问题，而是组织成本问题。</p>
+        <p>新起一个纯 Web 项目时，Playwright 在等待机制、调试工具和并行模型上确实更省力。但它的 WebKit 是定制构建，不等于用户手里的 Safari；真机移动端也不覆盖。把「能模拟移动端视口」当成「能测移动端」，是很多团队踩过的坑。</p>
+        <p>两者在概念上高度重合：定位、点击、断言、等待，迁移成本主要是等待逻辑和 fixture 结构。真正难迁的是那套围绕 Selenium 建起来的报告、重试和设备管理，这部分与框架无关，换工具时不会自动变好。</p>
+
+        <h2>上线前检查清单</h2>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>合格标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>驱动</td><td>来源唯一，版本与浏览器对齐，CI 不依赖外网</td></tr>
+            <tr><td>等待</td><td>只用显式等待，implicitly_wait 设为 0，无 sleep</td></tr>
+            <tr><td>定位</td><td>优先 ID 与稳定 CSS，禁止绝对 XPath 与索引定位</td></tr>
+            <tr><td>交互</td><td>点击前等可点击并滚动到视口，JS 点击有注释说明</td></tr>
+            <tr><td>取证</td><td>失败必存截图、DOM、控制台日志，文件名可追溯</td></tr>
+            <tr><td>无头</td><td>使用新版无头，窗口尺寸、语言、下载目录显式设置</td></tr>
+            <tr><td>数据</td><td>用例自造数据并清理，不依赖共享账号</td></tr>
+            <tr><td>结构</td><td>驱动在 fixture，页面对象按需抽，产物落 artifacts</td></tr>
+          </tbody>
+        </table>
+        <p>最后补一句判断标准：一套 Selenium 用例集是否合格，不看它覆盖了多少页面，而看失败时能不能在十分钟内说清是产品问题还是脚本问题。做不到这一点，用例数量再多也只是在制造噪音。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://www.selenium.dev/documentation/webdriver/" target="_blank" rel="noopener">WebDriver 官方文档 — selenium.dev</a></li>
+            <li><a href="https://www.selenium.dev/documentation/selenium_manager/" target="_blank" rel="noopener">Selenium Manager 驱动管理说明 — selenium.dev</a></li>
+            <li><a href="https://www.selenium.dev/documentation/webdriver/waits/" target="_blank" rel="noopener">Waiting 策略：显式与隐式等待 — selenium.dev</a></li>
+            <li><a href="https://www.selenium.dev/documentation/grid/" target="_blank" rel="noopener">Selenium Grid 架构与部署 — selenium.dev</a></li>
+            <li><a href="https://www.w3.org/TR/webdriver2/" target="_blank" rel="noopener">W3C WebDriver 规范 — W3C</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#selenium</span>
+          <span class="tag">#web-automation</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>用 Python + requests 做接口测试：从 GET 到断言 · 软件测试资料集</title>
+<meta name="description" content="讲透 Session 复用、连接与读超时、重试幂等、token 刷新、三种请求体与四层断言。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-api-testing-with-requests.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="用 Python + requests 做接口测试：从 GET 到断言">
+<meta property="og:description" content="讲透 Session 复用、连接与读超时、重试幂等、token 刷新、三种请求体与四层断言。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-api-testing-with-requests.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="用 Python + requests 做接口测试：从 GET 到断言">
+<meta name="twitter:description" content="讲透 Session 复用、连接与读超时、重试幂等、token 刷新、三种请求体与四层断言。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"用 Python + requests 做接口测试：从 GET 到断言","description":"讲透 Session 复用、连接与读超时、重试幂等、token 刷新、三种请求体与四层断言。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-api-testing-with-requests.html","articleSection":"Python 编程入门","keywords":"python, requests, api-testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>21 min read</span>
+        </div>
+        <h1>用 Python + requests 做接口测试：从 GET 到断言</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-api-testing-with-requests">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+
+        <h2>这篇文章解决什么问题</h2>
+        <p>如果你已经能发出 GET 和 POST，也照着示例写过几条断言，那这篇不是入门教程。它要处理的是另一段落差：脚本先在自己电脑上跑通，然后要进流水线、连续跑三个月、交给一个没写过它的人维护。</p>
+        <p>这段落差通常以四种形式暴露出来。第一，某个接口变慢，脚本整夜挂在那行不退出，CI 被平台按整体超时杀掉，日志里只有一句任务被取消。第二，换到预发环境后所有请求变成 401，没人说得清是 token 没带还是带错了位置。第三，本地全绿、CI 偶发失败，重跑一次又过了，最后被贴上一个「已知不稳定」的标签。第四，断言写了十几行 and 在一起，挂了之后还要人肉翻日志才知道是哪一层不对。</p>
+        <p>下面按「机制—写法—失败模式」组织，每一节都能直接落到代码里。读者画像是已经写过接口脚本、准备把它交给团队长期维护的一线测试工程师。</p>
+
+        <h2>前置条件与依赖锁定</h2>
+        <p>第一件要建立的认识是：requests 的很多行为并不由 requests 自己决定。连接池、重试次数、超时的实现都在底层 urllib3 里，HTTPAdapter 只是一个挂载点。所以锁版本时必须把 urllib3 一起锁住，只写 requests 会出现「同一份代码，两台机器上重试次数不一样」的怪事。</p>
+        <p>用 <code>pip install requests</code> 这种不带版本的命令装依赖，等于把运行结果交给了镜像源当天的最新版。requests 大版本内行为通常稳定，但 urllib3 从 1.x 升到 2.x 时改过参数名和默认值，升级当天的偶发失败能查上一整天。</p>
+        <p>还需要一个可控的被测服务。拿公网 httpbin 练手没问题，但它不适合放进日常回归：外网抖动、限流、证书轮换，都会让失败原因和你的代码混在一起，最后没人愿意看报告。</p>
+
+        <div class="code-head"><span>terminal — 安装与版本确认</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>python -m venv .venv
+.venv\Scripts\activate
+
+# 版本是本团队环境的快照，以你们仓库的 requirements.txt 为准
+pip install "requests==2.32.3" "urllib3==2.2.3" "pytest==8.3.2" "PyYAML==6.0.2"
+
+# 确认真正生效的版本，而不是命令行里写过的版本
+python -c "import requests, urllib3; print(requests.__version__, urllib3.__version__)"</code></pre>
+
+        <h2>Session 与连接复用</h2>
+        <p><code>requests.get()</code> 看起来只有一行，内部其实做了三件事：新建一个 Session、发一次请求、关闭 Session。关闭意味着这一轮使用的连接池被丢弃，下一次调用要重新做 TCP 三次握手，走 HTTPS 还要再协商一轮 TLS。单条用例感觉不出来，几百条用例串起来，这部分就变成了实打实的等待时间。</p>
+        <p>Session 的价值分三层。最表层是连接复用，同一个 host 上连续发请求时省掉重复握手，也顺带复用了服务端的 keep-alive；中间层是状态保持，服务端用 Set-Cookie 下发的会话会被 cookie jar 记住并自动回传，不需要手工拼 Cookie 头；最里层是配置收敛，默认头、超时、代理、证书校验都挂在一个对象上，不用每个函数重复传参。</p>
+        <p>复用的收益取决于网络往返时间和服务端 keep-alive 的配置。内网 RTT 一两毫秒时几乎无感，跨机房或走网关时差别会明显放大。所以不要照搬任何百分比，用自己环境里改造前后的耗时说话，那个数才有说服力。</p>
+        <p>有一个容易被忽略的约束：Session 不是线程安全的。多个线程共用一个 Session 去改 headers，会出现 A 线程的 token 被 B 线程覆盖的情况。并行执行时按 worker 各建一个 Session，用线程本地变量持有，请求结束后不要跨作用域继续用已经关闭的会话。</p>
+
+        <div class="code-head"><span>python — 复用会话与按线程隔离</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import threading
+
+import requests
+from requests.adapters import HTTPAdapter
+
+BASE = "https://api.internal.example.com"
+
+# 反例：每次调用都新建并销毁 Session，连接池跟着丢掉
+for case_id in range(200):
+    requests.get(f"{BASE}/cases/{case_id}", timeout=(3, 10))
+
+# 正例：一个 Session 贯穿整个模块
+session = requests.Session()
+session.headers.update({"X-Client": "qa-regression"})
+session.mount("https://", HTTPAdapter(pool_connections=10, pool_maxsize=20))
+
+for case_id in range(200):
+    session.get(f"{BASE}/cases/{case_id}", timeout=(3, 10))
+
+# 并行场景：每个线程持有自己的会话，避免 headers 互相覆盖
+_local = threading.local()
+
+
+def get_session() -&gt; requests.Session:
+    if not hasattr(_local, "session"):
+        _local.session = requests.Session()
+    return _local.session</code></pre>
+
+        <div class="callout warn">
+          <p>不要把 Session 建在 <code>with</code> 块里又拿到块外使用。退出 <code>with</code> 时会关闭适配器和连接池，之后再用这个对象发请求，轻则退化成新建连接，重则抛 <code>ConnectionError</code>，而且报错位置离真正的原因很远。</p>
+        </div>
+
+        <h2>超时：连接超时与读超时的区别</h2>
+        <p>requests 的 <code>timeout</code> 默认是 <code>None</code>，语义是永远等。服务端如果把连接挂着不返回，脚本就停在那行，直到 CI 平台的 job 超时被强杀。这是接口脚本最常见的挂死原因，而且它不会在报告里留下「超时」两个字，只会留下一个没有结论的构建。</p>
+        <p>传一个数字时，它同时作为连接超时和读超时的上限；传元组时分别指定。<code>timeout=(3, 10)</code> 里的 3 是连接超时，10 是读超时。至于为什么业内常写 3.05 而不是 3，是因为 3 秒正好踩在 TCP 重传窗口的边界上，略大于 3 能避免刚发出重传就被客户端掐断，这个取值来自 requests 官方文档的建议。</p>
+        <p>这两个数字的含义差别很大。连接超时衡量的是握手能不能完成，正常情况下几百毫秒，超了说明 DNS 解析慢、网络不通或者目标端口没开，属于基础设施问题；读超时衡量的是连接建立之后，服务端多久没吐出一个字节，它不是接口的总耗时上限。一个接口每 9 秒吐一点数据，读超时设成 10 秒，它可以一直跑下去，总时长早就超过一分钟。</p>
+        <p>想限制总耗时只能自己在调用侧计时，或者用外部工具兜底。实践中我们给内网接口设 <code>(3, 10)</code>，给跨网关接口设 <code>(5, 30)</code>，并把这两个值放进环境配置文件。散落在每个函数里的超时值，半年后没人敢改。</p>
+
+        <div class="code-head"><span>python — 超时与异常类型</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import requests
+from requests.exceptions import ConnectTimeout, ReadTimeout, ConnectionError
+
+try:
+    resp = requests.get("https://api.internal.example.com/orders", timeout=(3, 10))
+except ConnectTimeout as exc:
+    # 连接都没建起来：DNS、端口、防火墙
+    raise AssertionError("连接超时，先确认服务地址与网络") from exc
+except ReadTimeout as exc:
+    # 连上了，但服务端 10 秒没返回数据
+    raise AssertionError("读超时，服务端处理过慢或连接被挂起") from exc
+except ConnectionError as exc:
+    # 连接被重置、证书校验失败等
+    raise AssertionError(f"连接异常：{exc}") from exc</code></pre>
+
+        <p>捕捉顺序不是随便写的。<code>ConnectTimeout</code> 同时是 <code>Timeout</code> 和 <code>ConnectionError</code> 的子类，<code>ReadTimeout</code> 也是 <code>Timeout</code> 的子类。先捕具体的子类再捕父类，才能把「慢」和「断」区分开；顺序反过来，所有超时都会落进第一个分支，报告里的失败原因就全变成一个词。</p>
+
+        <h2>重试：HTTPAdapter 与幂等前提</h2>
+        <p>网关偶发 502、连接被重置、限流返回 503，这些在真实环境里每天都有。合理的重试能把这类噪声吸收掉，让红色只代表真问题。但重试是危险动作，动手之前必须先回答一个问题：这个请求重发一次，会不会产生第二份副作用。</p>
+        <p>判断标准是幂等性。GET、HEAD、PUT、DELETE 按 HTTP 语义重复执行结果一致，可以重试；POST 创建订单、提交支付、发起退款，重发一次就多一单、多一笔钱。对这类接口要么不重试，要么要求服务端支持幂等键，把同一个键的重复请求折叠成一次。这个前提不成立时，任何自动重试都是在制造脏数据。</p>
+        <p>requests 的重试不在 requests 层，而在挂载的适配器上：<code>HTTPAdapter(max_retries=Retry(...))</code>。要记住两个版本相关的坑：urllib3 1.26 之后把 <code>method_whitelist</code> 改名为 <code>allowed_methods</code>，老代码升级后会直接抛 <code>TypeError</code>；<code>Retry</code> 的默认方法集合不包含 POST，看似「配了重试」，实际 POST 一次都不会重发。</p>
+        <p>另一种常见事故是重试叠加。应用层自己写了三轮循环，适配器又配了三次，最坏情况一个请求会打九次，服务端限流被放大三倍，本来是偶发故障，被自己的脚本打成了持续故障。选一层实现，另一层明确关掉，并在注释里写清楚。</p>
+
+        <div class="code-head"><span>python — 只在安全方法上重试</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+SAFE_METHODS = frozenset({"GET", "HEAD", "PUT", "DELETE", "OPTIONS"})
+
+
+def build_session() -&gt; requests.Session:
+    session = requests.Session()
+    retry = Retry(
+        total=2,                        # 连接、读、状态码三类重试的合计上限
+        connect=1,
+        read=1,
+        status=2,
+        backoff_factor=0.5,             # 第 n 次重试前等待 0.5 * 2^(n-1) 秒
+        status_forcelist=(502, 503, 504),
+        allowed_methods=SAFE_METHODS,   # 不含 POST，创建类接口不自动重发
+        respect_retry_after_header=True,
+        raise_on_status=False,          # 重试耗尽后返回最后一个响应，便于打印状态码
+    )
+    adapter = HTTPAdapter(max_retries=retry, pool_connections=10, pool_maxsize=20)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    session.headers.update({"X-Client": "qa-regression"})
+    return session</code></pre>
+
+        <p><code>raise_on_status=False</code> 的作用值得单独说。默认情况下重试耗尽会抛 <code>MaxRetryError</code>，堆栈指向 urllib3 内部，看不到服务端到底返回了什么。关掉它以后拿到的是最后一个响应，断言里能直接打印状态码和响应体，排查效率差好几倍。</p>
+
+        <h2>鉴权封装：Cookie 与 Header 的区别</h2>
+        <p>登录之后拿到的凭据有两种承载方式，搞混了就会出现「本地能跑、换环境 401」。Cookie 由服务端通过 Set-Cookie 下发，浏览器和 Session 会自动带上，作用域、过期时间、是否 HttpOnly 全由服务端控制；Header 里的 Bearer token 要客户端自己保存、自己拼接，服务端不会替你记住任何东西。</p>
+        <p>判断方法很简单：抓一次登录响应，看凭据出现在 <code>Set-Cookie</code> 里还是响应体里。出现在响应体里的 JWT，后面每个请求都要手动放进 <code>Authorization</code>；出现在 Set-Cookie 里的，只要复用同一个 Session，后续请求自动携带，不需要额外代码，也不该手工去拼 Cookie 头。</p>
+        <p>token 会过期，长跑用例必然遇到 401。成熟做法是在 client 层统一处理：收到 401 时换一次新 token，然后重放原请求，最多重放一次。不要在每个用例里写「状态码是 401 就重新登录」，并发一上来，十个线程会同时去打刷新接口，把刷新服务打成限流，随后整批用例连环失败。</p>
+        <p>刷新过程要加锁，或者记录上一次刷新时间，若干秒内不重复刷新，其余线程等结果复用。另外，token 不能进日志；打印请求头做排查时必须先脱敏，很多团队的凭据就是这样泄露到了公共的 CI 日志里。</p>
+
+        <div class="code-head"><span>python — 401 自动刷新并重放一次</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import threading
+
+import requests
+
+
+class AuthedClient:
+    def __init__(self, base_url: str, username: str, password: str):
+        self.base_url = base_url.rstrip("/")
+        self.session = build_session()
+        self._username = username
+        self._password = password
+        self._token = None
+        self._lock = threading.Lock()
+
+    def login(self) -&gt; None:
+        resp = self.session.post(
+            f"{self.base_url}/auth/login",
+            json={"username": self._username, "password": self._password},
+            timeout=(3, 10),
+        )
+        resp.raise_for_status()
+        self._token = resp.json()["access_token"]
+
+    def request(self, method: str, path: str, **kwargs):
+        if self._token is None:
+            with self._lock:
+                if self._token is None:
+                    self.login()
+
+        headers = dict(kwargs.pop("headers", {}))
+        headers["Authorization"] = f"Bearer {self._token}"
+        url = f"{self.base_url}/{path.lstrip('/')}"
+        resp = self.session.request(method, url, headers=headers,
+                                    timeout=(3, 10), **kwargs)
+        if resp.status_code != 401:
+            return resp
+
+        # 只重放一次：刷新失败或仍然 401 就交给断言
+        with self._lock:
+            self.login()
+        headers["Authorization"] = f"Bearer {self._token}"
+        return self.session.request(method, url, headers=headers,
+                                    timeout=(3, 10), **kwargs)</code></pre>
+
+        <h2>三种请求体的写法差异</h2>
+        <p>服务端怎么解析请求体，由 Content-Type 决定。requests 会根据你用的关键字自动设置这个头，这是它比手写 http.client 省事的地方，也是最容易踩坑的地方，因为自动设置意味着很多人从来没看过它到底发了什么。</p>
+        <p><code>json=</code> 传字典，requests 负责序列化并设置 <code>application/json</code>；<code>data=</code> 传字典，会编码成 <code>a=1&amp;b=2</code> 并设置 <code>application/x-www-form-urlencoded</code>；<code>files=</code> 走 <code>multipart/form-data</code>，boundary 由 requests 生成。三者不要混用：同时传 <code>json</code> 和 <code>data</code> 时，<code>data</code> 会被静默忽略，接口收到一个空 JSON，返回 400 而你不知道为什么。</p>
+        <p>上传文件最常见的错误，是手动写了 <code>Content-Type: multipart/form-data</code>。一旦自己设了这个头，requests 就不会再补 boundary，服务端拿到的报文无法切分字段，表现为 400，或者成功解析出一个空文件。正确做法是什么都不设，全部交给 <code>files</code> 参数。</p>
+        <p>还有文件句柄的生命周期。把打开的文件对象放进 <code>files</code>，请求结束前不能关闭；用 <code>with</code> 包住整个请求，或者直接传路径让 requests 自己打开并关闭。同名字段要传多个值时必须用列表，字典会把后一个覆盖前一个。</p>
+
+        <div class="code-head"><span>python — JSON、表单、文件三种请求体</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1) JSON：自动序列化并设置 application/json
+resp = session.post(f"{BASE}/orders", json={"sku": "A-1001", "qty": 2})
+
+# 2) 表单：字典编码成 a=1&amp;b=2
+resp = session.post(f"{BASE}/login", data={"username": "qa", "password": "***"})
+
+# 3) 文件：multipart/form-data，boundary 由 requests 生成
+with open("cases.xlsx", "rb") as fh:
+    resp = session.post(
+        f"{BASE}/import",
+        files={"file": ("cases.xlsx", fh,
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+        data={"env": "staging"},
+    )
+
+# 同名字段多文件，必须用列表
+files = [
+    ("files", ("a.csv", open("a.csv", "rb"), "text/csv")),
+    ("files", ("b.csv", open("b.csv", "rb"), "text/csv")),
+]
+resp = session.post(f"{BASE}/import/batch", files=files)</code></pre>
+
+        <h2>断言层次：从状态码到落库</h2>
+        <p>一条接口用例的价值，取决于它断言到了第几层。只断言 200 的用例，在服务端把所有错误都包成 200 加业务错误码之后，等于什么都没测；而把所有条件 and 进一行断言的用例，挂了之后只知道整体为假，定位成本又太高。</p>
+        <p>我们习惯分四层。第一层状态码，验证 HTTP 语义有没有被遵守；第二层业务 code，验证接口自己的错误协议；第三层关键字段，验证值和类型；第四层落库或二次查询，验证写操作真的生效，而不是只在响应里回显了一遍。前两层是门槛，第三层是主要工作量，第四层决定这条用例能不能挡住数据类缺陷。</p>
+        <p>分层最大的收益是失败信息。拆成四条顺序断言后，pytest 的断言重写会指出具体断在第几行、期望值和实际值分别是什么，报告里不需要任何人解释。写断言时顺手在 message 里带上响应片段，能把排查时间再压一截。</p>
+        <p>字段断言要盯类型。金额用浮点直接比较会踩精度问题，要么统一用整数分，要么用 Decimal；ID 可能是数字也可能是字符串，接口重构时类型变化比想象中频繁；时间字段要确认是带时区的 ISO 串还是秒级时间戳，否则跨时区比较必然失败，而且失败信息看起来完全合理。</p>
+
+        <div class="code-head"><span>python — 四层断言</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>resp = session.get(f"{BASE}/orders/ORD-20261124-0001")
+
+# L1 HTTP 语义
+assert resp.status_code == 200, f"状态码异常: {resp.status_code} {resp.text[:200]}"
+
+body = resp.json()
+
+# L2 业务协议
+assert body["code"] == 0, f"业务失败: {body.get('code')} {body.get('message')}"
+
+data = body["data"]
+
+# L3 字段值与类型
+assert data["order_id"] == "ORD-20261124-0001"
+assert data["status"] == "paid"
+assert isinstance(data["amount_cents"], int), \
+    f"金额应为整数分，实际为 {type(data['amount_cents']).__name__}"
+
+# L4 二次查询，确认写入真的落库
+again = session.get(f"{BASE}/orders/ORD-20261124-0001").json()["data"]
+assert again["status"] == "paid"
+assert again["amount_cents"] == data["amount_cents"]</code></pre>
+
+        <h2>参数化与数据驱动</h2>
+        <p>用例一多，把数据写死在函数里就变成维护负担。数据驱动要解决两个问题：数据从哪来，失败时怎么定位到具体那一行。前者关系到谁能改用例，后者关系到报告能不能自己说话。</p>
+        <p>格式选择上有个简单判断。YAML 适合嵌套结构和多行文本，能写中文注释，和 <code>parametrize</code> 配合最自然；CSV 适合从 Excel 导出的表格型数据，业务同学能直接打开修改；JSON 不能写注释，不适合当用例源。我们主线用 YAML，历史遗留的批量数据继续读 CSV，不为统一而迁移。</p>
+        <p>读文件只做一次，放在模块级或者 session 级 fixture 里。如果每条用例执行时都去读盘、查库、调接口准备数据，单条用例的耗时会随数据量线性增长，最后大家开始怀疑是不是被测服务变慢了。</p>
+        <p><code>parametrize</code> 一定要给 <code>ids</code>。默认生成的 id 是索引拼接，报告里看不出是哪个场景；用业务语义命名之后，失败列表本身就是一份缺陷清单的草稿，一眼能看出是「余额不足」还是「重复支付」。</p>
+
+        <div class="code-head"><span>yaml — 用例数据</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>- id: refund_paid_order
+  title: 已支付订单可全额退款
+  order_status: paid
+  refund_amount_cents: 19997
+  expect_code: 0
+  expect_status: refunded
+- id: refund_already_refunded
+  title: 已退款订单重复退款被拒
+  order_status: refunded
+  refund_amount_cents: 19997
+  expect_code: 40012
+  expect_status: refunded</code></pre>
+
+        <div class="code-head"><span>python — 读取 YAML 并参数化</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+
+import pytest
+import yaml
+
+DATA_FILE = pathlib.Path(__file__).parent / "cases" / "order_refund.yaml"
+
+
+def load_cases():
+    raw = yaml.safe_load(DATA_FILE.read_text(encoding="utf-8"))
+    return raw
+
+
+CASES = load_cases()
+
+
+@pytest.mark.parametrize("case", CASES, ids=[c["id"] for c in CASES])
+def test_refund(order_client, case):
+    resp = order_client.refund(case["order_status"], case["refund_amount_cents"])
+    body = resp.json()
+    assert body["code"] == case["expect_code"], case["title"]
+    assert body["data"]["status"] == case["expect_status"], case["title"]</code></pre>
+
+        <h2>响应校验里的四个坑</h2>
+        <p>204 是最容易被忽略的状态码。DELETE 成功、异步任务受理，服务端都可能返回 204 加空 body，此时调用 <code>json()</code> 一定抛 <code>JSONDecodeError</code>，用例失败的原因看起来像「接口没返回 JSON」，实际是脚本写错了。解析之前先用状态码或 <code>resp.content</code> 判空。</p>
+        <p>压缩也常出问题。requests 默认发送 <code>Accept-Encoding: gzip, deflate</code>，并自动解压响应；<code>resp.content</code> 是解压后的字节，而响应头里的 <code>Content-Length</code> 是压缩后的长度。拿这两个数做一致性断言永远对不上，而且换个环境、内容变大之后才发现，很难联想到是压缩。</p>
+        <p>编码问题主要体现在中文上。<code>resp.text</code> 按响应头里的 charset 解码，服务端漏写或者写成 ISO-8859-1 时，中文就变成乱码，断言里的中文字符串一个都匹配不上。稳妥做法是显式设置 <code>resp.encoding</code>，或者直接用 <code>resp.content.decode('utf-8')</code>，别依赖服务端的声明。</p>
+        <p>大响应会直接吃掉内存。导出类接口返回几十 MB 的 JSON，<code>json()</code> 会一次性构造完整的对象树，本地机器可能只是慢，CI 的小规格容器会直接 OOM。只校验字段时用 <code>stream=True</code> 加 <code>iter_lines</code> 抽样，或者只断言响应头和第一行。另外，重定向默认跟随，想验证 301 本身必须设 <code>allow_redirects=False</code>，否则拿到的永远是重定向之后的 200。</p>
+
+        <div class="code-head"><span>python — 204、编码、流式与重定向</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 204：没有 body，先判空再解析
+resp = session.delete(f"{BASE}/orders/ORD-20261124-0001")
+assert resp.status_code == 204
+payload = resp.json() if resp.content else None
+
+# 编码：服务端漏写 charset 时 text 不可信
+resp = session.get(f"{BASE}/orders/ORD-20261124-0001")
+resp.encoding = "utf-8"
+title = resp.json()["data"]["title"]
+
+# 大响应：流式读取，只取需要的那几行
+with session.get(f"{BASE}/export/orders", stream=True) as resp:
+    assert resp.status_code == 200
+    first_line = next(resp.iter_lines(decode_unicode=True))
+
+# 重定向：想验证 301 必须自己关掉跟随
+resp = session.get(f"{BASE}/legacy/orders", allow_redirects=False)
+assert resp.status_code == 301
+assert resp.headers["Location"].endswith("/orders")</code></pre>
+
+        <h2>把接口封装成 client 类</h2>
+        <p>当接口从十几个涨到上百个，散落在用例里的 URL 和 headers 会成为最大的维护成本。封装 client 不是为了架构好看，而是为了让两件事只做一次：接口路径变更时只改一处，鉴权、超时、重试只实现一遍。</p>
+        <p>目录上按三层分就够了。基础设施层放会话构建、重试、鉴权、日志；业务 client 层一个模块对应一个业务域，方法名用业务语言而不是 HTTP 动词；用例层只组合 client 方法并做断言，不允许出现裸 URL 字符串。这个约束不靠自觉，靠代码评审。</p>
+        <p>一个必须提前定的取舍是 client 方法返回什么。返回原始 <code>Response</code>，调用方灵活，但每条用例都要自己解析，重复代码多；返回解析后的字典，用例干净，却丢掉了状态码和响应头，遇到 204 或者需要看 <code>Retry-After</code> 时就尴尬。我们的做法是返回一个轻量 Result 对象，同时带 status、headers 和 data，需要原始响应时通过属性取。</p>
+        <p>另一个边界是 client 里该不该做断言。业务层面的「5xx 视为环境异常」可以抛，因为它不属于用例的验证目标；业务 code 是否正确必须留给用例断言，否则 client 会把失败原因吞掉，报告里只剩一句「调用失败」。</p>
+
+        <div class="code-head"><span>text — 推荐目录结构</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>api_tests/
+├── conftest.py              # 会话、登录、环境配置
+├── clients/
+│   ├── base.py              # BaseClient：超时、重试、鉴权、日志
+│   ├── order_client.py      # 订单域接口
+│   └── user_client.py       # 用户域接口
+├── cases/
+│   ├── order_refund.yaml
+│   └── user_login.yaml
+└── tests/
+    ├── test_order.py
+    └── test_user.py</code></pre>
+
+        <div class="code-head"><span>python — BaseClient 骨架</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>class BaseClient:
+    def __init__(self, base_url: str):
+        self.base_url = base_url.rstrip("/")
+        self.session = build_session()      # 带 Retry 的会话
+
+    def call(self, method: str, path: str, **kwargs):
+        kwargs.setdefault("timeout", (3, 10))   # 默认超时只在一处定义
+        url = f"{self.base_url}/{path.lstrip('/')}"
+        resp = self.session.request(method, url, **kwargs)
+        if resp.status_code &gt;= 500:
+            raise AssertionError(f"{method} {url} 返回 {resp.status_code}，属于环境异常")
+        return resp
+
+
+class OrderClient(BaseClient):
+    def detail(self, order_id: str):
+        return self.call("GET", f"/orders/{order_id}")
+
+    def refund(self, order_id: str, amount_cents: int):
+        return self.call("POST", f"/orders/{order_id}/refund",
+                         json={"amount_cents": amount_cents})</code></pre>
+
+        <h2>上线前检查清单</h2>
+        <p>把下面这张表当成脚本进 CI 之前的最后一道门。每一条都对应过至少一次真实事故，逐条核对比读完源码更快，也更不容易漏。</p>
+
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>合格标准</th><th>不做的后果</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>超时</td><td>每个请求都有显式的连接与读超时，值来自配置</td><td>接口挂起时 job 卡到平台超时，日志无结论</td></tr>
+            <tr><td>重试</td><td>只对幂等方法开启，应用层与适配器只保留一层</td><td>重复下单，或限流被自己放大三倍</td></tr>
+            <tr><td>鉴权</td><td>401 统一刷新一次，刷新有并发保护，token 不进日志</td><td>批量 401，或凭据泄漏到 CI 日志</td></tr>
+            <tr><td>断言</td><td>状态码、业务 code、字段类型、落库核对分层写</td><td>用例长期假通过，挡不住数据类缺陷</td></tr>
+            <tr><td>数据</td><td>用例来自 YAML/CSV，parametrize 带业务 id</td><td>失败无法定位到具体场景</td></tr>
+            <tr><td>体积</td><td>大响应流式读取，报告不挂全量报文</td><td>CI 容器 OOM，报告几百 MB 打不开</td></tr>
+          </tbody>
+        </table>
+        <p>最后留一个判断标准：把脚本交给一个没参与编写的同事，他能不能只靠报错信息和目录结构，在十分钟内判断出这次失败是环境问题、脚本问题还是产品缺陷。如果答案是能，这套接口测试才算真正可维护。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://requests.readthedocs.io/en/latest/user/advanced/" target="_blank" rel="noopener">Requests 高级用法：Session、适配器与超时 — requests 文档</a></li>
+            <li><a href="https://requests.readthedocs.io/en/latest/user/quickstart/" target="_blank" rel="noopener">Requests 快速上手：错误与超时 — requests 文档</a></li>
+            <li><a href="https://urllib3.readthedocs.io/en/stable/reference/urllib3.util.html" target="_blank" rel="noopener">Retry 参数说明：total、backoff_factor、allowed_methods — urllib3 文档</a></li>
+            <li><a href="https://www.rfc-editor.org/rfc/rfc9110.html#name-idempotent-methods" target="_blank" rel="noopener">HTTP 语义：幂等方法 — RFC 9110</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/parametrize.html" target="_blank" rel="noopener">pytest 参数化：parametrize 与 ids — pytest 文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#python</span>
+          <span class="tag">#requests</span>
+          <span class="tag">#api-testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

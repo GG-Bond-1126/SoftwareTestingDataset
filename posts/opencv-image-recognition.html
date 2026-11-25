@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC 图像识别测试：OpenCV 找图 + 模板匹配 · 软件测试资料集</title>
+<meta name="description" content="OpenCV 模板匹配原理、灰度/彩色匹配、ROI 区域识别、置信度调参，配游戏界面验证完整案例。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/opencv-image-recognition.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="PC 图像识别测试：OpenCV 找图 + 模板匹配">
+<meta property="og:description" content="OpenCV 模板匹配原理、灰度/彩色匹配、ROI 区域识别、置信度调参，配游戏界面验证完整案例。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/opencv-image-recognition.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="PC 图像识别测试：OpenCV 找图 + 模板匹配">
+<meta name="twitter:description" content="OpenCV 模板匹配原理、灰度/彩色匹配、ROI 区域识别、置信度调参，配游戏界面验证完整案例。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"PC 图像识别测试：OpenCV 找图 + 模板匹配","description":"OpenCV 模板匹配原理、灰度/彩色匹配、ROI 区域识别、置信度调参，配游戏界面验证完整案例。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/opencv-image-recognition.html","articleSection":"PC 自动化","keywords":"pc-automation, opencv, image-recognition","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>11 min read</span>
+        </div>
+        <h1>PC 图像识别测试：OpenCV 找图 + 模板匹配</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="opencv-image-recognition">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Python 3.10+
+python -m venv venv
+venv\Scripts\activate
+pip install pytest
+pytest --version</code></pre>
+
+<h2>基础应用：第一个测试用例</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>def test_basic():
+    assert 1 + 1 == 2
+    print("基础用例通过 ✓")</code></pre>
+
+<h2>项目进阶：fixture + 参数化 + CI</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest
+
+@pytest.fixture
+def data():
+    return [1, 2, 3, 4, 5]
+
+@pytest.mark.parametrize("n, expected", [(3, 6), (5, 15)])
+def test_sum(data, n, expected):
+    assert sum(data[:n]) == expected</code></pre>
+
+        <h2>模板匹配原理</h2>
+        <p>模板匹配就是「拿一张小图（参考图）在大图（屏幕）里滑动，找最像的位置」。OpenCV 的 <code>matchTemplate</code> 函数实现这个「滑动比较」：</p>
+        <div class="code-head"><span>原理示意</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 屏幕（大图）：1920 x 1080
+# 参考图（小图）：100 x 40（比如一个按钮）
+
+# 匹配过程：
+# 1. 参考图从左上角开始，逐步向右/下移动
+# 2. 每个位置计算"相似度"（0~1）
+# 3. 相似度最高的位置 = 找到的位置
+# 4. 返回最高相似度 + 位置坐标
+
+# 5 种匹配方法（OpenCV）：
+# TM_CCOEFF_NORMED（最常用）：归一化互相关，-1~1，1 最像
+# TM_CCORR_NORMED：归一化互相关，0~1，1 最像
+# TM_SQDIFF：平方差，0 最像
+# TM_SQDIFF_NORMED：归一化平方差，0 最像
+# TM_CCORR：互相关，越大越像</code></pre>
+
+        <h2>基本用法：灰度模板匹配</h2>
+        <p>灰度匹配比彩色快 3 倍，且更稳（不受光照影响）。测试场景 90% 用灰度就够了：</p>
+        <div class="code-head"><span>python — 灰度模板匹配</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import cv2
+import numpy as np
+import pyautogui
+
+def find_image_in_screen(target_path, confidence=0.9):
+    """在屏幕上找参考图（灰度匹配）。
+
+    Args:
+        target_path: 参考图路径（如 button.png）
+        confidence: 置信度阈值（0~1，越高越严格）
+
+    Returns:
+        (center_x, center_y) 中心坐标，找不到返回 None
+    """
+    # 1. 截屏幕（全分辨率）
+    screenshot = pyautogui.screenshot()
+    screen_img = cv2.cvtColor(
+        np.array(screenshot),
+        cv2.COLOR_RGB2BGR
+    )
+
+    # 2. 读参考图
+    target_img = cv2.imread(target_path)
+    if target_img is None:
+        print(f"参考图不存在：{target_path}")
+        return None
+
+    # 3. 转灰度（快 3 倍）
+    screen_gray = cv2.cvtColor(screen_img, cv2.COLOR_BGR2GRAY)
+    target_gray = cv2.cvtColor(target_img, cv2.COLOR_BGR2GRAY)
+
+    # 4. 模板匹配
+    result = cv2.matchTemplate(
+        screen_gray,
+        target_gray,
+        cv2.TM_CCOEFF_NORMED
+    )
+
+    # 5. 找最大相似度位置
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+
+    if max_val >= confidence:
+        # max_loc 是"左上角"坐标，转成"中心"
+        h, w = target_gray.shape[:2]
+        center_x = max_loc[0] + w // 2
+        center_y = max_loc[1] + h // 2
+        return (center_x, center_y)
+
+    return None   # 没找到
+
+# 使用
+location = find_image_in_screen("save_button.png", confidence=0.9)
+if location:
+    print(f"找到按钮：{location}")
+    pyautogui.click(location)
+else:
+    print("没找到按钮")</code></pre>
+
+        <h2>彩色匹配：颜色特征重要时</h2>
+        <p>如果界面「颜色」是关键特征（红绿按钮、特定颜色区域），用彩色匹配：</p>
+        <div class="code-head"><span>python — 彩色匹配</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import cv2
+import numpy as np
+import pyautogui
+
+def find_image_color(target_path, confidence=0.9):
+    """彩色模板匹配（颜色敏感场景）。"""
+    screenshot = pyautogui.screenshot()
+    screen_img = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+    target_img = cv2.imread(target_path)
+
+    # 彩色匹配（不转灰度）
+    result = cv2.matchTemplate(
+        screen_img,
+        target_img,
+        cv2.TM_CCOEFF_NORMED
+    )
+
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+
+    if max_val >= confidence:
+        h, w = target_img.shape[:2]
+        return (max_loc[0] + w // 2, max_loc[1] + h // 2, max_val)
+
+    return None
+
+# 使用：找"红色按钮"（颜色是关键特征）
+location = find_image_color("red_button.png", confidence=0.85)
+if location:
+    x, y, confidence_val = location
+    print(f"找到红色按钮：({x}, {y})，相似度 {confidence_val:.3f}")</code></pre>
+
+        <h2>ROI 区域识别：只在「某个区域」找</h2>
+        <p>全屏幕找太慢（1920×1080 要几秒），限定 ROI（感兴趣区域）快 10 倍：</p>
+        <div class="code-head"><span>python — ROI 识别</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import cv2
+import numpy as np
+import pyautogui
+
+def find_image_in_roi(target_path, roi, confidence=0.9):
+    """在指定区域找参考图（ROI 加速）。
+
+    Args:
+        target_path: 参考图路径
+        roi: 区域 (x, y, width, height)
+        confidence: 置信度
+
+    Returns:
+        区域内的中心坐标（相对全屏幕）
+    """
+    # 截屏幕
+    screenshot = pyautogui.screenshot()
+    screen_img = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+
+    # 截取 ROI 区域
+    x, y, w, h = roi
+    roi_img = screen_img[y:y+h, x:x+w]
+
+    # 读参考图
+    target_img = cv2.imread(target_path)
+    if target_img is None:
+        return None
+
+    # 灰度匹配
+    roi_gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
+    target_gray = cv2.cvtColor(target_img, cv2.COLOR_BGR2GRAY)
+
+    result = cv2.matchTemplate(roi_gray, target_gray, cv2.TM_CCOEFF_NORMED)
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+
+    if max_val >= confidence:
+        th, tw = target_gray.shape[:2]
+        # 转成全屏幕坐标
+        center_x = x + max_loc[0] + tw // 2
+        center_y = y + max_loc[1] + th // 2
+        return (center_x, center_y)
+
+    return None
+
+# 使用：只在"右上角 500×300 区域"找（快 10 倍）
+roi = (1420, 0, 500, 300)   # x=1420, y=0, w=500, h=300
+location = find_image_in_roi("close_button.png", roi, confidence=0.9)
+if location:
+    pyautogui.click(location)</code></pre>
+
+        <h2>置信度调参：找不到的「调参指南」</h2>
+        <div class="code-head"><span>置信度调参</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 置信度（confidence）决定"多像才算找到"
+# 0.85~0.95 是最常用的区间
+
+# 找不到（相似度总是 0.7）：
+# - 调低置信度（0.75）
+# - 检查参考图是否清晰（模糊的图匹配率低）
+# - 检查屏幕分辨率（参考图截自 4K，当前 1080p，比例不对）
+
+# 误识别（相似度 0.95 但位置不对）：
+# - 调高置信度（0.98）
+# - 检查参考图是否"太独特"（背景太复杂，容易误配）
+# - 用 ROI 限定区域（缩小搜索范围）
+
+# 多张参考图（"哪个先找到用哪个"）
+def find_first_image(image_paths, confidence=0.85):
+    """按顺序找，哪个先找到用哪个。"""
+    for path in image_paths:
+        location = find_image_in_screen(path, confidence)
+        if location:
+            return location, path
+    return None, None
+
+# 使用：找"保存按钮"（v2 优先，v1 兜底）
+location, matched = find_first_image(["save_btn_v2.png", "save_btn_v1.png"])
+if location:
+    print(f"找到：{matched} 位置 {location}")
+    pyautogui.click(location)</code></pre>
+        <div class="callout">
+          <p>图像识别「三件套」：<strong>灰度匹配</strong>（快且稳，90% 场景够用）、<strong>ROI 区域</strong>（限定区域，快 10 倍）、<strong>置信度调参</strong>（0.85~0.95 区间，找不到调低、误识别调高）。参考图要「清晰、无模糊、分辨率一致」，匹配率才高。</p>
+        </div>
+
+        <h2>案例：游戏界面验证</h2>
+        <p>把 OpenCV 串起来，写一个「游戏界面验证」的完整案例（假设游戏是窗口模式，不是全屏）：</p>
+        <div class="code-head"><span>python — 游戏界面验证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import cv2
+import numpy as np
+import pyautogui
+import time
+import subprocess
+from dataclasses import dataclass
+
+@dataclass
+class GameCheckResult:
+    """游戏界面检查结果"""
+    check_name: str
+    found: bool
+    location: tuple
+    confidence: float
+
+def find_in_game(target_path, confidence=0.9, roi=None):
+    """在游戏窗口里找图（带 ROI）。"""
+    screenshot = pyautogui.screenshot()
+    screen_img = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+
+    # ROI（游戏窗口区域）
+    if roi:
+        x, y, w, h = roi
+        screen_img = screen_img[y:y+h, x:x+w]
+
+    target_img = cv2.imread(target_path)
+    if target_img is None:
+        return None
+
+    screen_gray = cv2.cvtColor(screen_img, cv2.COLOR_BGR2GRAY)
+    target_gray = cv2.cvtColor(target_img, cv2.COLOR_BGR2GRAY)
+
+    result = cv2.matchTemplate(screen_gray, target_gray, cv2.TM_CCOEFF_NORMED)
+    min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+
+    if max_val >= confidence:
+        th, tw = target_gray.shape[:2]
+        if roi:
+            # 转回全屏幕坐标
+            center_x = roi[0] + max_loc[0] + tw // 2
+            center_y = roi[1] + max_loc[1] + th // 2
+        else:
+            center_x = max_loc[0] + tw // 2
+            center_y = max_loc[1] + th // 2
+        return (center_x, center_y, max_val)
+
+    return None
+
+def test_game_main_menu():
+    """验证游戏主菜单界面。"""
+    # 游戏窗口区域（假设 1920x1080，游戏在左上角）
+    game_roi = (0, 0, 1920, 1080)
+
+    # 检查 1：主菜单标题
+    location = find_in_game("game_main_menu_title.png", confidence=0.9, roi=game_roi)
+    check1 = GameCheckResult(
+        check_name="主菜单标题",
+        found=location is not None,
+        location=location[:2] if location else None,
+        confidence=location[2] if location else 0
+    )
+    print(f"主菜单标题：{'✅ 找到' if check1.found else '❌ 没找到'}")
+
+    # 检查 2："开始游戏"按钮
+    location = find_in_game("btn_start.png", confidence=0.85, roi=game_roi)
+    check2 = GameCheckResult(
+        check_name="开始游戏按钮",
+        found=location is not None,
+        location=location[:2] if location else None,
+        confidence=location[2] if location else 0
+    )
+    print(f"开始游戏按钮：{'✅ 找到' if check2.found else '❌ 没找到'}")
+
+    # 检查 3：版本水印（右下角小字）
+    version_roi = (1500, 900, 420, 180)   # 右下角小区域
+    location = find_in_game("version_1_2_0.png", confidence=0.8, roi=version_roi)
+    check3 = GameCheckResult(
+        check_name="版本水印 1.2.0",
+        found=location is not None,
+        location=location[:2] if location else None,
+        confidence=location[2] if location else 0
+    )
+    print(f"版本水印：{'✅ 找到' if check3.found else '❌ 没找到'}")
+
+    # 汇总
+    all_passed = all(c.found for c in [check1, check2, check3])
+    print(f"\n游戏主菜单验证：{'全部通过 ✅' if all_passed else '有失败 ❌'}")
+    return all_passed
+
+# 运行
+if __name__ == "__main__":
+    # 先启动游戏（假设）
+    # subprocess.Popen(["C:\\Games\\MyGame\\game.exe"])
+    # time.sleep(10)   # 等游戏加载
+
+    test_game_main_menu()</code></pre>
+        <div class="callout">
+          <p>图像识别测试「核心原则」：① <strong>参考图要清晰</strong>（从同一分辨率截，不模糊）；② <strong>用 ROI 限定区域</strong>（全屏幕找太慢，限定「按钮区域」快 10 倍）；③ <strong>置信度 0.85~0.95</strong>（找不到调低，误识别调高）；④ <strong>灰度匹配优先</strong>（快 3 倍且稳），颜色敏感才用彩色。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.opencv.org/master/d4/d7f/tutorial_py_template_matching.html" target="_blank" rel="noopener">OpenCV 官方教程 - 模板匹配</a></li>
+            <li><a href="https://opencv-python-tutroals.readthedocs.io/" target="_blank" rel="noopener">OpenCV Python 教程</a></li>
+            <li><a href="https://scikit-image.org/docs/stable/auto_examples/definitions/def_template.html" target="_blank" rel="noopener">scikit-image 模板匹配示例</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#pc-automation</span>
+          <span class="tag">#opencv</span>
+          <span class="tag">#image-recognition</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

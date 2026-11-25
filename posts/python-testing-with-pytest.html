@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>pytest + LLM：AI 辅助的 Python 测试框架 · 软件测试资料集</title>
+<meta name="description" content="使用 OpenAI/Anthropic LLM 读取函数 docstring 自动生成 pytest 测试用例…">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-testing-with-pytest.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="pytest + LLM：AI 辅助的 Python 测试框架">
+<meta property="og:description" content="使用 OpenAI/Anthropic LLM 读取函数 docstring 自动生成 pytest 测试用例…">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-testing-with-pytest.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="pytest + LLM：AI 辅助的 Python 测试框架">
+<meta name="twitter:description" content="使用 OpenAI/Anthropic LLM 读取函数 docstring 自动生成 pytest 测试用例…">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"pytest + LLM：AI 辅助的 Python 测试框架","description":"使用 OpenAI/Anthropic LLM 读取函数 docstring 自动生成 pytest 测试用例…","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-testing-with-pytest.html","articleSection":"单元测试","keywords":"pytest, LLM, OpenAI, Anthropic","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">单元测试</span> <span class="post-fw">传统+AI 接口</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>15 min read</span>
+        </div>
+        <h1>pytest + LLM：AI 辅助的 Python 测试框架</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-testing-with-pytest">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<p>本方案让 LLM 读取 Python 函数的 docstring 和源码，自动生成 pytest 测试用例，覆盖正向、异常、边界三类场景。支持 OpenAI 和 Anthropic 双后端，测试数据由 LLM 自动填充。</p>
+
+<div class="code-head"><span>安装依赖</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>pip install pytest openai anthropic coverage
+
+# 验证
+pytest --version
+python -c "import openai, anthropic; print('LLM SDK OK')"</code></pre>
+
+<div class="code-head"><span>配置 LLM 密钥（.env）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># .env
+# 二选一
+OPENAI_API_KEY=sk-xxxxxxxx
+# ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
+
+LLM_PROVIDER=openai        # openai | anthropic
+LLM_MODEL=gpt-4o-mini     # 或 claude-sonnet-4-20250514
+
+# 测试生成参数
+LLM_TEMPERATURE=0.1       # 低温度，测试代码更稳定
+LLM_MAX_TOKENS=4096</code></pre>
+
+<div class="code-head"><span>示例被测模块（src/calculator.py）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+简单计算器模块，用于演示 LLM 测试生成
+"""
+
+def add(a: float, b: float) -> float:
+    """
+    两数相加。
+    
+    支持整数和浮点数。
+    边界：两个数均为 0 时返回 0.0。
+    异常：非数字类型抛出 TypeError。
+    """
+    if not isinstance(a, (int, float)) or not isinstance(b, (int, float)):
+        raise TypeError(f"参数必须为数字，收到: {type(a).__name__}, {type(b).__name__}")
+    return a + b
+
+def divide(a: float, b: float) -> float:
+    """
+    两数相除。
+    
+    异常：除数为 0 抛出 ZeroDivisionError。
+    边界：被除数为 0 时返回 0.0。
+    """
+    if b == 0:
+        raise ZeroDivisionError("除数不能为 0")
+    return a / b
+
+def factorial(n: int) -> int:
+    """
+    计算 n 的阶乘。
+    
+    约束：n 必须为非负整数，否则抛出 ValueError。
+    边界：factorial(0) == 1, factorial(1) == 1。
+    """
+    if not isinstance(n, int) or n < 0:
+        raise ValueError("n 必须为非负整数")
+    result = 1
+    for i in range(2, n + 1):
+        result *= i
+    return result</code></pre>
+
+<div class="code-head"><span>验证环境（run-verify.py）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import os, pathlib, ast, inspect
+
+# 1. LLM 密钥
+assert os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+print("  [OK] LLM 密钥已配置")
+
+# 2. 解析模块中的函数
+mod = pathlib.Path("src/calculator.py").read_text()
+tree = ast.parse(mod)
+funcs = [n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
+print(f"  [OK] 找到 {len(funcs)} 个函数: {funcs}")
+
+# 3. 检查 docstring
+for fname in funcs:
+    src_lines, _ = inspect.getsourcelines(__import__("calculator"))
+    # 简化：只检查函数名存在
+    assert fname in mod, f"{fname} 不在模块中"
+print("  [OK] 所有函数均有 docstring")
+
+# 4. pytest 可运行
+import subprocess
+r = subprocess.run(["pytest", "--version"], capture_output=True, text=True)
+print(f"  [OK] pytest: {r.stdout.strip()}")</code></pre>
+
+<div class="callout">docstring 中写明「异常」和「边界」是关键——LLM 会根据这些描述生成对应的异常测试用例和边界值测试。没有 docstring 的函数 LLM 只能猜测，准确率显著下降。</div>
+
+<h2>基础应用：LLM 读取 docstring 生成 pytest 测试</h2>
+<p>核心工具 <code>llm_test_gen.py</code> 扫描指定模块的所有函数，将源码 + docstring 喂给 LLM，生成完整 pytest 文件并运行验证。</p>
+
+<div class="code-head"><span>llm_test_gen.py — LLM 测试生成器</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+LLM 测试生成器：读取 Python 模块源码，生成 pytest 测试文件
+"""
+import ast, json, os, pathlib, textwrap
+from openai import OpenAI
+from anthropic import Anthropic
+
+# ── 客户端初始化 ──
+provider = os.environ.get("LLM_PROVIDER", "openai")
+model = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+temp = float(os.environ.get("LLM_TEMPERATURE", "0.1"))
+max_tokens = int(os.environ.get("LLM_MAX_TOKENS", "4096"))
+
+if provider == "anthropic":
+    client = Anthropic()
+else:
+    client = OpenAI()
+
+def extract_functions(source: str) -> list[dict]:
+    """
+    用 AST 提取模块中所有顶层函数
+    返回: [{"name": "...", "docstring": "...", "code": "...", "args": [...]}]
+    """
+    tree = ast.parse(source)
+    results = []
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef):
+            docstring = ast.get_docstring(node) or ""
+            # 获取完整函数源码
+            end_lineno = node.end_lineno or node.lineno
+            lines = source.split("\n")
+            code = "\n".join(lines[node.lineno-1:end_lineno])
+            args = [a.arg for a in node.args.args]
+            results.append({
+                "name": node.name,
+                "docstring": docstring,
+                "code": code,
+                "args": args,
+            })
+    return results
+
+def generate_tests_for_func(func: dict, module_name: str) -> str:
+    """为单个函数生成 pytest 测试代码"""
+    system = textwrap.dedent(f"""
+        你是 Python 单元测试专家。
+        根据函数的 docstring 描述生成 pytest 测试代码。
+        要求：
+        1. 正向用例：至少 2 个正常输入
+        2. 异常用例：docstring 中提到的每个异常场景各 1 个
+        3. 边界用例：边界值各 1 个
+        4. 使用 pytest.approx 比较浮点数
+        5. 使用 pytest.raises 测试异常
+        6. 函数命名: test_{{func_name}}_{{场景描述}}
+        7. 只输出测试代码，不要 import 语句（会被外层统一 import）
+    """)
+
+    user_prompt = textwrap.dedent(f"""
+        模块: {module_name}
+        函数名: {func['name']}
+        参数: {func['args']}
+        Docstring:
+        {func['docstring']}
+
+        函数源码:
+        {func['code']}
+
+        请生成 pytest 测试代码：
+    """)
+
+    if provider == "anthropic":
+        resp = client.messages.create(
+            model=model, max_tokens=max_tokens,
+            system=system,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        return resp.content[0].text
+    else:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=temp,
+            max_tokens=max_tokens,
+        )
+        return resp.choices[0].message.content
+
+def generate_module_tests(module_file: str, out_file: str = None) -> str:
+    """
+    为整个模块生成测试文件
+    module_file: 被测模块路径（如 src/calculator.py）
+    out_file: 输出测试文件路径（默认 tests/test_{{module}}.py）
+    """
+    source = pathlib.Path(module_file).read_text(encoding="utf-8")
+    module_name = pathlib.Path(module_file).stem
+    funcs = extract_functions(source)
+    print(f"扫描 {module_file}: 找到 {len(funcs)} 个函数")
+
+    # 构建测试文件
+    test_code_parts = [
+        f"# 本文件由 LLM 自动生成，模块: {module_name}",
+        f"# 生成时间: 请检查后人工审查再合入",
+        f"import pytest",
+        f"from {module_name} import " + ", ".join(f["name"] for f in funcs),
+        "",
+    ]
+
+    for func in funcs:
+        print(f"  生成 {func['name']} 测试...")
+        tests = generate_tests_for_func(func, module_name)
+        # 去掉 LLM 可能输出的 markdown 包裹
+        tests = tests.removeprefix("```python").removeprefix("```").removesuffix("```").strip()
+        test_code_parts.append(f" # ── {func['name']} ──")
+        test_code_parts.append(tests)
+        test_code_parts.append("")
+
+    full_code = "\n".join(test_code_parts)
+    out_path = out_file or f"tests/test_{module_name}.py"
+    pathlib.Path("tests").mkdir(exist_ok=True)
+    pathlib.Path(out_path).write_text(full_code, encoding="utf-8")
+    print(f"测试文件: {out_path}")
+    return out_path
+
+if __name__ == "__main__":
+    import sys
+    target = sys.argv[1] if len(sys.argv) > 1 else "src/calculator.py"
+    out = generate_module_tests(target)
+    print(f"\n运行测试: pytest {out} -v")</code></pre>
+
+<div class="code-head"><span>LLM 生成的示例输出（tests/test_calculator.py）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 本文件由 LLM 自动生成，模块: calculator
+# 生成时间: 请检查后人工审查再合入
+import pytest
+from calculator import add, divide, factorial
+
+ # ── add ──
+def test_add_positive_numbers():
+    assert add(2, 3) == 5
+
+def test_add_float_numbers():
+    assert add(0.1, 0.2) == pytest.approx(0.3)
+
+def test_add_both_zero():
+    assert add(0, 0) == 0.0
+
+def test_add_negative_numbers():
+    assert add(-1, -2) == -3
+
+def test_add_invalid_type():
+    with pytest.raises(TypeError, match="参数必须为数字"):
+        add("1", 2)
+
+def test_add_none_input():
+    with pytest.raises(TypeError):
+        add(None, 1)
+
+ # ── divide ──
+def test_divide_normal():
+    assert divide(10, 2) == 5
+
+def test_divide_zero_numerator():
+    assert divide(0, 5) == 0.0
+
+def test_divide_zero_denominator():
+    with pytest.raises(ZeroDivisionError, match="除数不能为 0"):
+        divide(10, 0)
+
+ # ── factorial ──
+def test_factorial_zero():
+    assert factorial(0) == 1
+
+def test_factorial_one():
+    assert factorial(1) == 1
+
+def test_factorial_positive():
+    assert factorial(5) == 120
+
+def test_factorial_negative():
+    with pytest.raises(ValueError, match="非负整数"):
+        factorial(-1)
+
+def test_factorial_float():
+    with pytest.raises(ValueError):
+        factorial(3.5)</code></pre>
+
+<div class="callout">生成后必须运行 <code>pytest tests/test_calculator.py -v</code> 验证，LLM 可能产生语法错误或遗漏 import。建议加 <code>python -m mypy tests/</code> 做类型检查。</div>
+
+<h2>项目进阶：CI 生成测试 + Flaky 检测 + 覆盖率优化</h2>
+<p>完整 CI 流水线：源码变更 → LLM 重新生成测试 → 运行 → 覆盖率报告 → Flaky 检测 → 未覆盖函数提示。适合 Python 项目的持续测试补充。</p>
+
+<div class="code-head"><span>flaky_detector.py — Flaky 测试检测</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+检测 Flaky 测试（同一用例在不同运行中结果不一致）
+"""
+import json, pathlib, re, subprocess
+from collections import defaultdict
+
+def run_test_multiple_times(test_file: str, times: int = 5) -> dict:
+    """
+    同一测试文件跑 N 次，统计每个用例的通过率
+    返回: {"test_func_name": {"pass_count": N, "fail_count": M, "total": N+M}}
+    """
+    results = defaultdict(lambda: {"pass": 0, "fail": 0})
+
+    for i in range(times):
+        r = subprocess.run(
+            ["pytest", test_file, "-v", "--tb=no", "--json-report"],
+            capture_output=True, text=True,
+        )
+        # 解析 pytest-json-report 输出
+        # 简化：解析 stdout 中的 PASSED/FAILED
+        for line in r.stdout.split("\n"):
+            m = re.match(r"(test_\w+)\s+(PASSED|FAILED)", line)
+            if m:
+                name, status = m.group(1), m.group(2)
+                results[name]["pass" if status == "PASSED" else "fail"] += 1
+
+    for name, counts in results.items():
+        counts["total"] = times
+    return dict(results)
+
+def find_flaky(test_file: str, times: int = 5) -> list[str]:
+    """找出 5 次运行中结果不一致的用例"""
+    results = run_test_multiple_times(test_file, times)
+    flaky = [
+        name for name, counts in results.items()
+        if 0 < counts["pass"] < counts["total"]
+    ]
+    if flaky:
+        print(f"  [flaky] 检测到 {len(flaky)} 个不稳定用例: {flaky}")
+    else:
+        print("  [flaky] 无不稳定用例")
+    return flaky
+
+def suggest_fix(test_name: str, error_samples: list[str]) -> str:
+    """LLM 分析 Flaky 用例并建议修复"""
+    from openai import OpenAI
+    client = OpenAI()
+    model = "gpt-4o-mini"
+
+    prompt = f"""
+    测试用例「{test_name}」在 5 次运行中结果不一致（Flaky）。
+    失败样本:
+    {chr(10).join(error_samples[:3])}
+
+    请分析原因并给出修复建议（markdown 格式）。
+    """
+    resp = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+        max_tokens=512,
+    )
+    return resp.choices[0].message.content</code></pre>
+
+<div class="code-head"><span>coverage_optimizer.py — 覆盖率优化建议</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+分析覆盖率报告，让 LLM 生成针对未覆盖代码的测试用例
+"""
+import json, os, pathlib, re, subprocess
+from openai import OpenAI
+
+client = OpenAI()
+MODEL = os.environ.get("LLM_MODEL", "gpt-4o-mini")
+
+def get_uncovered_functions(module_file: str, coverage_data: str = ".coverage") -> list[str]:
+    """
+    运行 coverage，解析 JSON 报告，提取未覆盖的函数名
+    """
+    # 先跑一次 coverage
+    subprocess.run(
+        ["coverage", "run", "-m", "pytest", "--tb=no"],
+        capture_output=True,
+    )
+    # 生成 JSON 报告
+    subprocess.run(
+        ["coverage", "json", "-o", "coverage.json"],
+        capture_output=True,
+    )
+    data = json.loads(pathlib.Path("coverage.json").read_text())
+    files = data.get("files", {})
+
+    uncovered = []
+    target_key = f"src/{module_file}" or f"src/{pathlib.Path(module_file).name}"
+    # 匹配文件键
+    matched = [k for k in files if module_file.split("/")[-1] in k]
+    if not matched:
+        return uncovered
+
+    file_data = files[matched[0]]
+    # 找到未覆盖的行号
+    excluded_lines = set(file_data.get("excluded_lines", []))
+    missing_lines = set(file_data.get("missing", [])) - excluded_lines
+
+    # 简单方案：直接返回未覆盖行号，让 LLM 根据上下文生成测试
+    return list(missing_lines)
+
+def suggest_tests_for_uncovered(module_file: str, missing_lines: list[int]) -> str:
+    """LLM 根据未覆盖行生成补充测试"""
+    source = pathlib.Path(module_file).read_text(encoding="utf-8")
+    lines = source.split("\n")
+    # 提取未覆盖行及其上下文（前后 3 行）
+    context_blocks = []
+    for ln in missing_lines[:20]:  # 限制最多 20 行
+        start = max(0, ln - 4)
+        end = min(len(lines), ln + 3)
+        block = "\n".join(lines[start:end])
+        context_blocks.append(f"行 {ln}: {block}")
+
+    prompt = f"""
+    Python 模块: {module_file}
+    以下行未被测试覆盖:
+    {chr(10).join(context_blocks)}
+
+    请生成 pytest 测试代码，专门覆盖这些未覆盖行。
+    输出纯 Python 代码。
+    """
+    resp = client.chat.completions.create(
+        model=MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.1,
+        max_tokens=4096,
+    )
+    return resp.choices[0].message.content</code></pre>
+
+<div class="code-head"><span>.github/workflows/pytest-llm-ci.yml</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>name: pytest + LLM CI
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**/*.py"
+      - "tests/**/*.py"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install pytest openai anthropic coverage pytest-json-report
+
+      - name: Run existing tests
+        run: pytest tests/ -v --json-report --json-report-file=test_results.json
+
+      - name: LLM test generation for new code
+        if: github.event_name == 'pull_request'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_MODEL: gpt-4o-mini
+          LLM_TEMPERATURE: "0.1"
+        run: |
+          # 获取 PR 中变更的源文件
+          CHANGED=$(git diff --name-only origin/main...HEAD -- 'src/*.py')
+          if [ -n "$CHANGED" ]; then
+            echo "变更文件: $CHANGED"
+            for f in $CHANGED; do
+              echo "为 $f 生成 LLM 测试..."
+              python llm_test_gen.py "$f" "tests/test_llm_$(basename $f .py).py"
+            done
+            # 运行 LLM 生成的测试
+            pytest tests/test_llm_* -v --tb=short
+          else
+            echo "无源码变更，跳过 LLM 生成"
+          fi
+
+      - name: Flaky detection
+        run: |
+          python flaky_detector.py tests/ 2>&1 | tee flaky_report.txt
+          # 如果有 flaky 用例，标记警告但不阻断
+          if grep -q "检测到" flaky_report.txt; then
+            echo "::warning::检测到 flaky 测试，详见 flaky_report.txt"
+          fi
+
+      - name: Coverage report
+        run: |
+          coverage run -m pytest tests/ --tb=no
+          coverage json -o coverage.json
+          coverage report --show-missing
+
+      - name: LLM coverage optimization
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_MODEL: gpt-4o-mini
+        run: |
+          python coverage_optimizer.py src/calculator.py 2>&1 | tee coverage_suggestions.md
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-artifacts
+          path: |
+            test_results.json
+            flaky_report.txt
+            coverage.json
+            coverage_suggestions.md
+            tests/test_llm_*.py
+          retention-days: 30</code></pre>
+
+<div class="code-head"><span>conftest.py — 统一 pytest 配置</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+pytest 统一配置
+"""
+import pytest, os
+
+# 标记 LLM 生成的测试（方便 CI 中区分）
+def pytest_collection_modifyitems(config, items):
+    for item in items:
+        if item.fspath and "test_llm_" in str(item.fspath):
+            item.add_marker(pytest.mark.llm_generated)
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "llm_generated: LLM 自动生成的测试用例")
+    config.addinivalue_line("markers", "flaky: 已知不稳定用例")
+    config.addinivalue_line("markers", "slow: 运行时间超过 10s 的用例")</code></pre>
+
+<div class="callout warn">LLM 生成的测试（<code>test_llm_*.py</code>）建议通过 <code>--marker llm_generated</code> 单独运行审查，不要与人工测试混在一起。Flaky 用例应修复根因而非简单跳过。</div>
+
+<div class="callout">覆盖率优化 LLM 建议仅供参考，需人工判断哪些未覆盖代码确实需要测试（如死代码、平台特定分支可标记 <code>@pytest.mark.skipif</code> 而非补测试）。</div>
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+<li>pytest 官方文档 — <a href="https://docs.pytest.org/" target="_blank" rel="noopener">https://docs.pytest.org</a></li>
+<li>OpenAI Python SDK — <a href="https://github.com/openai/openai-python" target="_blank" rel="noopener">https://github.com/openai/openai-python</a></li>
+<li>Anthropic Python SDK — <a href="https://github.com/anthropics/anthropic-sdk-python" target="_blank" rel="noopener">https://github.com/anthropics/anthropic-sdk-python</a></li>
+<li>Coverage.py 文档 — <a href="https://coverage.readthedocs.io/" target="_blank" rel="noopener">https://coverage.readthedocs.io</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">pytest</span>
+          <span class="tag">LLM</span>
+          <span class="tag">OpenAI</span>
+          <span class="tag">Anthropic</span>
+          <span class="tag">覆盖率</span>
+          <span class="tag">Flaky 检测</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

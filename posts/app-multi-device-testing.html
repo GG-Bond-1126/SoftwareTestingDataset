@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APP 多设备测试：机型 / 系统 / 分辨率 · 软件测试资料集</title>
+<meta name="description" content="机型矩阵怎么裁剪、云真机与本地机房怎么取舍、分辨率与 ROM 差异怎么测、并行与取证怎么落地。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-multi-device-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="APP 多设备测试：机型 / 系统 / 分辨率">
+<meta property="og:description" content="机型矩阵怎么裁剪、云真机与本地机房怎么取舍、分辨率与 ROM 差异怎么测、并行与取证怎么落地。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-multi-device-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="APP 多设备测试：机型 / 系统 / 分辨率">
+<meta name="twitter:description" content="机型矩阵怎么裁剪、云真机与本地机房怎么取舍、分辨率与 ROM 差异怎么测、并行与取证怎么落地。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"APP 多设备测试：机型 / 系统 / 分辨率","description":"机型矩阵怎么裁剪、云真机与本地机房怎么取舍、分辨率与 ROM 差异怎么测、并行与取证怎么落地。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-multi-device-testing.html","articleSection":"APP 自动化","keywords":"multi-device, device-matrix, android-rom, screen-adaptation","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>21 min read</span>
+        </div>
+        <h1>APP 多设备测试：机型 / 系统 / 分辨率</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="app-multi-device-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>多设备问题为什么总在发版前才爆</h2>
+        <p>这篇写给已经开始做 App 自动化、但设备还停留在「开发手里那两台」的团队。典型场景是：回归在 Pixel 上全绿，包发到测试组的小米和华为上，首页白屏、按钮点不动、权限弹窗卡住流程，距离发版只剩两天。这类问题的共同点是「只在某个环境出现」，而绝大多数团队缺的不是修复能力，而是让问题尽早出现的那套设备策略。</p>
+        <p>多设备测试的难点不在装 Appium、连设备、跑用例，这三件事一天就能通。难在两个取舍：测多少台才够，以及怎么让这些设备的执行结果可以互相比较。设备越多，覆盖越广，但单次回归时间、设备维护成本、结果噪声也同步上升；设备越少，跑得越快，但每次线上事故都会反过来证明你的矩阵缺了关键一格。</p>
+        <p>下面按五步展开：先拆解矩阵的五个维度，再讲云真机与本地机房怎么选，然后分别处理分辨率适配、厂商 ROM 差异、并行分发与结果聚合，最后给出「只在某机型复现」时的取证流程。文中的机型占比、耗时均为示例值，真实数据要以自家埋点为准。</p>
+
+        <h2>机型矩阵的五个维度：不是五个数字相乘</h2>
+        <p>第一个维度是用户占比，而且必须是真实的线上数据，不是产品经理印象里「用华为的多」。按启动日志或埋点里的机型、系统版本聚合出 Top 20，通常能覆盖七成以上用户，剩下的长尾再按风险补。占比决定了哪些设备必须进日常回归，而不是决定全部设备清单。</p>
+        <p>第二个维度是厂商 ROM。Android 的碎片化主要不在原生系统，而在各家定制层：小米的 MIUI 与 HyperOS、华为的 HarmonyOS、OPPO 的 ColorOS、vivo 的 OriginOS、荣耀的 MagicOS、三星的 One UI，它们在权限弹窗、后台限制、通知管理上的行为差异，比 Android 大版本差异更容易造成线上事故。矩阵里至少要保证有两到三个不同厂商的 ROM，而不是五台都是同一家。</p>
+        <p>第三个维度是屏幕形态与尺寸：小屏、主流直板、折叠屏内屏与外屏、平板。第四个维度是系统版本，重点覆盖最低支持版本、当前用户占比最高的版本、以及最新的 targetSdk 对应版本，因为 targetSdk 升级会带来一批行为变更。第五个维度是芯片与性能档位，高通、联发科、麒麟的 GPU 驱动差异会影响渲染，低端机则能暴露内存与卡顿问题。</p>
+        <p>这五个维度不能简单相乘。五机型乘三系统乘两分辨率就是三十个组合，每个组合跑半小时，一天根本跑不完，而且大部分组合的收益是重复的。正确做法是先按维度打分，再按分层收敛，让每个设备承担明确的验证目标：这台负责覆盖低端性能，那台负责覆盖折叠屏布局，另一台负责覆盖某厂商的后台限制。</p>
+
+        <h2>矩阵分层：冒烟、回归、专项三档</h2>
+        <p>我们的做法是把设备分成三层。L1 冒烟层只放一到两台，覆盖最低支持版本和用户最多的机型，每次提交都跑，只跑主流程二十条左右，要求十分钟内出结果；L2 回归层放五到八台，覆盖主流厂商与主流系统，每天夜间跑全量；L3 专项层不常驻，按需借用或上云，专门覆盖折叠屏、平板、暗黑模式、超大字体、低端机这些容易出布局问题但不需要天天跑的场景。</p>
+        <p>分层的好处是成本可控且职责清晰。L1 失败就是阻断，必须立刻修；L2 失败按模块分派；L3 一般跟随版本节奏走，发版前必跑一轮。团队常犯的错误是把所有设备都塞进 L2，结果夜间回归跑到第二天中午还没结束，报告出来已经没人看了。</p>
+        <p>选型时还有一条兜底原则：最低支持版本、用户占比最高机型、最新系统版本，这三台必须各有一台，哪怕预算只够买三台设备。它们分别对应「能不能装」「大多数人在用什么」「新系统会不会把老代码打死」，这三类问题一旦漏掉，修复成本最高。</p>
+
+        <div class="code-head"><span>yaml — 分层设备矩阵</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># config/devices.yaml（机型与系统为示例值，请按自家埋点替换）
+tiers:
+  smoke:                     # L1：每次提交，只跑主流程
+    - name: Pixel 7
+      udid: 1A1F1F001
+      api: 34
+      rom: google
+  regression:                # L2：每日夜间全量
+    - {name: Redmi K60, udid: 2B2C2D002, api: 33, rom: miui}
+    - {name: HUAWEI P40, udid: 3C3D4E003, api: 31, rom: harmony}
+    - {name: OPPO Reno10, udid: 4D4E5F004, api: 33, rom: coloros}
+    - {name: Galaxy S22, udid: 5E5F60005, api: 33, rom: oneui}
+  special:                   # L3：发版前或按需
+    - {name: Mate X3, udid: 6F6071006, api: 33, rom: harmony, tag: foldable}
+    - {name: Redmi 9A, udid: 7A7182007, api: 29, rom: miui, tag: lowend}
+    - {name: Xiaomi Pad 6, udid: 8B8293008, api: 33, rom: miui, tag: tablet}</code></pre>
+
+        <p>这份配置只描述「有哪些设备」，不描述「跑什么」。用例与设备的映射应该单独维护，比如折叠屏设备只跑布局与多窗口用例，低端机重点跑启动与列表滑动，否则专项设备会变成又一台跑全量的回归机，失去意义。</p>
+
+        <h2>云真机与本地机房：五条取舍线</h2>
+        <p>第一条是成本结构。云真机按分钟计费，随用随开，适合波峰和长尾机型；本地机房是一次性采购加持续维护，适合高频、稳定、长期占用的主流机型。简单估算：如果每月设备使用超过一百小时，本地机的单位成本通常更低；如果只是每月发版前跑两轮，云上更划算，因为你不用为闲置时间付电费和折旧。</p>
+        <p>第二条是可控性。本地机房可以 root、可以改系统设置、可以抓包、可以安装测试桩、可以关掉厂商的省电策略，排障时这些能力非常关键；公有云设备一般不允许 root，系统设置也只能通过平台提供的接口微调，遇到需要改系统行为的问题会很被动。做兼容性验证上云，做深度排障回本地，这是最常见也最务实的分工。</p>
+        <p>第三条是网络与合规。被测 App 如果依赖内网服务、内网证书或固定 IP 白名单，公有云设备根本连不上；金融、医疗、政企类应用还涉及「安装包不能上传第三方」的硬性要求，这时候本地机房不是可选项而是唯一选项。反过来，面向海外用户的 App 需要真实海外网络与运营商环境，本地机房很难模拟，云平台反而更合适。</p>
+        <p>第四条是并发与排队。云平台的设备池大，但热门机型在业务高峰会排队，且单次会话有时长上限，长用例容易被强制中断；本地机房的并发上限就是你买了多少台，稳定但扩容慢。第五条是稳定性，云平台偶发断连、ADB 掉线、截图延迟，需要在框架层做重连与重试；本地设备则是「人祸」更多，谁拔了线、谁装了个测试包，都会让第二天的数据不可比。</p>
+        <p>我们的组合是：L1 冒烟用本地两台固定机，保证速度和稳定；L2 回归用本地五台加云端两台补位；L3 专项全部上云，按需开机。这样既不养一堆闲置设备，也不会在最关键的冒烟环节被云平台排队卡住。</p>
+
+        <div class="code-head"><span>yaml — 云端设备的 capability 写法</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 同一套用例，换 capability 就能跑在云平台（平台前缀按厂商文档调整）
+platforms:
+  - name: iPhone 15
+    platformName: iOS
+    "appium:platformVersion": "17"
+    "appium:deviceName": "iPhone 15"
+    "appium:automationName": "XCUITest"
+    "bstack:options":
+      projectName: demo-app
+      buildName: nightly-20261123
+      debug: true
+      networkLogs: true
+  - name: Pixel 8
+    platformName: Android
+    "appium:platformVersion": "14"
+    "appium:deviceName": "Google Pixel 8"
+    "appium:automationName": "UiAutomator2"
+    "bstack:options":
+      projectName: demo-app
+      buildName: nightly-20261123</code></pre>
+
+        <p>把平台相关的配置全部收敛到这一层，用例代码里不出现任何设备名和云厂商字段，是能同时跑本地与云上的前提。否则每换一次平台就要改一遍用例，最后没人愿意再迁。</p>
+
+        <h2>分辨率与 DPI：1px 线、安全区、折叠屏、平板、暗黑模式</h2>
+        <p>分辨率问题很少表现为「完全错位」，更多是「差一点」：分割线在某些机型上消失、文字被刘海挡住半个字、底部按钮压在手势条上、折叠屏展开后右侧留白。这些问题的<a class="ilink" href="ai-defect-rootcause.html">根因</a>通常不是分辨率本身，而是开发者用了物理像素或者写死了尺寸，没有走 dp 与自适应布局。</p>
+        <p>1px 分割线是经典案例。设计师给的是「一像素细线」，开发直接写 1px，在 3 倍屏上这条线只有物理 1 像素宽，肉眼几乎看不见，某些 ROM 的抗锯齿还会把它抹掉。正确写法是用 1dp 或者按 density 折算，验收时用层级 dump 读控件的实际高度，而不是只靠肉眼判断。</p>
+        <p>安全区要按设备实际的内边距校验。刘海屏、挖孔屏、曲面屏的可用区域不同，Android 侧要用 WindowInsets 与 cutout 模式适配，iOS 侧依赖 safeAreaLayoutGuide。测试时要专门检查顶部标题栏、底部操作栏、全屏播放和横屏这四个位置，它们是最容易被系统栏压住的区域。</p>
+        <p>折叠屏与平板是另一类问题。折叠屏要在展开、折叠、悬停三种状态下检查布局是否重排、页面状态是否丢失、视频是否继续播放；平板要检查是否真的用上了宽屏布局，而不是把手机布局拉伸到十二英寸。暗黑模式则要单独过一遍：硬编码的白色背景、没有适配的图片、WebView 默认白底，都会在深色主题下露出破绽。</p>
+
+        <div class="code-head"><span>powershell — 读取屏幕参数与安全区</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 物理分辨率与密度（示例值：1080x2400，420dpi）
+adb shell wm size
+adb shell wm density
+
+# 逻辑尺寸、刷新率与当前显示模式
+adb shell dumpsys display | Select-String "mBaseDisplayInfo|refreshRate"
+
+# 刘海 / 挖孔区域
+adb shell dumpsys cutout
+
+# 折叠状态（部分机型支持，字段随 ROM 而异）
+adb shell dumpsys window | Select-String "mDisplayFolded|mCurrentFoldState"
+
+# 深色模式当前状态
+adb shell cmd uimode night</code></pre>
+
+        <div class="code-head"><span>python — 用层级 dump 校验细线与越界</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import re
+import subprocess
+import xml.etree.ElementTree as ET
+
+SAFE_TOP_DP = 32          # 示例值：状态栏加标题栏预留，按设计稿调整
+
+
+def dump_hierarchy() -&gt; ET.Element:
+    subprocess.run(["adb", "shell", "uiautomator", "dump", "/sdcard/ui.xml"], check=True)
+    raw = subprocess.run(
+        ["adb", "exec-out", "cat", "/sdcard/ui.xml"],
+        capture_output=True, text=True, encoding="utf-8",
+    ).stdout
+    return ET.fromstring(raw)
+
+
+def check_layout(min_line_px: int = 2) -&gt; list:
+    root = dump_hierarchy()
+    issues = []
+    for node in root.iter("node"):
+        bounds = node.get("bounds", "")
+        if not bounds:
+            continue
+        left, top, right, bottom = map(int, re.findall(r"\d+", bounds))
+        rid = node.get("resource-id", "")
+
+        if rid.endswith("divider") and bottom - top &lt; min_line_px:
+            issues.append(f"分割线 {rid} 实际高度 {bottom - top}px，过细")
+        if node.get("text") and top &lt; 0:
+            issues.append(f"文本 {node.get('text')!r} 顶边越界，top={top}")
+    return issues</code></pre>
+
+        <p>这段校验的判据全部来自控件树，而不是截图比对，好处是不受字体渲染和抗锯齿影响，坏处是拿不到纯 Canvas 绘制的元素。截图比对照样要做，但只用于「肉眼可见的大偏移」，并且必须在同分辨率、同字体缩放的前提下比，否则误报率会高到没人看。</p>
+
+        <h2>厂商 ROM 差异：权限、后台、自启动、通知</h2>
+        <p>权限弹窗是国产 ROM 上最容易把自动化卡死的地方。原生 Android 从 6.0 起是运行时权限，一次一个弹窗；国产 ROM 往往在首次启动时叠加「隐私政策同意」「自启动管理」「后台运行」「读取应用列表」等额外弹窗，文案和按钮位置各家不同。Appium 的 <code>autoGrantPermissions</code> 在原生系统上有效，在部分定制系统上完全不起作用，因为那些弹窗不属于标准权限模型。</p>
+        <p>稳妥的做法是双保险：capability 里打开权限自动授予作为第一层，用例启动后跑一个弹窗清理函数作为第二层，按文案匹配「允许」「同意」「仅在使用中允许」等关键词逐个点击，最多点四轮，点不到就继续，不要死等。同时把弹窗清理的结果写进日志，如果某台设备连续多轮都要点五次以上，说明这个 ROM 的弹窗策略变了，值得单独关注。</p>
+        <p>后台限制是第二个大坑。MIUI、ColorOS、HarmonyOS 都有省电策略与后台清理，测试过程中 App 被系统杀掉，表现出来就是「切后台再回来白屏」或「推送收不到」。排查时要看 <code>dumpsys activity processes</code> 里进程是否还在、应用是否被加入受限名单，必要时在系统设置里手动把应用设为「无限制」。这类问题在云真机上通常无法复现，因为平台默认放宽了限制，所以后台相关用例必须在本地真机上跑。</p>
+        <p>通知渠道与自启动是第三类差异。Android 8.0 之后通知必须走 channel，部分 ROM 会默认关闭新渠道，导致「功能正常但用户收不到通知」；自启动与关联启动被系统拦截后，推送长连接、闹钟、JobScheduler 都会失效。测试这两项不能只看 UI，要配合 <code>dumpsys notification</code> 与日志确认消息确实发出，再到通知栏确认展示，最后确认进程在被杀后能否被拉起。</p>
+
+        <div class="code-head"><span>python — 启动后的弹窗清理</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from appium.webdriver.common.appiumby import AppiumBy
+
+ALLOW_TEXTS = ["允许", "始终允许", "仅在使用中允许", "同意", "确定", "知道了"]
+
+
+def dismiss_system_dialogs(driver, rounds: int = 4) -&gt; int:
+    """按文案点掉国产 ROM 的叠加弹窗，点不到就退出，绝不空等。"""
+    closed = 0
+    for _ in range(rounds):
+        hit = False
+        for text in ALLOW_TEXTS:
+            nodes = driver.find_elements(AppiumBy.XPATH, f"//*[@text='{text}']")
+            if nodes:
+                nodes[0].click()
+                closed += 1
+                hit = True
+                break
+        if not hit:
+            break
+    return closed
+
+
+def launch_and_prepare(driver, pkg: str) -&gt; None:
+    driver.terminate_app(pkg)
+    driver.activate_app(pkg)
+    count = dismiss_system_dialogs(driver)
+    if count &gt;= 5:
+        print(f"警告：{pkg} 本次弹出 {count} 个系统弹窗，检查 ROM 策略是否变化")</code></pre>
+
+        <h2>并行执行：任务分发与资源回收</h2>
+        <p>多设备并行的第一个约束是端口。每台设备需要一个独立的 Appium server 端口（4723、4725、4727 依次递增），UiAutomator2 还需要一个 <code>systemPort</code>，两者都不能重复，否则第二台设备的会话会连到第一台上。这个错误的表现很隐蔽：用例不报错，但截图全是另一台机器的界面。</p>
+        <p>第二个约束是任务粒度。按用例分发给设备池，比按设备切分用例文件更均衡，因为不同用例耗时差异很大；但要保证同一条用例的执行相互独立，不能依赖上一条留下的登录态，否则并行顺序一变就挂。我们的做法是每条用例自己完成登录，登录接口做了缓存，额外耗时可以接受。</p>
+        <p>第三个约束是资源回收。一台设备连续跑几十条用例后，会出现内存上涨、输入法弹窗、系统时间漂移、ADB 无响应。每台设备跑完一批任务后要执行固定清理：强制停止被测应用、清空应用数据、关闭软键盘、恢复系统设置、必要时重启设备。清理失败的设备直接标为不可用，不要带着脏状态进入下一轮，否则产生的结果比不跑更糟。</p>
+
+        <div class="code-head"><span>python — 设备池与单设备执行</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import subprocess
+
+from appium import webdriver
+from appium.options.android import UiAutomator2Options
+
+
+class Device:
+    def __init__(self, name: str, udid: str, server_port: int, system_port: int):
+        self.name = name
+        self.udid = udid
+        self.server_port = server_port
+        self.system_port = system_port
+
+    def build_options(self, apk: str) -&gt; UiAutomator2Options:
+        opts = UiAutomator2Options()
+        opts.udid = self.udid
+        opts.system_port = self.system_port
+        opts.app = apk
+        opts.auto_grant_permissions = True
+        opts.new_command_timeout = 120
+        return opts
+
+
+def run_batch(device: Device, cases: list, apk: str, pkg: str) -&gt; dict:
+    driver = webdriver.Remote(
+        f"http://127.0.0.1:{device.server_port}", options=device.build_options(apk)
+    )
+    passed, failed = 0, []
+    try:
+        for case in cases:
+            try:
+                case(driver)
+                passed += 1
+            except Exception as exc:
+                failed.append({"case": case.__name__, "error": repr(exc)})
+                driver.terminate_app(pkg)          # 失败后重建干净状态再继续
+                driver.activate_app(pkg)
+    finally:
+        driver.quit()
+        subprocess.run(["adb", "-s", device.udid, "shell", "pm", "clear", pkg])
+        subprocess.run(["adb", "-s", device.udid, "shell", "input", "keyevent", "KEYCODE_HOME"])
+    return {"device": device.name, "passed": passed, "failed": failed}</code></pre>
+
+        <p>这段代码故意没有引入线程池，因为真正的并行调度应该放在任务队列层：一个队列放待执行用例，一个队列放空闲设备，谁空了谁取任务，设备执行完回队列并追加清理任务。把并行藏在单个函数里，出了问题很难定位是哪台设备、哪条用例、哪个阶段。</p>
+
+        <h2>结果聚合：按机型透视，而不是只看总通过率</h2>
+        <p>「总通过率 94%」在多设备场景里几乎没有信息量。它可能是所有设备都很稳定，也可能是三台设备全过、一台设备全军覆没。聚合报告的第一层必须是按设备透视：每台设备的通过数、失败数、崩溃数、平均耗时，第二层才是按用例透视：同一条用例在哪些设备上失败，在哪些设备上通过。</p>
+        <p>第二层是找「机型特有问题」的关键。如果一条用例只在华为上挂，八成是权限或后台策略；只在折叠屏上挂，八成是布局；只在低端机上挂，八成是超时或内存。把所有用例的失败设备集合做一次反向索引，只出现在单一设备上的失败会被自动挑出来，这批就是最值得优先看的部分。</p>
+        <p>报告里还要区分崩溃与断言失败。崩溃代表进程挂了，往往是 ROM 兼容或 Native 层问题，必须截 logcat；断言失败可能只是文案随 ROM 变化，属于用例脆弱而不是产品缺陷。两者混在一起统计，会让人误判质量。</p>
+
+        <div class="code-head"><span>python — 按设备透视与单机型失败提取</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import collections
+
+
+def pivot(rows: list) -&gt; dict:
+    """rows: [{device, api, total, passed, failed:[case...]}]"""
+    table = collections.defaultdict(lambda: {"total": 0, "passed": 0, "failed": []})
+    for row in rows:
+        key = f"{row['device']} (API {row['api']})"
+        table[key]["total"] += row["total"]
+        table[key]["passed"] += row["passed"]
+        table[key]["failed"].extend(row["failed"])
+
+    return {
+        key: {
+            "pass_rate": round(value["passed"] / max(value["total"], 1) * 100, 1),
+            "failed": value["failed"][:5],
+        }
+        for key, value in table.items()
+    }
+
+
+def only_on_one_device(rows: list) -&gt; dict:
+    devices_of_case = collections.defaultdict(set)
+    for row in rows:
+        for case in row["failed"]:
+            devices_of_case[case].add(row["device"])
+    return {case: sorted(devs) for case, devs in devices_of_case.items() if len(devs) == 1}</code></pre>
+
+        <p>聚合结果建议按「设备 × 用例」写成一张二维表落到 HTML 或 CSV 里，失败的格子点进去能直接跳到截图与日志。只给一个 JSON 是不够的，看报告的人多半不是写脚本的人。</p>
+
+        <h2>只在某机型复现：取证流程</h2>
+        <p>「在我这儿是好的」是多设备测试里最消耗信任的一句话。要终结这种拉扯，唯一的方法是让失败现场带上足够多的环境信息，多到研发无法用「环境不一样」来解释。最低限度要收五样：设备型号与 ROM 版本号、被测包版本、崩溃日志、失败瞬间的截图与控件层级、以及系统关键状态（当前焦点窗口、内存、电量、网络）。</p>
+        <p>ROM 版本号必须精确到构建号，比如 <code>ro.build.display.id</code>，而不是只写「MIUI 14」。同一个大版本的不同构建，权限策略和后台限制可能完全不一样，只写大版本等于没写。WebView 版本也要记，很多白屏问题最终是 WebView 内核版本差异导致的。</p>
+        <p>崩溃日志要单独取 crash buffer，不要只在主日志里搜异常。ANR 的场景则要看 <code>/data/anr/traces.txt</code>，普通应用没有权限直接读，可以用 <code>adb bugreport</code> 打包，或者在已 root 的测试机上直接拉取。取证脚本要能在一条命令里跑完，否则没人会在赶时间的时候记得做。</p>
+
+        <div class="code-head"><span>powershell — 单机型一次性取证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>$udid = "192.168.1.23:5555"
+$pkg = "com.demo.app"
+$stamp = Get-Date -Format "yyyyMMdd_HHmmss"
+
+adb -s $udid shell getprop ro.build.display.id &gt; "rom_$stamp.txt"
+adb -s $udid shell dumpsys package $pkg | Select-String "versionName|versionCode" &gt;&gt; "rom_$stamp.txt"
+adb -s $udid shell dumpsys webviewupdate | Select-String "Current WebView package" &gt;&gt; "rom_$stamp.txt"
+
+adb -s $udid logcat -b crash -d &gt; "crash_$stamp.txt"
+adb -s $udid logcat -d -v threadtime &gt; "logcat_$stamp.txt"
+adb -s $udid shell dumpsys window | Select-String "mCurrentFocus|mFocusedApp" &gt; "window_$stamp.txt"
+adb -s $udid shell dumpsys meminfo $pkg | Select-String "TOTAL PSS" &gt;&gt; "window_$stamp.txt"
+adb -s $udid exec-out screencap -p &gt; "screen_$stamp.png"
+adb -s $udid shell uiautomator dump /sdcard/ui.xml
+adb -s $udid pull /sdcard/ui.xml "ui_$stamp.xml"
+
+# ANR 或疑难崩溃时再补一份完整 bugreport（体积大，按需执行）
+adb -s $udid bugreport "bugreport_$stamp.zip"</code></pre>
+
+        <p>取证文件按「设备名 + 时间戳」命名，和报告里的失败记录用同一个标识关联。这样研发拿到缺陷单，点开就是一份自洽的证据包，而不是一句「华为上不行，你查一下」。</p>
+
+        <h2>常见坑与排查</h2>
+        <p><strong>症状</strong>：并行跑三台设备，报告里第二台的截图全是第一台的界面。<strong>原因</strong>：两台设备的 systemPort 配成了同一个，第二个会话实际连到了第一个 UiAutomator2 服务。<strong>处理</strong>：端口在设备配置里显式分配并做启动前唯一性校验，冲突直接拒绝启动。</p>
+        <p><strong>症状</strong>：同一条用例在原生系统通过，在国产 ROM 上卡在启动页。<strong>原因</strong>：叠层的隐私协议或自启动弹窗遮住了界面，脚本在等一个永远不可点的元素。<strong>处理</strong>：启动后统一执行弹窗清理，并把清理次数写进报告；超过阈值时告警。</p>
+        <p><strong>症状</strong>：折叠屏展开后页面右侧大片空白，折叠回去又正常。<strong>原因</strong>：Activity 没有处理配置变更，展开时没有重新计算布局，或者写死了宽度。<strong>处理</strong>：在 manifest 中声明配置变更处理，布局改用自适应约束；验收时按展开、折叠、悬停三态各跑一遍。</p>
+        <p><strong>症状</strong>：截图对比在小米上总是失败，差异肉眼看不出来。<strong>原因</strong>：不同 ROM 的字体渲染与圆角抗锯齿不同，像素级比对必然有差异。<strong>处理</strong>：改用结构断言（控件存在、位置在容差内），或者给像素比对设置区域白名单与容差阈值。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>这张表按设备维度梳理发版前必须确认的项，每一项都对应一个具体的验证动作，而不是一句「已确认兼容」。建议把它挂在发版流程里，谁签字谁负责提供对应的截图或报告，出问题时也能快速回溯是哪一环漏掉了。</p>
+        <table>
+          <thead>
+            <tr><th>项目</th><th>通过标准（示例值）</th><th>取证方式</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>最低支持版本</td><td>可安装、可启动、主流程走通</td><td>L1 冒烟设备</td></tr>
+            <tr><td>主流厂商 ROM</td><td>至少三家 ROM 全绿</td><td>L2 回归报告</td></tr>
+            <tr><td>刘海与手势条</td><td>标题栏、底部栏无遮挡</td><td>控件树 bounds 校验</td></tr>
+            <tr><td>折叠屏三态</td><td>展开、折叠、悬停布局正确且状态不丢</td><td>L3 专项截图</td></tr>
+            <tr><td>平板宽屏</td><td>使用宽屏布局，非简单拉伸</td><td>截图与设计稿比对</td></tr>
+            <tr><td>暗黑模式</td><td>无白底闪屏、无不可读文字</td><td>深色模式遍历主流程</td></tr>
+            <tr><td>通知与权限</td><td>渠道可达、权限拒绝后有降级路径</td><td>通知栏实测</td></tr>
+            <tr><td>后台存活</td><td>切后台 30 分钟返回不白屏</td><td>本地真机实测</td></tr>
+          </tbody>
+        </table>
+        <p>最后留一句判断标准：如果你的设备矩阵里，每一台设备都说不清「它负责验证什么」，那它大概率只是增加了回归时长，而没有增加覆盖。能删的设备就删掉，把预算留给真正能暴露问题的那几台。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://developer.android.com/training/multiscreen/screensizes" target="_blank" rel="noopener">支持不同屏幕尺寸与密度 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/guide/topics/large-screens/learn-about-foldables" target="_blank" rel="noopener">折叠屏适配指南 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/develop/ui/views/theming/darktheme" target="_blank" rel="noopener">深色主题适配 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/develop/ui/views/notifications/channels" target="_blank" rel="noopener">通知渠道的创建与管理 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/training/monitoring-device-state/doze-standby" target="_blank" rel="noopener">针对 Doze 与 App Standby 做适配 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/studio/run/emulator" target="_blank" rel="noopener">Android 模拟器与虚拟设备 — Android Developers</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#multi-device</span>
+          <span class="tag">#device-matrix</span>
+          <span class="tag">#android-rom</span>
+          <span class="tag">#screen-adaptation</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

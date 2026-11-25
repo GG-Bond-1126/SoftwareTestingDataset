@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git 分支模型：Feature、Release、Hotfix 怎么选 · 软件测试资料集</title>
+<meta name="description" content="三种主流分支模型（Git Flow、GitHub Flow、简化模型）的测试视角对比，附分支命名规范和测试环境映射。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-branch-models.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Git 分支模型：Feature、Release、Hotfix 怎么选">
+<meta property="og:description" content="三种主流分支模型（Git Flow、GitHub Flow、简化模型）的测试视角对比，附分支命名规范和测试环境映射。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-branch-models.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Git 分支模型：Feature、Release、Hotfix 怎么选">
+<meta name="twitter:description" content="三种主流分支模型（Git Flow、GitHub Flow、简化模型）的测试视角对比，附分支命名规范和测试环境映射。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Git 分支模型：Feature、Release、Hotfix 怎么选","description":"三种主流分支模型（Git Flow、GitHub Flow、简化模型）的测试视角对比，附分支命名规范和测试环境映射。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-branch-models.html","articleSection":"Git 版本控制","keywords":"git, branching, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>Git 分支模型：Feature、Release、Hotfix 怎么选</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="git-branch-models">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Git
+# 配置用户
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+# 验证
+git --version</code></pre>
+<div class="code-head"><span>terminal — 初始化仓库</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>mkdir my-project && cd my-project
+git init
+echo "hello" > test.py
+git add .
+git commit -m "初始提交"</code></pre>
+
+<h2>基础应用：分支操作</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 创建 + 切换分支
+git checkout -b dev
+git commit -m "dev 修改" --allow-empty
+git checkout main
+git merge dev
+
+# 查看日志
+git log --oneline --graph</code></pre>
+
+<h2>项目进阶：Feature 分支 + MR 流程</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># Feature 分支
+git checkout -b feature/login
+git commit -m "feat: 用户登录" --allow-empty
+
+# 提 MR（在 GitHub/GitLab 上）
+# 评审通过后合并
+git checkout main
+git pull origin main
+git merge --squash feature/login
+git commit -m "feat: 用户登录"
+git push origin main
+git branch -d feature/login</code></pre>
+
+        <h2>三种主流分支模型对比</h2>
+        <p>先搞清楚：分支模型解决的核心问题是<strong>「代码从开发到上线怎么走」</strong>。测试工程师不是定策略的人，但必须看懂策略，否则测试环境和代码版本会对不上。</p>
+
+        <h3>Git Flow（适合有定期发布节奏的项目）</h3>
+        <div class="code-head"><span>分支结构示意</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>main（生产）
+  └── release/1.2（发布准备，只修 Bug 不加功能）
+       └── hotfix/1.1.1（紧急修复）
+
+develop（开发主干）
+  ├── feature/user-login（功能分支）
+  ├── feature/pay-flow（功能分支）
+  └── feature/report-export（功能分支）</code></pre>
+        <ul>
+          <li><strong>main</strong>：永远对应线上版本，只接受 release 或 hotfix 的合并；</li>
+          <li><strong>develop</strong>：开发主干，所有 feature 从这里切出、合并回这里；</li>
+          <li><strong>feature/*</strong>：一个功能一条分支，开发完提 MR 合回 develop；</li>
+          <li><strong>release/*</strong>：从 develop 切出，只允许修 Bug，测完合回 main 和 develop；</li>
+          <li><strong>hotfix/*</strong>：线上紧急 Bug，从 main 切出，修完合回 main 和 develop。</li>
+        </ul>
+        <div class="callout">
+          <p>测试视角：测功能在 develop，测发布在 release，测热修在 hotfix。<strong>千万别在 release 分支上加新功能</strong>，那是开发的事。</p>
+        </div>
+
+        <h3>GitHub Flow（适合持续部署的项目）</h3>
+        <div class="code-head"><span>分支结构示意</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>main（生产）
+  ├── feature/login（功能分支，短期存在）
+  ├── feature/dashboard（功能分支）
+  └── fix/typo（小修复分支）</code></pre>
+        <ul>
+          <li>没有 develop 和 release，所有分支直接从 main 切出；</li>
+          <li>合并到 main 后立即部署，没有「发布窗口」概念；</li>
+          <li>分支寿命尽量短，一两天内就该合并。</li>
+        </ul>
+        <div class="callout">
+          <p>测试视角：测在 main 的「上一版」和 feature 分支上，合并到 main 后做一轮回归即可。</p>
+        </div>
+
+        <h3>简化模型（小团队、项目少）</h3>
+        <p>只有一条 main，所有改动直接提交到 main，用 tag 标记版本。测试就是直接测 main + 看 tag。</p>
+
+        <h2>分支命名规范</h2>
+        <p>好的命名规范让「一条分支名」就能告诉你这条分支在干嘛。推荐格式：</p>
+        <div class="code-head"><span>命名规范</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 格式：类型/简短描述（用短横线连接）
+feature/user-login       # 新功能
+feature/report-export    # 新功能
+fix/login-timeout        # Bug 修复
+hotfix/pay-overflow      # 热修复（Git Flow）
+release/1.2.0            # 发布分支（Git Flow）
+test/e2e-regression      # 测试专用分支</code></pre>
+        <ul>
+          <li>全小写，单词用 <code>-</code> 连接，不用下划线；</li>
+          <li>描述尽量短，不超过 5 个单词；</li>
+          <li>测试专用分支（比如跑 UI 自动化的）用 <code>test/</code> 前缀，避免和开发分支混在一起。</li>
+        </ul>
+
+        <h2>测试环境映射表</h2>
+        <p>这是测试工程师最该记住的一张表。把「分支」和「环境」一一对应，测试时就知道该拉哪个分支：</p>
+        <div class="code-head"><span>测试环境映射（Git Flow 示例）</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 环境 | 对应分支 | 部署时机 | 测试重点
+开发环境 | feature/* | 开发自测 | 功能是否可跑通
+测试环境 | develop | 每次合并后 | 回归 + 新功能验收
+预发环境 | release/* | 发版前 | 发布回归 + 性能验证
+生产环境 | main | 发布后 | 冒烟 + 热修验证</code></pre>
+        <div class="callout warn">
+          <p>最常见的错误：在预发环境（release 分支）测新功能。release 分支不应该有新功能，如果 release 上出现新功能，说明开发把 feature 直接合进 release 了，这是流程违规。</p>
+        </div>
+
+        <h2>案例：一次完整的功能测试 + 发布流程</h2>
+        <p>假设你用 Git Flow，负责测试「用户登录」功能：</p>
+        <div class="code-head"><span>terminal — 完整流程</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 开发完成，feature 分支提 MR 合入 develop
+# 2. 你拉 develop，开始测试
+git checkout develop
+git pull
+
+# 3. 跑回归 + 新功能测试
+python -m pytest tests/ -v
+
+# 4. 测试通过，开发切 release 分支
+git checkout -b release/1.2 develop
+
+# 5. 你在 release 上做发布回归
+python -m pytest tests/smoke/ -v
+
+# 6. 发布，release 合入 main，打 tag
+git checkout main
+git merge release/1.2
+git tag -a v1.2.0 -m "Release v1.2.0"
+git push --tags
+
+# 7. 线上冒烟
+python -m pytest tests/smoke/ --env=production</code></pre>
+        <p>走完这一遍，你就完整体验了「功能开发 → 测试 → 发布 → 线上验证」的全流程。测试工程师在每一步都知道自己在哪个分支、该跑哪些用例。</p>
+        <div class="callout">
+          <p>记住一句话：<strong>分支是代码的「时间线」，测试环境是代码的「舞台」</strong>。搞清楚每个分支对应哪个舞台，测试就不会迷路。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://nvie.com/posts/a-successful-git-branching-strategy/" target="_blank" rel="noopener">A Successful Git Branching Strategy（Vincent Driessen）</a></li>
+            <li><a href="https://docs.github.com/en/pull-requests" target="_blank" rel="noopener">GitHub Flow 官方文档</a></li>
+            <li><a href="https://www.atlassian.com/continuous-delivery/continuous-integration" target="_blank" rel="noopener">Atlassian 持续交付最佳实践</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#git</span>
+          <span class="tag">#branching</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

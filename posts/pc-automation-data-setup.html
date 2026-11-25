@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC 自动化的数据准备与清理：测试环境的「造数 + 清数」 · 软件测试资料集</title>
+<meta name="description" content="桌面测试的五类数据、幂等造数、注册表与目录快照、清理取舍、多用户隔离与假失败识别。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-data-setup.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="PC 自动化的数据准备与清理：测试环境的「造数 + 清数」">
+<meta property="og:description" content="桌面测试的五类数据、幂等造数、注册表与目录快照、清理取舍、多用户隔离与假失败识别。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-data-setup.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="PC 自动化的数据准备与清理：测试环境的「造数 + 清数」">
+<meta name="twitter:description" content="桌面测试的五类数据、幂等造数、注册表与目录快照、清理取舍、多用户隔离与假失败识别。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"PC 自动化的数据准备与清理：测试环境的「造数 + 清数」","description":"桌面测试的五类数据、幂等造数、注册表与目录快照、清理取舍、多用户隔离与假失败识别。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-data-setup.html","articleSection":"PC 自动化","keywords":"pc-automation, data-setup, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>22 min read</span>
+        </div>
+        <h1>PC 自动化的数据准备与清理：测试环境的「造数 + 清数」</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="pc-automation-data-setup">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>这篇解决什么问题</h2>
+        <p>如果你已经能让脚本把记事本、Excel 或者公司内部的桌面客户端点起来，单条用例在开发机上跑得通，那你大概是这篇文章的目标读者。接下来会遇到的是另一种失败：同一条用例今天过明天不过，换台机器就不过，单独跑能过、整套跑必挂。多数人第一反应是加等待、换定位、升级框架版本，真正的原因往往简单得多——上一轮测试留下的数据还在。</p>
+        <p>Web 自动化有天然的数据抽象层。用例可以直接调接口造数，可以包一层事务最后回滚，可以给每次构建发一个独立数据库。桌面应用没有这层东西，状态是直接写进用户目录、注册表、本地数据库和缓存里的，进程退出也不会主动清理，下一次启动会原样读回来。于是用例之间通过磁盘产生了隐式耦合，而这种耦合在代码里完全看不见。</p>
+        <p>本文按「先认路、再造数、后清理」的顺序展开：先把桌面测试的数据分成五类并画出存放位置，再讲幂等造数与快照对比，然后是两种清理策略的取舍、用 winreg 操作注册表的安全写法、多用户与多机器的隔离、以及数据污染导致假失败的识别方法。文中出现的耗时和体积都是示例值，需要按自己的应用实测。</p>
+
+        <h2>桌面应用的测试数据分五类</h2>
+        <p>分类不是为了写文档好看，而是因为每一类对应的清理粒度和风险完全不同。把五类混在一起处理，最后一定会出现「清得太狠把同事的登录态删了」或者「清得太浅下一轮接着挂」这两种极端。</p>
+        <table>
+          <thead>
+            <tr><th>类别</th><th>典型位置</th><th>谁来写</th><th>清理难度</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>本地配置文件</td><td>%APPDATA% 下的 ini/json/xml，安装目录的 config</td><td>应用启动、用户改设置</td><td>低，可整目录替换</td></tr>
+            <tr><td>注册表</td><td>HKCU\Software\厂商\产品，文件关联、COM 注册在 HKLM</td><td>安装程序、应用首启</td><td>中，需按命名空间还原</td></tr>
+            <tr><td>本地数据库</td><td>%LOCALAPPDATA% 下的 SQLite、ACE、LocalDB 实例</td><td>应用业务逻辑</td><td>高，结构复杂需模板</td></tr>
+            <tr><td>缓存目录</td><td>缩略图、索引、%TEMP%、Crashpad 转储</td><td>应用后台线程</td><td>低，可整个删除</td></tr>
+            <tr><td>账号与许可证</td><td>token 文件、license.dat、试用计数器、加密狗</td><td>登录流程、授权模块</td><td>很高，尽量不碰</td></tr>
+          </tbody>
+        </table>
+        <p>五类里最容易被低估的是缓存和许可证。缓存会影响首屏渲染、搜索排序、最近文件列表，一个陈旧的索引会让「新建文档后列表第一条是新文档」这种断言随机失败。许可证则更隐蔽：试用期计数器被反复启动消耗掉之后，功能直接变成只读，而报错信息里只会写保存失败，跟授权没有任何字面关系。</p>
+        <p>分类的另一个用处是决定「谁能写」。配置、缓存、本地库属于当前用户，测试可以随便折腾；HKLM、Program Files、公共文档属于机器级共享资源，测试只应该读。一旦某条用例需要写机器级位置，就说明它不该跑在共享执行机上，得单独安排环境。</p>
+
+        <h2>先画一张数据地图</h2>
+        <p>在写第一行造数代码之前，先找一台干净机器，把应用从安装、登录、新建、保存到退出完整走一遍，同时用 Process Monitor 按进程名过滤，把所有写入路径记下来。这张地图是后面快照和清理的唯一依据，靠猜路径写出来的清理代码基本都不可靠。</p>
+        <p>常见的落点有这么几处：<code>%APPDATA%\厂商\产品</code> 放漫游配置和用户偏好，<code>%LOCALAPPDATA%\厂商\产品</code> 放缓存、日志和本地库，安装目录下的 <code>config</code> 放默认配置，注册表在 <code>HKCU\Software\厂商\产品</code>。安装类信息在 <code>HKLM\SOFTWARE</code> 下，文件关联在 <code>HKCR</code>，这些都不该由测试改写。</p>
+        <p>64 位 Windows 上还要注意注册表视图。32 位应用默认写入 <code>HKCU\Software\WOW6432Node\...</code>，64 位应用写入 <code>HKCU\Software\...</code>，两者在注册表编辑器里看起来是两个完全不同的路径。用 winreg 读写时如果不显式指定视图标志，就会摸到另一份数据，现象是「代码明明写成功了，应用却读不到」，这个坑后面单独展开。</p>
+
+        <h2>造数必须幂等</h2>
+        <p>非幂等的典型写法是在测试开头追加一条记录，或者给一个计数器加一。第一次跑通过，第二次跑列表里多了一条重复数据，第三次分页结构变了，断言开始飘。CI 上因为每次都是全新镜像反而不暴露，直到有人在本地连跑两遍，才发现整套用例根本经不起重复执行。</p>
+        <p>幂等有三种实现方式，代价各不相同。按自然键做 upsert，适合数据库记录和单个配置项，能保留其他字段不被覆盖；先删后建，适合应用自己完全托管的一个目录；模板整体替换，适合结构复杂的 profile。三种方式的共同验收标准只有一句：同一份输入连续跑 N 次，磁盘上的结果完全一致。</p>
+        <p>更省事的做法是加一个种子版本号做短路。把种子内容的哈希写进一个 marker 文件，哈希没变就整个跳过写盘。好处是几千条用例的回归不会反复写磁盘，坏处是改了种子内容却忘了让哈希变化，就会一直复用旧数据。所以哈希必须覆盖所有内容字段，但不要覆盖时间戳，否则每次生成都不一样，短路永远失效。</p>
+        <div class="code-head"><span>python — tools/seed.py 幂等造数</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import hashlib
+import json
+import os
+import pathlib
+import tempfile
+
+APP_DIR = pathlib.Path(os.environ["APPDATA"]) / "Acme" / "DeskTool"
+MARKER = APP_DIR / ".seed.json"
+
+
+def seed_config(payload: dict) -&gt; None:
+    APP_DIR.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    ).hexdigest()
+
+    if MARKER.exists():
+        state = json.loads(MARKER.read_text(encoding="utf-8"))
+        if state.get("digest") == digest:
+            return  # 同一份种子，直接跳过写盘
+
+    target = APP_DIR / "settings.json"
+    fd, tmp = tempfile.mkstemp(dir=str(APP_DIR), suffix=".tmp")
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=False, indent=2)
+    os.replace(tmp, target)          # 原子替换，避免应用读到半个文件
+    MARKER.write_text(json.dumps({"digest": digest}), encoding="utf-8")</code></pre>
+        <p>这里用 <code>os.replace</code> 而不是先删除再写，是因为应用可能正好有一个后台线程在轮询配置文件，读到空文件会直接崩。Windows 上如果目标文件被应用占用，替换会抛 <code>PermissionError</code>，正确做法是确认进程已退出后重试一次，而不是盲目循环十次，那只会把真正的占用问题掩盖成随机卡顿。</p>
+
+        <h2>测试前后的快照对比</h2>
+        <p>快照有两个用途，很多人只想到第一个。第一个是知道测试改了什么，作为清理的输入；第二个是知道测试开始时环境是否干净，作为判断假失败的基线。第二个用途价值更高，因为它能把「产品有问题」和「环境有问题」提前分开。</p>
+        <p>注册表用系统自带的 <code>reg export</code> 和 <code>reg import</code>，不要自己写递归遍历。系统工具导出的格式稳定、可读，出问题时还能手动双击恢复，而自写遍历很容易漏掉二进制值或者权限继承信息。目录则用「相对路径加内容哈希」的清单，不要用修改时间：复制、同步、备份都会改 mtime，用它做 diff 会产生成千上万行假差异。</p>
+        <p>清单里必须排除日志、缓存和崩溃转储目录。这些目录每次运行都变，留在 diff 里只会淹没真正的变化。排除规则写在配置里而不是散落在代码中，这样新增目录时只需要改一处。</p>
+        <div class="code-head"><span>python — tools/snapshot.py 注册表导出 + 目录清单</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import hashlib
+import json
+import pathlib
+import subprocess
+
+PROFILE = pathlib.Path.home() / "AppData" / "Roaming" / "Acme"
+SNAP_DIR = pathlib.Path("artifacts/snap")
+IGNORE = {"logs", "Crashpad", "Cache"}
+
+
+def dir_hash(root: pathlib.Path) -&gt; dict[str, str]:
+    manifest = {}
+    for path in sorted(root.rglob("*")):
+        if not path.is_file():
+            continue
+        if IGNORE.intersection(path.relative_to(root).parts):
+            continue
+        rel = path.relative_to(root).as_posix()
+        manifest[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return manifest
+
+
+def take(tag: str) -&gt; pathlib.Path:
+    SNAP_DIR.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["reg", "export", r"HKCU\Software\Acme", str(SNAP_DIR / f"{tag}.reg"), "/y"],
+        check=True, capture_output=True,
+    )
+    out = SNAP_DIR / f"{tag}.json"
+    out.write_text(
+        json.dumps(dir_hash(PROFILE), ensure_ascii=False, indent=1),
+        encoding="utf-8",
+    )
+    return out
+
+
+def diff(before: dict, after: dict) -&gt; list[str]:
+    lines = []
+    for key in sorted(set(before) | set(after)):
+        if key not in before:
+            lines.append(f"+ {key}")
+        elif key not in after:
+            lines.append(f"- {key}")
+        elif before[key] != after[key]:
+            lines.append(f"~ {key}")
+    return lines</code></pre>
+        <p>对比结果里只关心三类变化：新增的文件或键、内容被修改的文件、消失的文件。消失这一类常被忽略，但它往往最有信息量——应用做了数据迁移、把旧配置删除重建、或者用户设置被重置，很多「配置不生效」的缺陷就藏在这里。</p>
+
+        <h2>清理策略：还原快照还是删除新增</h2>
+        <p>还原快照是「回到测试前」，删除新增是「只撤销测试造成的写入」。前者彻底，但如果快照范围包含了开发者自己的数据，一次失败的回滚会把他的登录态、最近文件、窗口布局一起清掉；后者安全，但应用如果把数据写到了地图之外，比如版本升级新增的目录、插件自己的配置目录，就会漏。</p>
+        <p>选择规则可以简化成一句话：机器级共享的东西只读不写，用户级的东西用独立测试账号。真正做到这一点后，快照范围可以收敛到这个账号的 HKCU 和 profile 目录，还原快照就是最省心的方案，因为它不依赖你是否完整记录了所有写入路径。</p>
+        <p>「删除新增」会漏的三种情况很典型：应用退出时才 flush 的键值、写在 <code>%TEMP%</code> 下且文件名随机的临时文件、以及升级时从旧路径迁移过来的数据。第一种要求清理必须发生在进程退出之后，后两种只能靠定期用干净镜像重置执行机。实践上建议每周重建一次执行机，把漏网数据一起冲掉。</p>
+        <p>还有一个顺序问题，踩过的人最多：先关进程，再清数据。窗口没关就删配置文件，应用退出时会拿内存里的状态把文件重新写回去，清理动作等于白做，而且日志里看不出任何异常。这个坑在报告里表现为「清理成功，但下一轮仍然失败」，非常耗时间。</p>
+        <div class="code-head"><span>python — tools/cleanup.py 先关进程再还原</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import subprocess
+import time
+
+
+def close_app(image: str = "DeskTool.exe", timeout: float = 10.0) -&gt; None:
+    subprocess.run(["taskkill", "/IM", image, "/F"], capture_output=True)
+    deadline = time.monotonic() + timeout
+    while time.monotonic() &lt; deadline:
+        out = subprocess.run(
+            ["tasklist", "/FI", f"IMAGENAME eq {image}"],
+            capture_output=True, text=True,
+        ).stdout
+        if image not in out:
+            return
+        time.sleep(0.5)
+    raise RuntimeError(f"{image} 未退出，拒绝清理")
+
+
+def restore(reg_file: str = "artifacts/snap/before.reg") -&gt; None:
+    subprocess.run(["reg", "import", reg_file], check=True, capture_output=True)</code></pre>
+        <p>把「进程真的退出了」写成断言而不是 <code>time.sleep(2)</code>，是这套清理代码唯一值得坚持的工程习惯。桌面应用的退出经常被模态对话框卡住，固定等待要么不够，要么浪费大量时间，最终都会演变成随机的假失败。</p>
+
+        <h2>用 winreg 操作注册表的安全做法</h2>
+        <p>原则只有三条：读写都显式指定 64 位或 32 位视图；写之前先备份；删除只针对自己的命名空间，并且分清「删值」和「删键」。这三条听起来简单，但每一条都对应过真实事故。</p>
+        <p>Python 的 winreg 没有现成的递归删除。对非空的键调用 <code>DeleteKey</code> 会抛 <code>OSError</code>，错误码通常是 5 或 1010 一类，很多人第一反应是权限不足，其实是键下面还有子键。正确做法是先用 <code>EnumKey</code> 递归到叶子，再用 <code>DeleteKeyEx</code> 连同视图标志一起删。</p>
+        <p>另一个隐形坑是权限上下文。HKCU 对当前用户可写，HKLM 需要管理员权限；更麻烦的是，如果你用计划任务或服务以 SYSTEM 身份运行测试，SYSTEM 的 HKCU 是它自己的配置单元，跟登录用户的完全不是一份。现象是造数脚本返回成功，用例却读不到数据。这类问题在本地永远复现不了，只在 CI 上出现。</p>
+        <div class="code-head"><span>python — winreg 读写与递归删除</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import winreg
+
+VIEW = winreg.KEY_WOW64_64KEY   # 32 位应用改成 KEY_WOW64_32KEY
+
+
+def read_value(path: str, name: str):
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path, 0,
+                        winreg.KEY_READ | VIEW) as key:
+        try:
+            value, _ = winreg.QueryValueEx(key, name)
+        except FileNotFoundError:
+            return None
+        return value
+
+
+def write_value(path: str, name: str, value, kind=winreg.REG_SZ) -&gt; None:
+    with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, path, 0,
+                            winreg.KEY_SET_VALUE | VIEW) as key:
+        winreg.SetValueEx(key, name, 0, kind, value)
+
+
+def delete_tree(path: str) -&gt; None:
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path, 0,
+                        winreg.KEY_ALL_ACCESS | VIEW) as key:
+        while True:
+            try:
+                sub = winreg.EnumKey(key, 0)
+            except OSError:
+                break
+            delete_tree(f"{path}\\{sub}")
+    winreg.DeleteKeyEx(winreg.HKEY_CURRENT_USER, path, VIEW)</code></pre>
+        <p>取值时要分别处理 <code>FileNotFoundError</code>（键不存在）和 <code>OSError</code>（值不存在），不要用一个宽泛的 <code>except Exception</code> 把访问拒绝也一起吞掉。后者被吞掉之后，用例会拿 None 继续往下跑，最后在别处报一个完全无关的错。</p>
+        <div class="callout warn"><p>注册表操作前一定先 <code>reg export</code> 备份，且只导出自己产品的键，不要导出整个 HKCU。整份导入会把测试期间其他软件的设置一起回滚，代价远大于收益。</p></div>
+
+        <h2>本地文件与本地数据库</h2>
+        <p>配置文件优先用原子写，这一点前面已经给过代码。本地数据库优先用模板文件复制，而不是执行一堆建表和插入语句。原因是桌面应用的库往往带触发器、视图、自定义排序规则，甚至是加密的，手写 SQL 很难完全复现，而模板是应用自己生成的空库，最忠实、最省事。</p>
+        <p>如果必须往库里写数据，加一个 <code>is_test</code> 标记列，并且把测试数据放在独立的表或独立的库文件里。不要在共享库里按标记批量删数据，除非你能确认清理语句不会顺着外键把真实数据一起带走。桌面应用的库通常没开外键约束，删除时不会报错，只会在几天后发现数据少了。</p>
+        <div class="code-head"><span>python — SQLite 模板复制 + 标记造数</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+import shutil
+import sqlite3
+
+TEMPLATE = pathlib.Path("fixtures/db/template.db")
+
+
+def reset_db(target: pathlib.Path) -&gt; None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        target.unlink()
+    shutil.copy2(TEMPLATE, target)   # 表结构、触发器、排序规则都由应用生成
+
+
+def seed_orders(target: pathlib.Path, rows: list[dict]) -&gt; None:
+    with sqlite3.connect(target) as conn:
+        conn.executemany(
+            "INSERT OR REPLACE INTO orders (order_no, amount, is_test) "
+            "VALUES (:order_no, :amount, 1)",
+            rows,
+        )</code></pre>
+        <p>SQLite 在应用运行时是被占用的，直接替换文件会失败；先退出应用，或者改用 backup API 在线备份。测试用的小库直接文件替换足够了，几十 GB 的生产库不要这么干，复制一次的时间比用例本身还长。</p>
+
+        <h2>多用户与多机器的数据隔离</h2>
+        <p>桌面自动化的隔离单位是 Windows 会话，不是进程。同一个用户下并行跑两条用例，前台窗口、焦点、剪贴板会互相抢，键盘输入会打进别人的窗口里，表现为「输入内容跑到另一个应用去了」。真正的并行要么多用户，要么多虚拟机，没有第三种便宜办法。</p>
+        <p>多用户方案的好处是每个用户有独立的 HKCU 和 profile，配置天然隔离，切换成本只是一次登录；坏处是 HKLM、Program Files、公共文档仍然共享，所以安装类、文件关联类、共享模板类用例不能并行。多虚拟机隔离彻底，代价是镜像维护和授权成本，适合发版前的全量回归。</p>
+        <p>RDP 断开会话是另一个隐形杀手。会话断开之后屏幕不再渲染，截图会得到全黑图片，UI Automation 的调用会超时，应用看起来像卡死。要么用控制台会话并保持解锁，要么配置自动登录加禁用锁屏。任何试图在锁屏状态下跑桌面 UI 自动化的方案，最后都会以「截图全黑」收场。</p>
+        <p>分辨率与 DPI 缩放也要统一。125% 缩放下基于坐标的点击会整体偏移，基于控件树的定位不受影响但截图尺寸会变，两条用例的截图放在一起比例都不一样。执行机固定一种缩放比例，并把 DPI 写进报告，换机器时才有可比性。</p>
+
+        <h2>数据污染导致的假失败怎么识别</h2>
+        <p>假失败有几个非常固定的信号：同一条用例单独跑能过、整套跑就挂；第一次跑能过、第二次跑就挂；开发机上能过、CI 上挂；报错说找到两个窗口或两个同名控件，而代码只打开了一个。这些现象出现时，先查残留数据和残留进程，再怀疑产品。</p>
+        <p>排查顺序固定下来能省大量时间：先用 <code>tasklist</code> 看上一个用例的进程有没有退出，再看测试开始时的快照是否干净，最后看测试过程中新增了哪些文件。三步都通过之后再去读产品日志。顺序反了的话，你会花两个小时读一份根本没走到业务逻辑的日志。</p>
+        <p>更主动的做法是给关键用例加一个环境干净检查。发现残留就直接 skip，并在报告里标注「环境不干净」，而不是让它跑出一个红色的失败。假红比 skip 的危害大得多，它会让团队逐渐不信任整套回归。</p>
+        <div class="code-head"><span>python — 残留进程与近期写入检查</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+import subprocess
+
+
+def leftover_process(image: str = "DeskTool.exe") -&gt; bool:
+    out = subprocess.run(
+        ["tasklist", "/FI", f"IMAGENAME eq {image}"],
+        capture_output=True, text=True,
+    ).stdout
+    return image in out
+
+
+def recent_writes(root: pathlib.Path, since: float) -&gt; list[str]:
+    return sorted(
+        p.as_posix()
+        for p in root.rglob("*")
+        if p.is_file() and p.stat().st_mtime &gt; since
+    )</code></pre>
+        <p>把这两项检查的耗时也算进预算。一次全盘扫描 profile 目录在机械硬盘上可能要几十秒，所以在用例级别只扫产品自己的子目录，全盘扫描留给每日构建做一次即可。</p>
+
+        <h2>造数脚本与用例分离的目录结构</h2>
+        <p>把造数逻辑和用例分开，不是为了目录好看，而是为了让用例只表达业务。测试体里一旦出现 <code>winreg.SetValue</code> 或者直接写文件的调用，分层就已经被破坏了，后面要换环境、加隔离、接多用户，都得改几十个文件。</p>
+        <p>推荐的结构是：<code>tools</code> 放能独立运行的脚本，<code>fixtures</code> 放种子模板和注册表基线，<code>conftest</code> 只负责按顺序组装，<code>tests</code> 只写操作与断言。脚本必须能脱离 pytest 单独跑，排障时才能手动还原环境，而不是启动整套用例去触发清理。</p>
+        <div class="code-head"><span>text — 目录结构</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>desktop-qa/
+├─ conftest.py            # 组装：关进程 → 快照 → 造数 → 清理
+├─ fixtures/
+│  ├─ profiles/           # 应用自己导出的 profile 模板
+│  ├─ registry/acme.reg   # 干净的注册表基线
+│  └─ db/template.db      # 应用生成的空库
+├─ tools/
+│  ├─ seed.py             # 幂等造数，可单独运行
+│  ├─ snapshot.py         # 前后快照与 diff
+│  └─ cleanup.py          # 关进程 → 还原 → 校验
+├─ tests/
+│  └─ test_export.py      # 只写操作与断言
+└─ artifacts/             # 截图、窗口树、diff 输出</code></pre>
+        <p>conftest 里把顺序写死，比在每个用例里重复三行 setup 更可靠：关进程、取快照、造数、执行、关进程、取快照、还原。顺序错一步，前面所有努力都会被抵消，而这类错误在代码评审时几乎看不出来。</p>
+        <div class="code-head"><span>python — conftest.py 固定顺序</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+
+from tools import cleanup, seed, snapshot
+
+
+@pytest.fixture
+def clean_app():
+    cleanup.close_app()
+    snapshot.take("before")
+    seed.seed_config({"theme": "light", "recent": []})
+    yield
+    cleanup.close_app()          # 必须退出后才清理
+    snapshot.take("after")
+    cleanup.restore("artifacts/snap/before.reg")</code></pre>
+
+        <h2>上线前检查清单</h2>
+        <p>把下面这张表当成接入新应用时的验收标准。任何一项没做到，都不要把用例放进每夜的回归，否则它迟早会变成团队里那条「大家都知道它会挂」的用例。</p>
+        <table>
+          <thead>
+            <tr><th>项目</th><th>检查点</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>数据地图</td><td>五类数据的路径都已记录，含 32/64 位注册表视图</td></tr>
+            <tr><td>幂等</td><td>同一用例连续跑 3 次，结果与磁盘状态一致</td></tr>
+            <tr><td>快照</td><td>测试前后 diff 只包含预期内的变化</td></tr>
+            <tr><td>清理</td><td>先退出进程再清理，清理后 diff 为空</td></tr>
+            <tr><td>隔离</td><td>并行用例不共享会话，不写 HKLM 与 Program Files</td></tr>
+            <tr><td>假失败</td><td>环境不干净时 skip 并标注，不产生假红</td></tr>
+            <tr><td>账号</td><td>使用测试租户与测试许可证，不消耗真实授权</td></tr>
+            <tr><td>维护</td><td>新增数据路径时同步更新地图与清理脚本</td></tr>
+          </tbody>
+        </table>
+        <p>最后补一句判断标准：如果你无法在五分钟内回答「这条用例跑完之后，机器上多了什么」，那这套自动化的数据管理就还没成型。能回答这个问题，剩下的代码都只是把答案写成脚本而已。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://learn.microsoft.com/en-us/windows/win32/sysinfo/registry" target="_blank" rel="noopener">Registry：注册表结构与配置单元 — Microsoft Learn</a></li>
+            <li><a href="https://docs.python.org/3/library/winreg.html" target="_blank" rel="noopener">winreg：Windows 注册表访问 — Python 官方文档</a></li>
+            <li><a href="https://learn.microsoft.com/en-us/windows/win32/shell/knownfolderid" target="_blank" rel="noopener">Known Folder IDs：AppData 等标准目录 — Microsoft Learn</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/fixtures.html" target="_blank" rel="noopener">pytest fixtures：setup/teardown 与作用域 — pytest 官方文档</a></li>
+            <li><a href="https://docs.python.org/3/library/hashlib.html" target="_blank" rel="noopener">hashlib：内容哈希与目录清单 — Python 官方文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#pc-automation</span>
+          <span class="tag">#data-setup</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

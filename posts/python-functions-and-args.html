@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 函数：从定义到调用，测试工程师最该懂的 5 件事 · 软件测试资料集</title>
+<meta name="description" content="函数定义、参数类型、返回值、默认值、*args/**kwargs，每个配测试场景，把登录逻辑封装成可复用方法。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-functions-and-args.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Python 函数：从定义到调用，测试工程师最该懂的 5 件事">
+<meta property="og:description" content="函数定义、参数类型、返回值、默认值、*args/**kwargs，每个配测试场景，把登录逻辑封装成可复用方法。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-functions-and-args.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Python 函数：从定义到调用，测试工程师最该懂的 5 件事">
+<meta name="twitter:description" content="函数定义、参数类型、返回值、默认值、*args/**kwargs，每个配测试场景，把登录逻辑封装成可复用方法。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Python 函数：从定义到调用，测试工程师最该懂的 5 件事","description":"函数定义、参数类型、返回值、默认值、*args/**kwargs，每个配测试场景，把登录逻辑封装成可复用方法。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-functions-and-args.html","articleSection":"Python 编程入门","keywords":"python, functions, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>11 min read</span>
+        </div>
+        <h1>Python 函数：从定义到调用，测试工程师最该懂的 5 件事</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-functions-and-args">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Python 3.10+
+# 创建虚拟环境
+python -m venv venv
+venv\Scripts\activate   # Windows
+
+# 安装核心库
+pip install pytest requests pandas
+# 验证
+pytest --version</code></pre>
+<div class="code-head"><span>python — 验证</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+resp = requests.get("https://httpbin.org/get", timeout=5)
+assert resp.status_code == 200
+print("Python 环境就绪 ✓")</code></pre>
+
+<h2>基础应用：第一个测试用例</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+
+def test_api():
+    resp = requests.get("https://httpbin.org/get", params={"name": "test"}, timeout=10)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["args"]["name"] == "test"
+    print("基础接口测试通过 ✓")</code></pre>
+
+<h2>项目进阶：pytest + fixture + 参数化 + 报告</h2>
+<div class="code-head"><span>python — conftest.py</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest, requests
+
+@pytest.fixture
+def api():
+    return requests.Session()
+
+@pytest.fixture
+def user():
+    return {"username": "test@example.com"}</code></pre>
+<div class="code-head"><span>python — 参数化测试</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest
+
+@pytest.mark.parametrize("code", [200, 301, 404, 500])
+def test_status(api, code):
+    resp = api.get(f"https://httpbin.org/status/{code}", timeout=5)
+    assert resp.status_code == code</code></pre>
+
+        <h2>函数定义：def 和 return</h2>
+        <p>函数就是「把一段代码打包，起个名字，以后随时调用」。测试脚本里最常用的场景：<strong>把「登录」封装成函数，5 条用例都调用，不用写 5 遍</strong>。</p>
+        <div class="code-head"><span>python — 函数基础</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 最简单的函数（无参数、无返回值）
+def say_hello():
+    print("Hello, tester!")
+
+say_hello()  # 调用
+
+# 带参数的函数
+def greet(name):
+    print(f"Hello, {name}!")
+
+greet("Alice")   # Hello, Alice!
+greet("Bob")      # Hello, Bob!
+
+# 带返回值的函数（return 返回数据，不打印）
+def add(a, b):
+    return a + b     # 把结果"还回来"，不打印
+
+result = add(3, 5)
+print(result)        # 8
+
+# 无 return 的函数，默认返回 None
+def do_something():
+    print("doing...")
+
+result = do_something()
+print(result)        # None（函数没写 return，默认返回 None）</code></pre>
+        <div class="callout">
+          <p><code>print</code> 是「显示」，<code>return</code> 是「还回来」。测试函数通常用 <code>return</code> 返回结果，让调用方决定怎么处理。只有调试时才用 <code>print</code>。</p>
+        </div>
+
+        <h2>参数类型：位置、关键字、默认值</h2>
+
+        <h3>位置参数（按顺序传）</h3>
+        <div class="code-head"><span>python — 位置参数</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>def login(username, password, timeout=10):
+    """登录，超时默认 10 秒"""
+    print(f"登录 {username}，超时 {timeout}s")
+
+login("admin", "123456")            # 位置参数（按顺序）
+login("admin", "123456", 30)       # 指定超时 30 秒</code></pre>
+
+        <h3>关键字参数（按名字传，顺序无所谓）</h3>
+        <div class="code-head"><span>python — 关键字参数</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 按名字传，顺序可以颠倒
+login(password="123456", username="admin")
+login(username="admin", timeout=30, password="123456")
+
+# 测试场景：参数多的函数用关键字传更清晰
+def create_order(item, quantity, discount=0, is_vip=False):
+    price = 100 * quantity
+    if discount:
+        price -= discount
+    if is_vip:
+        price *= 0.9
+    return price
+
+# 用关键字传，一眼看懂每个参数是什么
+order_price = create_order(item="手机壳", quantity=2, discount=20, is_vip=True)</code></pre>
+
+        <h3>默认值（少写一行代码）</h3>
+        <div class="code-head"><span>python — 默认值</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 默认值：调用时不传就用默认
+def call_api(url, method="GET", timeout=10, headers=None):
+    if headers is None:
+        headers = {"Content-Type": "application/json"}
+    # 发请求...
+    return response
+
+# 最简调用（全用默认值）
+response = call_api("/api/orders")
+
+# 部分覆盖
+response = call_api("/api/orders", method="POST", timeout=30)
+
+# 全部指定
+response = call_api("/api/orders", "POST", 30, {"Authorization": "Bearer xxx"})
+
+# ⚠️ 默认值陷阱：可变对象（list/dict）不要当默认值
+def append_item(item, items=[]):   # 错！list 默认值只创建一次
+    items.append(item)
+    return items
+
+# 正确写法：用 None 当默认值，函数内部创建
+def append_item(item, items=None):
+    if items is None:
+        items = []
+    items.append(item)
+    return items</code></pre>
+        <div class="callout warn">
+          <p>可变对象（list/dict/set）<strong>永远不要当默认值</strong>。Python 的默认值在函数定义时只创建一次，多次调用会「共享」同一个对象。用 <code>None</code> 当默认值，函数内部再创建。</p>
+        </div>
+
+        <h2>*args 和 **kwargs：不定参数</h2>
+        <p>有时候你不知道调用方会传几个参数（比如「把剩余参数都收集起来」）：</p>
+        <div class="code-head"><span>python — *args / **kwargs</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># *args：收集所有位置参数（变成 tuple）
+def log_test_results(*results):
+    """接收任意数量的测试结果"""
+    total = len(results)
+    passed = sum(1 for r in results if r == "pass")
+    print(f"共 {total} 条，通过 {passed} 条")
+
+log_test_results("pass", "fail", "pass", "pass", "fail")
+# 共 5 条，通过 3 条
+
+# **kwargs：收集所有关键字参数（变成 dict）
+def configure_test(**options):
+    """接收任意配置项"""
+    print(f"环境：{options.get('env', 'test')}")
+    print(f"超时：{options.get('timeout', 10)}s")
+
+configure_test(env="staging", timeout=30, retries=3)
+# 环境：staging
+# 超时：30s
+# （retries=3 被 kwargs 收集了，但函数没用，不报错）
+
+# 组合使用（先 *args 再 **kwargs）
+def flexible_call(*args, **kwargs):
+    print(f"位置参数：{args}")
+    print(f"关键字参数：{kwargs}")
+
+flexible_call("a", "b", key1="val1", key2="val2")
+# 位置参数：('a', 'b')
+# 关键字参数：{'key1': 'val1', 'key2': 'val2'}</code></pre>
+
+        <h2>return 多值（其实是 tuple）</h2>
+        <div class="code-head"><span>python — 多返回值</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># Python 的"多返回值"其实是返回一个 tuple
+def get_user_info(user_id):
+    """返回用户名、邮箱、等级（三个值）"""
+    username = "test_user"
+    email = "test@example.com"
+    level = 3
+    return username, email, level    # 等价于 return (username, email, level)
+
+# 调用时用"解包"
+name, email, level = get_user_info(1001)
+print(f"用户：{name}，邮箱：{email}，等级：{level}")
+
+# 只取前两个（第三个丢弃）
+name, email, _ = get_user_info(1001)
+
+# 测试场景：接口返回多个字段，一次解包
+def parse_order_response(response):
+    data = response.json()
+    return data.get("order_id"), data.get("status"), data.get("amount")
+
+order_id, status, amount = parse_order_response(mock_response)
+assert status == "paid"
+assert amount > 0</code></pre>
+
+        <h2>lambda：一行匿名函数</h2>
+        <p>lambda 是「写一行、用完就扔」的函数，在测试里常用于排序和过滤：</p>
+        <div class="code-head"><span>python — lambda</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 基本语法：lambda 参数: 表达式
+square = lambda x: x * x
+print(square(5))   # 25
+
+# 测试场景：按响应时间排序测试结果
+results = [
+    {"name": "登录", "response_ms": 120},
+    {"name": "下单", "response_ms": 45},
+    {"name": "支付", "response_ms": 200},
+]
+
+# 按响应时间排序（lambda 取 response_ms 字段）
+results.sort(key=lambda r: r["response_ms"])
+for r in results:
+    print(f"{r['name']}: {r['response_ms']}ms")
+# 下单: 45ms, 登录: 120ms, 支付: 200ms
+
+# 过滤：只保留响应时间超过 100ms 的
+slow_results = [r for r in results if r["response_ms"] > 100]
+print(f"慢接口：{[r['name'] for r in slow_results]}")
+# 慢接口：['登录', '支付']</code></pre>
+
+        <h2>案例：封装用户操作</h2>
+        <p>把上面学到的函数知识串起来，封装一套「用户操作」方法，5 条用例共用：</p>
+        <div class="code-head"><span>python — 封装案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import requests
+
+class UserClient:
+    """用户操作封装（5 条用例共用）"""
+
+    def __init__(self, base_url):
+        self.base_url = base_url
+        self.session = requests.Session()
+
+    def login(self, username, password, timeout=10):
+        """登录，返回 token"""
+        resp = self.session.post(
+            f"{self.base_url}/api/login",
+            json={"username": username, "password": password},
+            timeout=timeout
+        )
+        resp.raise_for_status()   # 4xx/5xx 自动抛异常
+        return resp.json().get("token")
+
+    def get_order(self, order_id, timeout=10):
+        """获取订单详情"""
+        resp = self.session.get(
+            f"{self.base_url}/api/orders/{order_id}",
+            timeout=timeout
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def pay_order(self, order_id, amount, timeout=10):
+        """支付订单，返回支付状态"""
+        resp = self.session.post(
+            f"{self.base_url}/api/orders/{order_id}/pay",
+            json={"amount": amount},
+            timeout=timeout
+        )
+        resp.raise_for_status()
+        return resp.json().get("status")
+
+# 5 条用例，登录逻辑只写一遍
+client = UserClient("https://api.example.com")
+token = client.login("admin", "123456")
+
+# 用例 1：正常下单
+order = client.get_order("ORD-001")
+assert order["status"] == "pending"
+
+# 用例 2：支付成功
+status = client.pay_order("ORD-001", amount=99.99)
+assert status == "paid"
+
+# 用例 3：订单详情
+order_after = client.get_order("ORD-001")
+assert order_after["amount"] == 99.99</code></pre>
+        <div class="callout">
+          <p>测试工程师记住五条：① 函数用 <code>return</code> 返回数据，不用 <code>print</code>；② 参数多时用关键字传，顺序无所谓；③ 默认值别用可变对象；④ 多返回值用解包（<code>a, b = func()</code>）；⑤ 排序/过滤用 lambda 最简洁。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/tutorial/controlflow.html#defining-functions" target="_blank" rel="noopener">Python 官方教程 - 定义函数</a></li>
+            <li><a href="https://realpython.com/defining-python-functions/" target="_blank" rel="noopener">Real Python - 定义 Python 函数完全指南</a></li>
+            <li><a href="https://docs.python.org/3/reference/expressions.html#lambda" target="_blank" rel="noopener">Python Lambda 表达式参考</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#python</span>
+          <span class="tag">#functions</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

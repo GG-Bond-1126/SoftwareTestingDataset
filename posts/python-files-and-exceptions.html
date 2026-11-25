@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 文件操作与异常处理：读配置、写日志、不让脚本崩溃 · 软件测试资料集</title>
+<meta name="description" content="open/with 文件读写、try/except/finally 异常处理、自定义异常…">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-files-and-exceptions.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Python 文件操作与异常处理：读配置、写日志、不让脚本崩溃">
+<meta property="og:description" content="open/with 文件读写、try/except/finally 异常处理、自定义异常…">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-files-and-exceptions.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Python 文件操作与异常处理：读配置、写日志、不让脚本崩溃">
+<meta name="twitter:description" content="open/with 文件读写、try/except/finally 异常处理、自定义异常…">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Python 文件操作与异常处理：读配置、写日志、不让脚本崩溃","description":"open/with 文件读写、try/except/finally 异常处理、自定义异常…","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-files-and-exceptions.html","articleSection":"Python 编程入门","keywords":"python, exception-handling, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>Python 文件操作与异常处理：读配置、写日志、不让脚本崩溃</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-files-and-exceptions">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Python 3.10+
+# 创建虚拟环境
+python -m venv venv
+venv\Scripts\activate   # Windows
+
+# 安装核心库
+pip install pytest requests pandas
+# 验证
+pytest --version</code></pre>
+<div class="code-head"><span>python — 验证</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+resp = requests.get("https://httpbin.org/get", timeout=5)
+assert resp.status_code == 200
+print("Python 环境就绪 ✓")</code></pre>
+
+<h2>基础应用：第一个测试用例</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+
+def test_api():
+    resp = requests.get("https://httpbin.org/get", params={"name": "test"}, timeout=10)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["args"]["name"] == "test"
+    print("基础接口测试通过 ✓")</code></pre>
+
+<h2>项目进阶：pytest + fixture + 参数化 + 报告</h2>
+<div class="code-head"><span>python — conftest.py</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest, requests
+
+@pytest.fixture
+def api():
+    return requests.Session()
+
+@pytest.fixture
+def user():
+    return {"username": "test@example.com"}</code></pre>
+<div class="code-head"><span>python — 参数化测试</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest
+
+@pytest.mark.parametrize("code", [200, 301, 404, 500])
+def test_status(api, code):
+    resp = api.get(f"https://httpbin.org/status/{code}", timeout=5)
+    assert resp.status_code == code</code></pre>
+
+        <h2>文件读写：open 和 with</h2>
+        <p>测试脚本最常做的文件操作：<strong>读配置文件、写测试日志、导数据</strong>。Python 的文件操作核心就一个函数 <code>open</code>，但用法有讲究。</p>
+
+        <h3>基本读写</h3>
+        <div class="code-head"><span>python — 文件读写</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 读文件（"r" = read）
+with open("config.txt", "r", encoding="utf-8") as f:
+    content = f.read()        # 一次读完（文件不大时）
+    # 或者逐行读（文件很大时）
+    # lines = f.readlines()   # 读成列表
+    # for line in f:          # 逐行迭代（内存最省）
+    #     print(line.strip())
+
+# 写文件（"w" = write，会覆盖原内容）
+with open("result.txt", "w", encoding="utf-8") as f:
+    f.write("测试通过\n")
+    f.write("测试失败\n")
+
+# 追加（"a" = append，不覆盖）
+with open("result.txt", "a", encoding="utf-8") as f:
+    f.write("新增一条日志\n")</code></pre>
+
+        <h3>with 语句（最推荐）：自动关闭文件</h3>
+        <div class="code-head"><span>python — with vs 手动关闭</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 手动关闭（不推荐，容易忘）
+f = open("data.txt", "r")
+content = f.read()
+f.close()   # 必须手动关闭，忘写就泄漏文件句柄
+
+# 异常时也不会关闭（崩溃就泄漏）
+# f = open("data.txt", "r")
+# content = f.read()   # 这里报错，f.close() 没执行！
+
+# with 自动关闭（推荐）
+# 不管有没有异常，退出 with 块时自动关闭
+with open("data.txt", "r") as f:
+    content = f.read()
+# 这里 f 已经自动关闭了</code></pre>
+        <div class="callout">
+          <p>99% 的场景用 <strong>with 语句</strong>（<code>with open(...) as f</code>）。它保证文件自动关闭，不管有没有异常。手动 <code>open + close</code> 只在你需要「打开后不立即读」的场景用。</p>
+        </div>
+
+        <h3>文件编码（中文必备）</h3>
+        <div class="code-head"><span>python — 编码处理</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 读中文文件（必须指定 encoding="utf-8"，Windows 默认 GBK）
+with open("用户数据.txt", "r", encoding="utf-8") as f:
+    for line in f:
+        print(line.strip())
+
+# 写文件也指定编码
+with open("测试报告.txt", "w", encoding="utf-8") as f:
+    f.write("测试通过\n")
+
+# Windows 上不加 encoding 可能报 UnicodeDecodeError</code></pre>
+
+        <h2>异常处理：try / except / finally</h2>
+        <p>接口超时、文件不存在、JSON 解析失败——这些都是「异常」。不处理就脚本崩了，处理了就能「优雅失败」。</p>
+
+        <h3>基本 try/except</h3>
+        <div class="code-head"><span>python — try/except</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+
+# 捕获特定异常（推荐）
+try:
+    with open("config.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+except FileNotFoundError:
+    print("配置文件不存在，使用默认配置")
+    data = {"timeout": 10}
+except json.JSONDecodeError as e:
+    print(f"配置 JSON 格式错误：{e}")
+    data = {"timeout": 10}
+
+# 捕获所有异常（最后手段，一般不用）
+try:
+    result = 1 / 0
+except Exception as e:
+    print(f"未知错误：{e}")</code></pre>
+
+        <h3>else 和 finally</h3>
+        <div class="code-head"><span>python — else / finally</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># else：没异常才执行
+try:
+    data = json.load(open("config.json"))
+except (FileNotFoundError, json.JSONDecodeError):
+    data = {}
+else:
+    # 解析成功才执行
+    print(f"超时配置：{data.get('timeout')}")
+
+# finally：无论有没有异常都执行（清理资源）
+try:
+    f = open("report.txt", "w")
+    f.write("测试通过\n")
+except Exception as e:
+    print(f"写报告失败：{e}")
+finally:
+    # 无论成功失败都关闭文件
+    try:
+        f.close()
+    except NameError:
+        pass   # f 没创建成功也会走这里
+    print("清理完成")</code></pre>
+
+        <h3>raise 自定义异常</h3>
+        <div class="code-head"><span>python — 自定义异常</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 定义测试专用异常
+class TestConfigError(Exception):
+    """测试配置错误"""
+    pass
+
+class TestDataError(Exception):
+    """测试数据错误"""
+    pass
+
+def load_config(config_path):
+    """加载配置，出错抛自定义异常"""
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = f.read()
+    except FileNotFoundError:
+        raise TestConfigError(f"配置文件不存在：{config_path}")
+
+    if not config.strip():
+        raise TestConfigError("配置文件为空")
+
+    return config
+
+# 调用方处理
+try:
+    config = load_config("test_config.txt")
+    print(f"配置加载成功：{config[:50]}...")
+except TestConfigError as e:
+    print(f"配置错误：{e}")
+    # 记录日志、用默认配置</code></pre>
+
+        <h2>测试工程师的五个常用异常</h2>
+        <div class="code-head"><span>python — 常用异常速查</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. FileNotFoundError：文件不存在
+try:
+    open("nonexistent.txt", "r")
+except FileNotFoundError:
+    print("文件不存在")
+
+# 2. KeyError：字典键不存在
+data = {"name": "test"}
+try:
+    print(data["email"])
+except KeyError as e:
+    print(f"缺少字段：{e}")
+
+# 3. IndexError：列表索引越界
+items = [1, 2, 3]
+try:
+    print(items[5])
+except IndexError:
+    print("列表没有第 6 个元素")
+
+# 4. TypeError：类型不匹配
+try:
+    result = "hello" + 123
+except TypeError as e:
+    print(f"类型错误：{e}")
+
+# 5. ValueError：值不合法
+try:
+    number = int("abc")
+except ValueError as e:
+    print(f"值错误：{e}")
+
+# 6. TimeoutError：请求超时（requests 里常用）
+import requests
+try:
+    response = requests.get("https://slow.example.com", timeout=5)
+except requests.exceptions.Timeout:
+    print("请求超时")
+except requests.exceptions.ConnectionError:
+    print("连接失败")</code></pre>
+        <div class="callout">
+          <p>测试脚本里，<strong>接口调用必须加异常处理</strong>（超时、连接失败、5xx）。不加的话，一条接口超时整个测试脚本就崩了，后面的用例全不跑。加 <code>try/except</code> 后，单条失败不影响其他用例。</p>
+        </div>
+
+        <h2>案例：读配置 + 写日志 + 容错执行</h2>
+        <p>把文件操作 + 异常处理串起来，写一个「读配置 → 跑测试 → 写日志 → 容错」的完整脚本：</p>
+        <div class="code-head"><span>python — 完整案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+import logging
+from datetime import datetime
+
+# 1. 配置日志（写文件 + 控制台）
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("test_run.log", encoding="utf-8"),
+        logging.StreamHandler(),   # 同时打印到控制台
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# 2. 读配置
+def load_config(path="config.json"):
+    """读配置，出错用默认值"""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        logger.info(f"配置加载成功：{path}")
+        return config
+    except FileNotFoundError:
+        logger.warning(f"配置文件 {path} 不存在，使用默认配置")
+        return {"timeout": 10, "retries": 3, "base_url": "https://api.example.com"}
+    except json.JSONDecodeError as e:
+        logger.error(f"配置 JSON 格式错误：{e}，使用默认配置")
+        return {"timeout": 10, "retries": 3, "base_url": "https://api.example.com"}
+
+# 3. 跑测试（模拟）
+def run_test_case(test_name, base_url, timeout, retries):
+    """模拟跑一条用例（带重试）"""
+    for attempt in range(1, retries + 1):
+        try:
+            # 模拟接口调用
+            logger.info(f"[{test_name}] 第 {attempt} 次调用 {base_url}")
+            # 假设 70% 概率成功
+            if attempt >= 2:
+                logger.info(f"[{test_name}] 通过")
+                return True
+            else:
+                logger.warning(f"[{test_name}] 第 {attempt} 次失败，重试")
+        except Exception as e:
+            logger.error(f"[{test_name}] 异常：{e}")
+
+    logger.error(f"[{test_name}] 重试 {retries} 次后仍失败")
+    return False
+
+# 4. 主流程
+def main():
+    config = load_config()
+    logger.info(f"开始测试，配置：{config}")
+
+    test_cases = [
+        "用户登录",
+        "创建订单",
+        "支付订单",
+        "查询订单",
+    ]
+
+    results = {}
+    for test_name in test_cases:
+        passed = run_test_case(
+            test_name,
+            config["base_url"],
+            config["timeout"],
+            config["retries"]
+        )
+        results[test_name] = "通过" if passed else "失败"
+
+    # 5. 写结果到文件
+    report_path = f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    try:
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write(f"测试报告 - {datetime.now().isoformat()}\n")
+            f.write("=" * 40 + "\n")
+            for name, result in results.items():
+                f.write(f"{name}: {result}\n")
+            passed_count = sum(1 for r in results.values() if r == "通过")
+            f.write(f"\n总计：{len(results)}  通过：{passed_count}  失败：{len(results) - passed_count}\n")
+        logger.info(f"报告已写入：{report_path}")
+    except IOError as e:
+        logger.error(f"写报告失败：{e}")
+
+    logger.info("测试完成")
+
+if __name__ == "__main__":
+    main()</code></pre>
+        <div class="callout">
+          <p>测试脚本的「容错三件套」：① 读文件用 <strong>with + try/except</strong>；② 接口调用加 <strong>超时 + 重试</strong>；③ 写日志用 <strong>logging 模块</strong>（别用 print，日志要能写文件、带时间戳、分级别）。有了这三样，脚本崩不了、问题查得到。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/tutorial/inputoutput.html" target="_blank" rel="noopener">Python 官方教程 - 输入/输出</a></li>
+            <li><a href="https://docs.python.org/3/tutorial/errors.html" target="_blank" rel="noopener">Python 官方教程 - 异常处理</a></li>
+            <li><a href="https://docs.python.org/3/library/logging.html" target="_blank" rel="noopener">Python logging 模块官方文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#python</span>
+          <span class="tag">#exception-handling</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

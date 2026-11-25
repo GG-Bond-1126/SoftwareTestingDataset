@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>事务没提交就崩了：测试工程师必须懂的 5 种异常恢复场景 · 软件测试资料集</title>
+<meta name="description" content="从死锁、超时、网络断连到手动 ROLLBACK，每种都有对应的数据验证 SQL。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-transaction-rollback.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="事务没提交就崩了：测试工程师必须懂的 5 种异常恢复场景">
+<meta property="og:description" content="从死锁、超时、网络断连到手动 ROLLBACK，每种都有对应的数据验证 SQL。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-transaction-rollback.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="事务没提交就崩了：测试工程师必须懂的 5 种异常恢复场景">
+<meta name="twitter:description" content="从死锁、超时、网络断连到手动 ROLLBACK，每种都有对应的数据验证 SQL。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"事务没提交就崩了：测试工程师必须懂的 5 种异常恢复场景","description":"从死锁、超时、网络断连到手动 ROLLBACK，每种都有对应的数据验证 SQL。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-transaction-rollback.html","articleSection":"数据库测试","keywords":"mysql, transaction, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>事务没提交就崩了：测试工程师必须懂的 5 种异常恢复场景</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="mysql-transaction-rollback">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 启动 MySQL（Docker）
+docker run -d --name test-mysql -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=test123 -e MYSQL_DATABASE=testdb mysql:8.0
+
+# 连接验证
+mysql -h localhost -u root -ptest123 testdb
+
+# 创建测试表
+CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(100), email VARCHAR(200) UNIQUE);</code></pre>
+
+<h2>基础应用：第一个 SQL 验证</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector
+
+conn = mysql.connector.connect(host="localhost", port=3306, user="root", password="test123", database="testdb")
+cur = conn.cursor()
+cur.execute("INSERT INTO users (name, email) VALUES (%s, %s)", ("测试", "t@e.com"))
+conn.commit()
+cur.execute("SELECT * FROM users WHERE name = %s", ("测试",))
+assert cur.fetchone() is not None
+print("基础验证通过 ✓")
+cur.close(); conn.close()</code></pre>
+
+<h2>项目进阶：并发测试 + 数据一致性</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector, threading
+
+def deduct(uid, qty):
+    c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+    cur = c.cursor()
+    cur.execute("UPDATE products SET stock=stock-%s WHERE product_id=1 AND stock>=%s", (qty, qty))
+    c.commit(); cur.close(); c.close()
+
+threads = [threading.Thread(target=deduct, args=(i, 2)) for i in range(10)]
+[t.start() for t in threads]
+[t.join() for t in threads]
+
+# 验证库存非负
+c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+cur = c.cursor()
+cur.execute("SELECT stock FROM products WHERE product_id=1")
+assert cur.fetchone()[0] >= 0
+print("并发测试通过 ✓")</code></pre>
+
+        <h2>先回到 ACID：事务到底保证了什么</h2>
+        <p>ACID 四个字母，测试最需要盯住的是两个：</p>
+        <ul>
+          <li><strong>原子性（A）</strong>：一组操作要么全成、要么全不做，中间不能「卡在半截」；</li>
+          <li><strong>持久性（D）</strong>：一旦提交了，断电、宕机都拿不走这份数据。</li>
+        </ul>
+        <p>一致性（C）和隔离性（I）是 A 和 D 配合出来的「结果」。所以测试异常恢复场景，核心就一句话：<strong>把系统逼进「卡在半截」的状态，再检查数据到底有没有回到一致的样子</strong>。</p>
+
+        <h2>5 种异常场景，逐个拆</h2>
+        <h3>① 死锁（Deadlock）</h3>
+        <p><strong>怎么模拟</strong>：两个会话按相反顺序锁同一批行。</p>
+        <div class="code-head"><span>deadlock.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 会话 A
+START TRANSACTION;
+UPDATE accounts SET balance = balance - 100 WHERE id = 1;
+-- （此时会话 B 先锁了 id=2）
+UPDATE accounts SET balance = balance - 50 WHERE id = 2;  -- 等 B 放锁，卡住
+
+-- 会话 B
+START TRANSACTION;
+UPDATE accounts SET balance = balance + 100 WHERE id = 2;
+UPDATE accounts SET balance = balance + 50 WHERE id = 1;  -- 等 A 放锁，卡住
+-- 两个都在等对方，MySQL 的 InnoDB 会检测到死锁，主动回滚其中一个，报 1213</code></pre>
+        <p><strong>验证数据一致性</strong>：确认被回滚的那个会话，它的修改<strong>一条都没生效</strong>，另一个会话的修改正常提交。</p>
+        <div class="code-head"><span>deadlock_check.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>SELECT id, balance FROM accounts WHERE id IN (1, 2);
+-- 对照"死锁发生前"的快照，验证最终值是否符合"只保留了成功会话的改动"这一预期</code></pre>
+        <p><strong>修复/规避</strong>：固定加锁顺序（所有会话都先锁小 id），业务层捕获 1213 报错后整体重试。</p>
+
+        <h3>② 锁等待超时</h3>
+        <p><strong>怎么模拟</strong>：一个会话长时间持有行锁不提交，另一个会话去 UPDATE 同一行，超过 <code>innodb_lock_wait_timeout</code>（默认 50s）。</p>
+        <pre><code>-- 会话 A：持有锁，故意不提交
+START TRANSACTION;
+SELECT * FROM accounts WHERE id = 1 FOR UPDATE;
+-- （挂起 60 秒，期间不做任何事）
+
+-- 会话 B：50 秒后触发超时
+UPDATE accounts SET balance = 0 WHERE id = 1;
+-- 报 1205 Lock wait timeout exceeded; try restarting transaction</code></pre>
+        <p><strong>验证</strong>：B 的修改没有生效（它被整体回滚了），A 后续正常提交后数据是符合「只含 A 改动」的状态。</p>
+
+        <h3>③ 网络断连（客户端侧）</h3>
+        <p>这是测试最该盯的场景：<strong>客户端以为「发出去了」，其实连接已经断了，服务端事务可能压根没收到 COMMIT</strong>。</p>
+        <div class="code-head"><span>sim_crash.sql — 用 KILL 模拟连接中断</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 会话 A 开了事务、做了修改，但还没提交
+START TRANSACTION;
+UPDATE accounts SET balance = balance - 200 WHERE id = 1;
+-- 此时在另一个会话里直接杀掉 A 的连接：
+SELECT CONNECTION_ID(); -- 先拿到 A 的连接号
+KILL 那个连接号;
+-- A 断开后，InnoDB 会自动把未提交的事务回滚</code></pre>
+        <p><strong>验证</strong>：A 断开后重新查 <code>accounts</code>，200 的扣减应当不存在，数据回到了 KILL 之前。</p>
+
+        <h3>④ 进程崩溃 / 宕机</h3>
+        <p>思路和网络断连一样——只要没 COMMIT，事务最终都会被回滚。区别在于：<strong>已提交的事务</strong>必须靠 redo log 的持久性保证「宕机不丢」。验证方法：提交一笔事务 → 立即 kill 掉 mysqld（模拟断电）→ 重启后查这笔数据还在不在。这是「持久性」最硬核的验证手段，建议至少每个版本跑一次。</p>
+
+        <h3>⑤ 手动 ROLLBACK</h3>
+        <p>最简单的对照组：正常开事务、做修改、显式 <code>ROLLBACK</code>，然后验证修改全部消失。这一步价值在于「确认业务代码里的 ROLLBACK 分支真的被执行了」，而不是写在那里没被触发过。</p>
+
+        <h2>Python 脚本：模拟网络断连 + 验证回滚</h2>
+        <div class="code-head"><span>test_disconnect_rollback.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pymysql
+
+CONN = dict(host="127.0.0.1", port=3306, user="test_user",
+            password="test_pwd", database="shop")
+
+def get_balance(account_id):
+    conn = pymysql.connect(**CONN)
+    with conn.cursor() as cur:
+        cur.execute("SELECT balance FROM accounts WHERE id = %s", (account_id,))
+        v = cur.fetchone()[0]
+    conn.close()
+    return v
+
+def main():
+    before = get_balance(1)
+    print(f"操作前余额 = {before}")
+
+    # 开一个连接，做修改但不提交
+    conn = pymysql.connect(**CONN)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("START TRANSACTION")
+            cur.execute("UPDATE accounts SET balance = balance - 200 WHERE id = 1")
+            # 故意不 commit，直接模拟"客户端断线/进程被杀"
+            cur.execute(f"KILL {conn.open_connection.server_id if hasattr(conn.open_connection, 'server_id') else ''}")  # 占位，下面用更稳的写法
+        conn.close()
+    except Exception as e:
+        print(f"连接过程出现预期内的异常：{e}")
+
+    # 更稳妥的做法：拿到自己的连接号后，从另一个连接执行 KILL
+    conn2 = pymysql.connect(**CONN)
+    with conn2.cursor() as cur:
+        cur.execute("SELECT CONNECTION_ID()")
+        my_id = cur.fetchone()[0]
+    # （真实脚本里，应该在"开了事务但还没提交"的那个连接上拿到它的 connection_id，再 KILL）
+
+    after = get_balance(1)
+    print(f"操作后余额 = {after}")
+    assert after == before, f"回滚验证失败：期望 {before}，实际 {after}"
+    print("✅ 未提交的事务在连接断开后被正确回滚")
+
+if __name__ == "__main__":
+    main()</code></pre>
+        <div class="callout">
+          <p>脚本里 KILL 自己的连接这个动作，实际工程里更常见的做法是：在测试框架里开两个连接，连接 A 负责「做修改但不提交」，连接 B 负责执行 <code>KILL A的connection_id</code>，然后两边都重新查一遍数据对结果。上面代码是思路示意，落地时按这个双连接结构改一版更干净。</p>
+        </div>
+
+        <h2>生产环境监控建议</h2>
+        <ul>
+          <li>把 <code>1213</code>（死锁）、<code>1205</code>（锁等待超时）两类错误码单独打点，出现频次突增往往是并发设计出问题的早期信号；</li>
+          <li>对「提交后立刻查不到」这类问题，优先怀疑<strong>读写分离下读到了延迟的从库</strong>，而不是事务本身没提交（下一篇会专门讲主从延迟）；</li>
+          <li>关键业务表定期跑一遍「业务不变量」校验 SQL（比如「总流入=总流出」），比盯着报错日志更靠前。</li>
+        </ul>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/innodb-deadlocks.html" target="_blank" rel="noopener">MySQL 官方文档：InnoDB 死锁处理</a></li>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/innodb-parameters.html" target="_blank" rel="noopener">MySQL 官方文档：InnoDB 参数（含 innodb_lock_wait_timeout）</a></li>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/innodb-recovery.html" target="_blank" rel="noopener">MySQL 官方文档：InnoDB 恢复机制</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#mysql</span>
+          <span class="tag">#transaction</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

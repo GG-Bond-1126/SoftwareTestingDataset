@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 用例维护：去重、补全与失效识别 · 软件测试资料集</title>
+<meta name="description" content="把用例库体检做成可重跑的 skill：给定现有用例、变更记录与下线清单，输出重复簇、缺项与失效候选。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-case-maintenance.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="AI 用例维护：去重、补全与失效识别">
+<meta property="og:description" content="把用例库体检做成可重跑的 skill：给定现有用例、变更记录与下线清单，输出重复簇、缺项与失效候选。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-case-maintenance.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AI 用例维护：去重、补全与失效识别">
+<meta name="twitter:description" content="把用例库体检做成可重跑的 skill：给定现有用例、变更记录与下线清单，输出重复簇、缺项与失效候选。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"AI 用例维护：去重、补全与失效识别","description":"把用例库体检做成可重跑的 skill：给定现有用例、变更记录与下线清单，输出重复簇、缺项与失效候选。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-case-maintenance.html","articleSection":"落地实践","keywords":"用例治理, 用例去重, skill","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">落地实践</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>11 min read</span>
+        </div>
+        <div class="callout warn">
+          <p>本文描述的 skill 只依据引用文档与当前上下文输出，不许按想法自由发挥；信息不足的部分必须进入「待确认清单」，不许编造。所有删除与合并动作都要人工确认。</p>
+        </div>
+        <h1>AI 用例维护：去重、补全与失效识别</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="ai-case-maintenance">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <h2>用例库腐化，先看三种表现</h2>
+        <p>我们的用例库有 4820 条，覆盖 6 条业务线，积累了四年。三个月前做了一次体检，结果不好看：语义重复 1494 条，占 31%；缺断言的 868 条，占 18%；关联需求或接口已经对不上的 336 条，占 7%。一次完整回归 96 分钟，其中 41 分钟跑的是重复用例和早已失效的用例。也就是说，将近一半的机器时间花在了不该跑的东西上。</p>
+        <p>腐化有三种表现，几乎每个老库都能对上号。</p>
+        <p><strong>第一种是文本级重复。</strong>同一个功能有六条用例，标题只差几个字，比如「优惠券领取成功」「优惠券领取-正常」「领取优惠券功能」。执行的人每次随机挑一条，失败的记录散落在六条用例上，看趋势图完全得不出结论。</p>
+        <p><strong>第二种是空壳用例。</strong>步骤只有一步「验证功能正常」，预期结果写「页面正常显示」。这种用例执行时只能靠感觉判断，新人不敢标失败，老人懒得标失败，最后永远是通过。</p>
+        <p><strong>第三种是时序错位。</strong>需求半年前就改成先支付后发货，用例还在验货到付款。它们不是写错了，而是写完就没人回头看。需求编号还在，所以看起来一切正常，直到某次回归里有人认真读了一遍步骤。</p>
+        <p>这三种表现背后是同一个成因：每一次「先复制一条改改再说」在当时都合理，半年后就变成现在这样。我们人工清理过两次，第一次两个人花两周删了 900 条，三个月后重复率回到 24%；第二次清理得更细，半年后回到 26%。结论很明确，需要的是每月能重跑的体检流程，加上一道新增用例的门禁，而不是又一场大扫除。</p>
+
+        <h2>这个 skill 只做判断，不做删除</h2>
+        <p>先把边界说清楚，否则用起来一定会出事。这个 skill 的产出是候选和证据：哪几条可能重复、哪几条缺什么字段、哪几条的依据已经不存在。它不执行删除，不批量改状态，也不自己拍板保留哪一条。删除权必须留在人手里，因为用例里经常藏着只有原作者才知道的上下文，比如某条用例是为了复现一个三年没再出现的偶发问题。</p>
+        <p>它也不做另外三件事：不改造用例模板（模板不统一应该先治理模板）、不生成新用例（那是<a class="ilink" href="ai-testpoint-generation.html">测试点</a>生成和用例编写的活）、不执行自动化脚本。它只读材料、给判断、列清单。把它当成一份可以按月重跑的体检报告，期望就不会错位。</p>
+
+        <h2>方案总览</h2>
+        <p>整条链路有五段，其中只有两段真的需要模型。材料归档和统计靠字段与规则，重复判定和失效解释靠模型归纳，最后的处置决定由人做。这个分工很重要：让模型去数条数，它会数错；让人去读 4820 条用例找重复，人会崩溃。</p>
+        <table>
+          <thead><tr><th>环节</th><th>输入</th><th>输出</th></tr></thead>
+          <tbody>
+            <tr><td>材料归档</td><td>用例导出、需求索引、接口清单、执行记录、历史文档</td><td>按模块分片的材料包</td></tr>
+            <tr><td>重复簇判定</td><td>同一模块的用例标题与首步</td><td>候选簇、簇内推荐保留项</td></tr>
+            <tr><td>完整性检查</td><td>用例字段</td><td>缺项清单，按缺项类型归类</td></tr>
+            <tr><td>失效识别</td><td>需求版本、下线接口、元素路径、执行记录</td><td>失效候选与逐条依据</td></tr>
+            <tr><td>处置建议</td><td>上述三类结果</td><td>处置表与整改节奏</td></tr>
+          </tbody>
+        </table>
+        <p>还有一个前置条件容易被忽略：报告必须合成一份。我们试过输出三个文件分别给三个人，结果是没人对整体负责，重复簇处理了，失效清单一直挂着。合成一份、只留一个负责人，比任何算法优化都管用。</p>
+
+        <h2>上下文怎么给：四份材料缺一不可</h2>
+        <p>这个 skill 的效果几乎完全由输入决定。只给用例导出，它只能找到文本相似的用例，判不了失效，也补不了断言。四份材料分别是现有用例集、需求变更记录、接口下线清单、历史执行结果，缺哪一份，对应的那类结论就不成立。</p>
+        <p><strong>现有用例集</strong>的字段至少要包含编号、标题、前置条件、步骤、预期结果、关联需求编号、更新时间、负责人。步骤和预期最好已经拆成行，没拆的会在完整性检查里被标成格式问题。一次不要给全量，按模块分片，每片 300 到 500 条，超过这个量模型会开始漏读中段内容，重复簇的召回明显下降。</p>
+        <p><strong>需求变更记录</strong>只需要给变更点，不要给全文。格式是需求编号、版本号、变更内容、生效时间。给全文的后果是模型会把整段需求复述一遍，占满上下文，真正的比对反而做不细。我们用的表格只有四列，一份季度变更记录不到 80 行，信息密度足够。</p>
+        <p><strong>接口下线清单</strong>包含接口路径、方法、下线时间、替代接口。没有这份清单，接口类用例的失效判断就只能靠猜，而猜出来的失效候选会被执行同学直接忽略，报告的可信度一次就毁了。</p>
+        <p><strong>历史执行结果</strong>取近 90 天，字段是用例编号、执行时间、结果、失败原因摘要。它的作用是区分长期失败和偶发失败：同一条用例连续 8 次失败且原因一致，大概率是用例本身过时；偶尔失败一次且原因各异，可能是环境问题，不该进失效清单。</p>
+        <div class="code-head"><span>目录结构 — case-audit</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>case-audit/
+├── cases/
+│   ├── 2026-11-export.csv          # 用例全量导出
+│   └── schema.md                   # 字段说明与取值枚举
+├── requirements/
+│   ├── index.csv                   # 需求编号、当前版本、状态
+│   └── changes/
+│       └── 2026-Q3-change-log.csv  # 变更点，只记差异
+├── api/
+│   ├── openapi-2026-11.yaml        # 当前接口清单
+│   └── retired-apis.csv            # 已下线接口与替代关系
+├── execution/
+│   └── last-90-days.csv            # 逐次执行结果
+├── history/                        # 历史文档，见下一节
+│   ├── requirements/
+│   │   └── 2025-11-coupon-v1.3.md
+│   └── cases/
+│       └── 2025-12-export.csv
+└── out/
+    └── audit-2026-11.md            # 报告输出，按月命名</code></pre>
+        <p>目录本身不复杂，重点是命名带日期。每次体检都读最新的那一份，历史版本留在原地不动。这样半年后回头看，能明确知道某条用例是什么时候被判定失效的。</p>
+
+        <h2>历史文档怎么挂：旧版需求与旧用例版本</h2>
+        <p>历史文档的作用是解释「这条用例当初为什么这么写」，不是拿来当现在的判断依据。这个区别如果不讲清，模型会把旧版需求里的规则当成有效规则，生成一堆看起来有理、实际早已作废的补全建议。我们第一版就踩了这个坑，旧版需求里写着券有效期 7 天，实际早已改成 30 天，模型按 7 天补了九条边界用例。</p>
+        <p>所以挂历史文档有三条规则。第一，只挂差异，不挂全文，旧版需求里只保留与当前版本不同的段落。第二，每份历史文档必须带版本号和生效区间，文件名里写清楚，正文首行再写一遍。第三，过期文档要显式标记，并在提示词里声明优先级，明确告诉模型它只能用于解释历史，不能作为断言依据。</p>
+        <table>
+          <thead><tr><th>文档类型</th><th>在体检里的角色</th><th>能否作为判定依据</th><th>标记方式</th></tr></thead>
+          <tbody>
+            <tr><td>当前版需求</td><td>判定用例是否失效的主依据</td><td>能</td><td>文件名带 <code>current</code>，正文标版本号</td></tr>
+            <tr><td>旧版需求</td><td>解释历史行为，识别变更点</td><td>不能</td><td>文件名带 <code>superseded</code>，标生效区间</td></tr>
+            <tr><td>旧用例导出</td><td>比对补全历史、判断重复来源</td><td>不能</td><td>文件名带 <code>archived</code> 与导出版本</td></tr>
+            <tr><td>已下线接口清单</td><td>仅用于判失效</td><td>能，且只用于判失效</td><td>文件名带 <code>deprecated</code>，标下线日期</td></tr>
+          </tbody>
+        </table>
+        <p>旧用例版本还有一个实际用途：判断某条用例是「一直这么写」还是「最近被改坏」。如果旧版里断言齐全，新版里断言没了，那不是用例天生空壳，而是有人改漏了，处置建议应该是还原而不是废弃。这类判断人工很难批量做，交给模型对比两个版本的同一编号，几分钟就能列出来。</p>
+
+        <h2>提示词怎么写</h2>
+        <p>提示词的核心不是让模型聪明，而是把判定标准和禁止动作写死。下面这份是我们线上用的版本，改过七稿，每一条都对应一次踩坑。长度控制在 600 字左右，太短会自由发挥，太长会开始忽略后半段。</p>
+        <div class="code-head"><span>提示词 — 用例库体检</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>你是测试用例库的维护助手。只依据我提供的材料输出，不补充材料里没有的业务规则、字段名、接口地址和阈值。
+
+本次任务三项：
+
+一、重复识别
+- 判定标准：同一前置条件、同一操作路径、同一预期结果，视为重复。
+- 相似度 0.92 以上的候选对仍要人工确认，不许直接建议删除。
+- 参数化用例的多行数据不算重复；同一功能的正常流与异常流不算重复。
+- 输出重复簇，每簇给出推荐保留的一条，并写明保留理由（步骤最完整、断言最多、更新时间最新）。
+
+二、完整性检查
+- 缺项类型只有五种：缺前置条件、步骤少于两步、缺预期结果、缺断言、缺需求编号。
+- 每条缺项指出缺哪个字段，并给一段补全建议文字，不要写脚本。
+- 预期结果只写「正常」「成功」「显示正确」的，判为缺断言。
+
+三、失效识别
+- 依据只有三类：需求编号在当前需求索引中不存在或版本不一致；接口出现在下线清单；页面元素路径在元素清单中不存在。
+- 每条失效候选必须写出来源：哪个文件、哪一行、哪个版本号。
+- 依据不足的写进待确认清单，不要判失效。
+
+材料优先级：当前版需求 > 当前接口清单 > 近 90 天执行结果 > 旧版需求与旧用例。
+旧版材料只能解释历史，不能作为当前断言依据。资料冲突时并列两种说法，不要自行取舍。
+
+输出顺序：总体统计（总数、重复率、缺断言比例、失效率）、重复簇、缺项清单、失效候选、处置建议表、待确认清单。
+处置建议只能取四种：保留、合并到某条、补全、废弃待确认。每条建议标 P0 / P1 / P2，依据是关联需求等级与执行频率。
+待确认清单每行写：缺什么、影响哪条结论、需要谁提供。</code></pre>
+        <p>这里有两个刻意的设计。一是把 0.92 写成参考值而不是硬阈值，因为不同团队标题写法差异很大，阈值必须自己能调；二是要求每条失效候选写出来源文件和版本号，这一条直接决定了报告能不能用，没有来源的判断在执行同学眼里等于噪音。</p>
+
+        <h2>输出规范：四个清单加一张处置表</h2>
+        <p>报告的结构固定，不接受自由发挥。先一段总体结论，四个数字：总数、重复率、缺断言比例、失效率。数字后面必须写口径，重复率按簇内多余条数除以总数算，不按簇数算，这两种算法差三倍以上。</p>
+        <table>
+          <thead><tr><th>产出</th><th>内容</th><th>粒度</th><th>谁负责</th></tr></thead>
+          <tbody>
+            <tr><td>重复簇</td><td>簇编号、成员用例、相似依据、推荐保留项</td><td>到用例编号</td><td>模块负责人</td></tr>
+            <tr><td>待补全项</td><td>用例编号、缺哪个字段、补全建议</td><td>到字段</td><td>原用例作者</td></tr>
+            <tr><td>失效候选</td><td>用例编号、依据文件与版本、建议动作</td><td>到用例编号</td><td>模块负责人</td></tr>
+            <tr><td>处置建议</td><td>保留、合并、补全、废弃待确认，含优先级</td><td>到动作</td><td>测试负责人</td></tr>
+            <tr><td>待确认清单</td><td>缺什么、影响哪条结论、需要谁提供</td><td>到条目</td><td>提出人跟踪</td></tr>
+          </tbody>
+        </table>
+        <p>优先级规则也写死：涉及资金、权限、库存的用例，重复和失效都标 P0，当周处理；主流程用例标 P1，当月处理；纯展示、文案、排序标 P2，进下一个季度。占比检查同样要有：如果 P0 超过总数的 30%，说明规则被忽略了，打回重跑，不要拿这份报告去开会。</p>
+        <p>「废弃待确认」这个动作是必须的。很多失效候选其实证据不足，比如接口清单里还有这个路径，但执行记录连续 12 次 404。这种情况应该进待确认，而不是直接废弃。我们统计过，第一年判失效的 336 条里，有 29 条最后被证明是环境配置问题，用例本身没错。如果没有待确认这一档，这 29 条就被误删了。</p>
+
+        <h2>落地节奏：月度体检加一道门禁</h2>
+        <p>节奏比工具重要。我们固定每月第一个周三做体检，两个人各半天：一个人准备材料并跑一遍，一个人只看 P0 和待确认清单。产出当天发到群里，模块负责人在一周内处理完 P0。三个月后重复率从 31% 降到 12%，缺断言比例从 18% 降到 7%，回归时长从 96 分钟降到 67 分钟。</p>
+        <p>门禁是另一半。新增或修改用例的合并请求里，检查三件事：有没有需求编号、预期结果里有没有可判断的断言、同模块内有没有高相似用例。前两条靠字段校验，第三条人工看一眼标题就够了。门禁不做，体检就是往漏水的桶里舀水，我们前两次清理失败都是这个原因。</p>
+        <p>还有一条经验：第一次跑不要追求全量。挑一个重复最严重的模块先做，把报告拿给负责人看，让他确认十条里有几条是同意的。确认率低于七成，先改提示词和材料，不要扩大范围。我们第一次全量跑，确认率只有五成，原因是没给接口下线清单，模型把三十多条正常用例判成了失效。</p>
+
+        <h2>踩坑与边界</h2>
+        <ul>
+          <li><strong>只按标题字符串去重</strong>：改一个字就漏掉。改成标题加首步一起比，并对同义词做归一化，例如把「无法」和「不能」视为同一个词。</li>
+          <li><strong>把正常流和异常流判成重复</strong>：这是最危险的误判，合了就是漏测。提示词里必须写明两者不合并，宁可多留不可错删。</li>
+          <li><strong>把参数化用例的多行数据当成多条重复</strong>：30 行数据被判成 30 条重复，报告直接失真。判定前先识别参数化标记。</li>
+          <li><strong>需求编号被复用</strong>：老需求编号分给了新需求，老用例的关联看起来仍然有效，失效识别完全失效。这个只能靠需求管理流程解决，skill 里要显式提示复核。</li>
+          <li><strong>报告只给总数</strong>：不给用例编号和负责人，没人能动手。所有产出必须落到编号。</li>
+          <li><strong>直接把模型输出当删除清单</strong>：一次删了 120 条，结果有 17 条是唯一覆盖某个边界条件的用例。删除必须人工逐条确认，这是硬规矩。</li>
+        </ul>
+
+        <h2>Skill 完整展示</h2>
+        <p>这套流程对应的 skill 放在 Claude Code 的用户目录 <code>~/.claude/skills/skill-case-maintenance/SKILL.md</code>；Trae 放在 <code>C:\Users\你的用户名\.trae\skills\skill-case-maintenance\SKILL.md</code>，项目内则放 <code>.trae/skills/</code>。目录名与 front matter 的 <code>name</code> 保持一致，重启后加载。</p>
+        <div class="code-head"><span>markdown — SKILL.md</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>---
+name: case-maintenance
+description: 对测试用例库做语义去重、步骤与断言补全、失效识别三项体检，输出带优先级的整改清单与统计报告，按月治理，防止用例库腐化。
+---
+
+# 用例维护：去重、补全与失效识别
+
+## 硬性约束（优先级最高，与其他章节冲突时以本节为准）
+
+1. 只能依据三类信息输出：用户提供的需求文档 / 接口文档 / 代码 / 日志原文、当前会话上下文、本 skill「输入」一节所列的文件。禁止凭想象补充业务规则、字段名、接口地址、阈值、状态码、版本号或历史数据。
+2. 每条产出都要可回溯，必须标注来源：文档章节或条款、文件路径与行号、日志片段、接口字段。标不出来源的条目不得进入正式产出。
+3. 信息不足时不许编造填补。缺失项一律进入「待确认清单」，逐条写清：缺什么、影响哪条结论、需要谁提供。
+4. 凡是基于经验补出的内容，必须以「推断：」开头，并写明依据与置信度（高 / 中 / 低）。置信度为低的推断不能当结论用。
+5. 禁止虚构引用：不编造文档条款号、版本号、链接、指标数值、报错原文。引用原文时逐字摘录并注明位置。
+6. 资料互相矛盾时（文档与代码不一致、两处规则冲突）不要自行取舍，把两种说法并列，标明冲突点和需要确认的问题。
+7. 输出前逐条自检：这条有来源吗？没有就移到「待确认清单」。自检不通过不许输出。
+
+## 待确认清单（输出必带）
+
+无论信息是否充足，输出末尾都保留这一节；没有待确认项时写「无」，不许省略该节。每行格式：
+
+| 序号 | 缺失或不确定的内容 | 影响 | 需要谁提供 |
+
+## 适用场景
+
+- 用例库超过两千条，回归时长不断上升，但没人说得清哪些可以删。
+- 同一个功能存在多条相似用例，执行时重复验证同一件事。
+- 需求已经改版，用例还在按旧流程写，执行时频繁失败或空跑。
+- 用例评审前需要一份可量化的质量基线。
+
+以下情况不要用：
+
+- 用例还没有统一字段结构，先做模板治理。
+- 团队还没有需求编号体系，先去补需求关联，否则失效识别无从下手。
+- 想直接用脚本批量删除用例，任何删除都必须人工确认。
+
+## 输入
+
+必需：
+
+1. 用例导出，字段至少包含编号、标题、前置条件、步骤、预期结果、关联需求编号、更新时间。
+2. 需求索引，含需求编号、当前版本号、状态。
+3. 接口清单，来自 OpenAPI 或接口管理平台。
+
+建议补充：
+
+4. 页面元素路径清单，来自自动化脚本的 locator 定义。
+5. 近三个月每条用例的执行结果，用于判断长期失败还是偶发失败。
+6. 用例负责人信息，用于分派整改任务。
+
+输入缺失时：在报告里单列「无法判定的用例」，不要默认它们有效。
+
+## 执行步骤
+
+1. 统一字段，把步骤和预期拆成数组，无法拆分的用例标记为格式问题。
+2. 用 bge-small-zh-v1.5 对「标题 + 首步」做向量化，向量做 L2 归一化。
+3. 计算两两余弦相似度，阈值取 0.92，生成候选重复对。
+4. 用并查集把候选对合并成簇，簇内超过 5 条时单独标记，通常是模板化用例。
+5. 对每簇保留一条，选择标准是步骤最完整、断言最多、更新时间最新。
+6. 做完整性检查：缺前置条件、步骤少于 2 步、缺预期、缺断言、缺需求编号。
+7. 做失效识别：需求已删除、需求版本变更、接口已下线、页面元素路径不存在。
+8. 输出四个 sheet 的报告：重复簇、缺项清单、失效清单、汇总统计。
+9. 按严重程度分派整改，高优先级当周处理，中优先级当月处理。
+
+## 输出格式
+
+先给一段总体结论，包含用例总数、重复率、缺断言比例、失效率。
+
+然后输出表格：
+
+| 类型 | 用例编号 | 问题 | 相似对象或依据 | 建议动作 | 优先级 |
+
+问题类型只能取：重复、缺前置、缺断言、步骤不足、需求变更、接口下线、元素消失。
+
+表格之后附整改节奏建议与预计节省的回归时长。
+
+## 质量检查清单
+
+- 相似度阈值有实验依据，不是随手填的。
+- 每个重复簇都经过人工确认，没有直接删除。
+- 参数化用例没有被误判为重复。
+- 断言缺失的判定不是只看关键词，还检查了预期结果字段。
+- 需求版本比对用的是版本号，不是更新时间。
+- 接口下线以接口清单为准，不靠猜。
+- 失效判定给出依据，例如需求编号与版本差异。
+- 报告里的每条记录都能点回原用例。
+- 统计口径写清楚，重复率按簇内多余条数除以总数计算。
+
+## 反例
+
+- 只按标题字符串完全匹配去重，改一个字就漏掉。
+- 把同功能的正常流与异常流判成重复，误删异常用例。
+- 把参数化用例的 30 条数据行判成 30 条重复。
+- 需求编号被复用，导致老用例被误判为有效。
+- 报告只给总数，不落到具体用例编号和负责人。
+- 一次性清理完就结束，没有月度复检。</code></pre>
+        <div class="callout">
+          <p>下载完整 skill 文件：<a href="../assets/downloads/skill-case-maintenance.md" download>skill-case-maintenance.md</a>。放到 <code>~/.claude/skills/skill-case-maintenance/SKILL.md</code> 即可被自动加载。</p>
+        </div>
+
+        <p>最后给一个判断标准：如果一份体检报告，你能在半小时内把 P0 全部派出去、把待确认清单里需要问的人问完，说明这份报告是可用的。如果看完之后还需要自己再翻一遍用例库才能决定，那说明报告的粒度和来源标注都不合格，先修提示词，不要拿去评审。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://huggingface.co/BAAI/bge-small-zh-v1.5" target="_blank" rel="noopener">bge-small-zh-v1.5 模型卡 — Hugging Face</a></li>
+            <li><a href="https://www.istqb.org/certifications/certified-tester-foundation-level" target="_blank" rel="noopener">ISTQB Certified Tester Foundation Level — ISTQB</a></li>
+            <li><a href="https://martinfowler.com/bliki/TestPyramid.html" target="_blank" rel="noopener">The Practical Test Pyramid — Martin Fowler</a></li>
+            <li><a href="https://help.aliyun.com/zh/model-studio/getting-started/models" target="_blank" rel="noopener">模型列表与计费 — 阿里云百炼</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#用例治理</span>
+          <span class="tag">#用例去重</span>
+          <span class="tag">#skill</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

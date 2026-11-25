@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数据库测试第一关：怎么证明写入的数据没丢没脏 · 软件测试资料集</title>
+<meta name="description" content="覆盖唯一约束、外键、事务回滚与脏读检测的实操清单和 SQL 验证脚本。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-data-integrity-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="数据库测试第一关：怎么证明写入的数据没丢没脏">
+<meta property="og:description" content="覆盖唯一约束、外键、事务回滚与脏读检测的实操清单和 SQL 验证脚本。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-data-integrity-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="数据库测试第一关：怎么证明写入的数据没丢没脏">
+<meta name="twitter:description" content="覆盖唯一约束、外键、事务回滚与脏读检测的实操清单和 SQL 验证脚本。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"数据库测试第一关：怎么证明写入的数据没丢没脏","description":"覆盖唯一约束、外键、事务回滚与脏读检测的实操清单和 SQL 验证脚本。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/mysql-data-integrity-testing.html","articleSection":"数据库测试","keywords":"mysql, integrity, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>12 min read</span>
+        </div>
+        <h1>数据库测试第一关：怎么证明写入的数据没丢没脏</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="mysql-data-integrity-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 启动 MySQL（Docker）
+docker run -d --name test-mysql -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=test123 -e MYSQL_DATABASE=testdb mysql:8.0
+
+# 连接验证
+mysql -h localhost -u root -ptest123 testdb
+
+# 创建测试表
+CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(100), email VARCHAR(200) UNIQUE);</code></pre>
+
+<h2>基础应用：第一个 SQL 验证</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector
+
+conn = mysql.connector.connect(host="localhost", port=3306, user="root", password="test123", database="testdb")
+cur = conn.cursor()
+cur.execute("INSERT INTO users (name, email) VALUES (%s, %s)", ("测试", "t@e.com"))
+conn.commit()
+cur.execute("SELECT * FROM users WHERE name = %s", ("测试",))
+assert cur.fetchone() is not None
+print("基础验证通过 ✓")
+cur.close(); conn.close()</code></pre>
+
+<h2>项目进阶：并发测试 + 数据一致性</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector, threading
+
+def deduct(uid, qty):
+    c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+    cur = c.cursor()
+    cur.execute("UPDATE products SET stock=stock-%s WHERE product_id=1 AND stock>=%s", (qty, qty))
+    c.commit(); cur.close(); c.close()
+
+threads = [threading.Thread(target=deduct, args=(i, 2)) for i in range(10)]
+[t.start() for t in threads]
+[t.join() for t in threads]
+
+# 验证库存非负
+c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+cur = c.cursor()
+cur.execute("SELECT stock FROM products WHERE product_id=1")
+assert cur.fetchone()[0] >= 0
+print("并发测试通过 ✓")</code></pre>
+
+        <h2>数据完整性的 5 种约束</h2>
+        <p>所谓「数据没脏」，本质是数据始终满足事先声明过的规则。MySQL 里能声明这类规则的工具就 5 种：</p>
+        <table>
+          <thead><tr><th>约束类型</th><th>作用</th><th>测试关注点</th></tr></thead>
+          <tbody>
+            <tr><td>主键 PRIMARY KEY</td><td>唯一 + 非空</td><td>能不能插入重复主键、主键列能不能为 NULL</td></tr>
+            <tr><td>唯一约束 UNIQUE</td><td>指定列不重复</td><td>大小写/空格是否算重复、NULL 值是否参与唯一判断</td></tr>
+            <tr><td>外键 FOREIGN KEY</td><td>引用列必须在被引用表存在</td><td>能不能插入「孤儿记录」、删除被引用行会发生什么</td></tr>
+            <tr><td>CHECK 约束（MySQL 8.0.16+ 才真正生效）</td><td>列值必须满足表达式</td><td>超范围值能不能插进去（老版本会静默放过）</td></tr>
+            <tr><td>默认值 DEFAULT</td><td>不传值时自动填充</td><td>省略该列时，实际写入的值是不是约定的默认值</td></tr>
+          </tbody>
+        </table>
+        <div class="callout warn">
+          <p>特别注意 CHECK 约束：MySQL 在 8.0.16 之前会「解析但不生效」，意味着你写了 <code>age CHECK (age &gt; 0)</code>，实际负数照样能插进去。测试前先用 <code>SHOW CREATE TABLE 表名</code> 确认版本行为和约束是否真的在列定义里。</p>
+        </div>
+        <p>建一张测试用的表，把 5 种约束都用上：</p>
+        <div class="code-head"><span>setup.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>CREATE TABLE users (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  email VARCHAR(128) NOT NULL UNIQUE,
+  age INT CHECK (age &gt;= 0 AND age &lt;= 150),
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE orders (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  user_id INT NOT NULL,
+  amount DECIMAL(10,2) NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);</code></pre>
+
+        <h2>5 个典型场景与对应验证 SQL</h2>
+        <h3>① 重复提交</h3>
+        <p>同一份数据被提交两次（用户手抖、前端没做防重、消息重复投递）。验证方式：造两个并发或串行的重复 INSERT，看唯一约束是否真正拦住了第二条：</p>
+        <div class="code-head"><span>dup1.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>INSERT INTO users (email, age) VALUES ('a@test.com', 20);
+-- 再插一次完全相同的
+INSERT INTO users (email, age) VALUES ('a@test.com', 20);
+-- 期望：第二条报 1062 Duplicate entry，第一条保留</code></pre>
+        <p>用 SQL 验证「库里的最终结果」：</p>
+        <pre><code>SELECT email, COUNT(*) FROM users WHERE email = 'a@test.com' GROUP BY email HAVING COUNT(*) &gt; 1;
+-- 结果应为 0 行；有任何一行命中，说明唯一约束没生效，是严重问题</code></pre>
+        <h3>② 外键悬挂（孤儿记录）</h3>
+        <p>删了用户，订单还在。正确行为应该是：外键约束让「删用户」这一步直接失败（除非显式配置了 ON DELETE 行为）。验证：</p>
+        <div class="code-head"><span>dup2.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>INSERT INTO users (email, age) VALUES ('bob@test.com', 30);
+INSERT INTO orders (user_id, amount) VALUES (2, 100);
+-- 尝试删掉有订单关联的用户 2
+DELETE FROM users WHERE id = 2;
+-- 期望：报 1451 Cannot delete or update a parent row: foreign key constraint fails</code></pre>
+        <h3>③ 事务回滚后数据恢复</h3>
+        <p>多步写库（下单扣库存、更新余额）中途失败，整个事务要能完整回滚。验证：</p>
+        <div class="code-head"><span>dup3.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>START TRANSACTION;
+INSERT INTO users (email, age) VALUES ('carol@test.com', 25);
+UPDATE users SET age = 26 WHERE email = 'carol@test.com';
+-- 故意制造一步失败（比如违反 CHECK）
+UPDATE users SET age = 200 WHERE email = 'carol@test.com';  -- 期望报错
+ROLLBACK;
+-- 回滚后再查：carol 这条记录应该完全不存在
+SELECT * FROM users WHERE email = 'carol@test.com';  -- 期望 0 行</code></pre>
+        <h3>④ 脏读</h3>
+        <p>事务 A 读到事务 B 还没提交的数据，B 又回滚了，A 读到的就是「脏」的。验证方法：两个会话同时开事务，把其中一个隔离级别调到 <code>READ UNCOMMITTED</code>（默认级别下脏读本来就会被拦住，这是「验证防线有没有失守」的手段）：</p>
+        <div class="code-head"><span>dup4.sql — 会话 A</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>SET SESSION TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
+START TRANSACTION;
+SELECT * FROM users WHERE email = 'dave@test.com';   -- 先占位读
+-- （会话 B 此时插入 dave 但不提交，A 再查一次就能看到这条"未提交"的数据）
+SELECT * FROM users WHERE email = 'dave@test.com';</code></pre>
+        <div class="code-head"><span>dup4-b.sql — 会话 B</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>START TRANSACTION;
+INSERT INTO users (email, age) VALUES ('dave@test.com', 40);
+-- 不 COMMIT，直接在会话 A 里查，看能不能读到
+ROLLBACK;  -- 回滚后，A 读到的这条"不存在"的数据就是脏读的典型后果</code></pre>
+        <h3>⑤ 幻读</h3>
+        <p>同一事务里，两次相同条件的查询，结果行数因为别的会话在中间插数据而「变多」。InnoDB 默认 REPEATABLE READ 级别下，靠 MVCC + 间隙锁基本能防住「读」方向的幻读，但验证脚本仍建议显式构造一次确认防线有效：两次相同 SELECT 之间，让另一个会话插入一条满足条件的数据，回读两次结果应当一致。</p>
+
+        <h2>Python 脚本：并发写入 + 唯一约束断言</h2>
+        <p>用多线程模拟「两个请求同时提交同一订单」，验证唯一索引真的拦得住：</p>
+        <div class="code-head"><span>test_dup_submit.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import threading
+import pymysql
+
+conn_conf = dict(host="127.0.0.1", port=3306, user="test_user",
+                 password="test_pwd", database="shop")
+
+success_count = 0
+error_count = 0
+lock = threading.Lock()
+
+def try_insert():
+    """每个线程独立连接，模拟两个并发的"下单请求"插同一笔订单"""
+    global success_count, error_count
+    conn = pymysql.connect(**conn_conf)
+    try:
+        with conn.cursor() as cur:
+            # order_no 上有唯一索引（建表时加 UNIQUE）
+            cur.execute("INSERT INTO orders (user_id, amount, order_no) VALUES (1, 10, 'ORD-001')")
+            conn.commit()
+        with lock:
+            success_count += 1
+    except pymysql.err.IntegrityError:
+        with lock:
+            error_count += 1
+    finally:
+        conn.close()
+
+def main():
+    threads = [threading.Thread(target=try_insert) for _ in range(10)]
+    for t in threads: t.start()
+    for t in threads: t.join()
+
+    # 核心断言：10 个并发里，只有 1 个能成功，9 个报唯一冲突
+    assert success_count == 1, f"期望 1 条成功，实际 {success_count}"
+    assert error_count == 9, f"期望 9 条冲突，实际 {error_count}"
+    print("✅ 唯一约束在并发下仍然生效")
+
+if __name__ == "__main__":
+    main()</code></pre>
+
+        <h2>上生产前再检查一遍</h2>
+        <ul>
+          <li>关键业务字段（订单号、用户唯一标识）是否真的加了 <strong>UNIQUE</strong> 而不是「应用层去重」；</li>
+          <li>外键约束是否被显式关闭（MySQL 的 <code>foreign_key_checks</code> 会话变量），生产库别为了「图快」关掉；</li>
+          <li>回滚验证要覆盖到「多表、多语句」的事务，不是单表单语句；</li>
+          <li>脏读/幻读验证建议固定用两个隔离级别对比跑一遍，而不是默认「应该没问题」。</li>
+        </ul>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/create-table-constraints.html" target="_blank" rel="noopener">MySQL 官方文档：约束（Create Table）</a></li>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/innodb-transaction-isolation-levels.html" target="_blank" rel="noopener">MySQL 官方文档：InnoDB 事务隔离级别</a></li>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/check-constraint.html" target="_blank" rel="noopener">MySQL 官方文档：CHECK 约束</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#mysql</span>
+          <span class="tag">#integrity</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

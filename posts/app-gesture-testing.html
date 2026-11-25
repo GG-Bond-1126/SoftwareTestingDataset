@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APP 手势测试：滑动 / 双指 / 长按 · 软件测试资料集</title>
+<meta name="description" content="从 TouchAction 到 W3C Actions 与手势插件，讲清点击、滑动、双指、冲突与自绘控件的测试写法。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-gesture-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="APP 手势测试：滑动 / 双指 / 长按">
+<meta property="og:description" content="从 TouchAction 到 W3C Actions 与手势插件，讲清点击、滑动、双指、冲突与自绘控件的测试写法。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-gesture-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="APP 手势测试：滑动 / 双指 / 长按">
+<meta name="twitter:description" content="从 TouchAction 到 W3C Actions 与手势插件，讲清点击、滑动、双指、冲突与自绘控件的测试写法。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"APP 手势测试：滑动 / 双指 / 长按","description":"从 TouchAction 到 W3C Actions 与手势插件，讲清点击、滑动、双指、冲突与自绘控件的测试写法。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-gesture-testing.html","articleSection":"APP 自动化","keywords":"app-automation, gesture, swipe","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>20 min read</span>
+        </div>
+        <h1>APP 手势测试：滑动 / 双指 / 长按</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="app-gesture-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>手势用例为什么最容易烂</h2>
+        <p>手势用例是自动化里最容易写、也最容易烂的一类。录制工具点几下就能生成从 A 滑到 B 的脚本，开发机上十次十次过，进 CI 就变成三天两头红。原因不在工具，而在于手势是带时间维度的连续输入：同一段位移，100 毫秒和 800 毫秒走完，系统判定完全不同；多一根手指，坐标落到的控件可能就换了；系统手势还会在应用之前截获事件。</p>
+        <p>这三层叠在一起，就出现了典型困境：脚本能跑，但不可信。开发说功能没问题，测试说脚本昨天还是绿的，最后靠录屏定责。要让手势用例变成资产，必须先把 API 演进理清，再把参数、冲突和断言逐个拆开。</p>
+        <p>下面依次讲三代 API、点击与长按、滑动与惯性、双指与多指、冲突判定、自绘控件、稳定性设计和高频 Bug。</p>
+
+        <h2>API 演进：TouchAction、W3C Actions 与手势插件</h2>
+        <p>早期 Appium 用 TouchAction 和 MultiAction，写法是 press、moveTo、wait、release 的链式调用。问题很实际：只有绝对坐标，换分辨率就要重算；多指靠多个 Action 拼，服务端实现各写各的，同一脚本在两个平台行为不一致。Appium Python Client 从 3.x 起标记弃用，4.x 已不再提供，现在还照抄旧教程，第一步就卡在导入。</p>
+        <p>现在的主流是 W3C Actions，核心是 tick 时间片模型：每个 tick 包含所有指针的动作，同一 tick 内同时执行，下一个 tick 等上一个结束。理解这点，就能解释为什么两个 ActionBuilder 分别 perform 做不出双指缩放，也能解释长按为什么要在按下和抬起之间插入暂停。</p>
+        <p>第三种是手势插件，把常见手势做成服务端命令，用元素加百分比加速度描述。需要安装插件并以启用插件的方式启动服务，好处是跨分辨率稳定、代码短，坏处是参数因驱动而异，复杂轨迹表达不了。</p>
+        <table>
+          <thead>
+            <tr><th>方式</th><th>表达能力</th><th>跨分辨率</th><th>适用场景</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>TouchAction</td><td>单指链式动作</td><td>差，绝对坐标</td><td>仅存在于老项目，迁移即可</td></tr>
+            <tr><td>W3C Actions</td><td>多指、任意轨迹、精确时长</td><td>中，需要自己换算</td><td>缩放、旋转、画布、冲突验证</td></tr>
+            <tr><td>手势插件</td><td>常见手势，参数化</td><td>好，元素加百分比</td><td>列表滚动、卡片滑动、日常回归</td></tr>
+          </tbody>
+        </table>
+        <p>选择标准：能用元素描述的优先插件或元素相对坐标；只有画布、游戏、精确轨迹或多指配合才下沉到 W3C 写绝对坐标。别在同一个用例里既用<a class="ilink" href="web-element-locators.html">元素定位</a>又用写死像素。</p>
+
+        <div class="code-head"><span>python — 手势插件的服务端命令</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 先安装并启用插件
+# appium plugin install gestures
+# appium --use-plugins=gestures
+
+# 区域滚动：left/top/width/height 为示例值，实际取窗口尺寸
+driver.execute_script("mobile: scrollGesture", {
+    "left": 0,
+    "top": 0,
+    "width": 1080,
+    "height": 1800,
+    "direction": "up",      # 手指向上 = 页面向下滚
+    "percent": 0.8,
+    "speed": 1200,
+})
+
+# 元素内横滑：用元素 id 而不是绝对坐标，换分辨率也能跑
+banner = driver.find_element("id", "com.demo:id/banner")
+driver.execute_script("mobile: swipeGesture", {
+    "elementId": banner.id,
+    "direction": "left",
+    "percent": 0.7,
+    "speed": 1000,
+})</code></pre>
+
+        <h2>点击与长按：坐标、偏移与按住时长</h2>
+        <p>普通的 element.click 足够应对多数点击，它会先把元素滚到可见再点中心。但两种情形要自己控坐标：点元素局部，比如图片右上角的删除角标；按住不放，比如拖拽排序的起手。取元素矩形自己算偏移，比用 XPath 找子节点可靠。</p>
+        <p>长按的关键是按住时长。Android 的 ViewConfiguration 默认 500 毫秒，iOS 的长按识别器默认 0.5 秒。脚本别卡着 500 写，设备负载高时事件有延迟，给到 700 到 900 毫秒。还有个隐藏条件：按下后移动超过触摸斜率阈值，长按会被取消变成滚动，所以长按期间不要插入位移。</p>
+        <p>元素只露出一半时先滚动再取中心，否则坐标可能落在屏幕外，驱动直接抛坐标非法。</p>
+
+        <div class="code-head"><span>python — 带偏移的长按</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from selenium.webdriver.common.actions import interaction
+from selenium.webdriver.common.actions.action_builder import ActionBuilder
+
+from appium.webdriver.common.appiumby import AppiumBy
+
+
+def long_press(driver, element, hold_ms=800, dx=0, dy=0):
+    rect = element.rect
+    x = rect["x"] + rect["width"] // 2 + dx
+    y = rect["y"] + rect["height"] // 2 + dy
+
+    actions = ActionBuilder(driver)
+    finger = actions.add_pointer_input(interaction.POINTER_TOUCH, "finger")
+    finger.create_pointer_move(duration=0, x=x, y=y, origin="viewport")
+    finger.create_pointer_down(button=0)
+    finger.create_pause(hold_ms / 1000)      # 按住期间不能有位移
+    finger.create_pointer_up(button=0)
+    actions.perform()
+
+
+item = driver.find_element(AppiumBy.ID, "com.demo:id/photo_item")
+long_press(item, hold_ms=800)
+assert driver.find_element(AppiumBy.ID, "com.demo:id/delete_action").is_displayed()</code></pre>
+
+        <h2>滑动：距离与速度决定惯性</h2>
+        <p>滑动不是单个动作而是一族。手指瞬时速度决定系统当拖动还是甩动：慢拖时内容跟手，松手就停；快甩时系统接管做惯性滚动，停在哪里由速度和摩擦决定，不由你写的终点决定。很多滑过头的脚本，<a class="ilink" href="ai-defect-rootcause.html">根因</a>就是把终点当结果。</p>
+        <p>时长上，300 到 600 毫秒比较可控；低于 150 毫秒容易判成甩动；超过一秒可能被识别为拖拽排序，尤其在列表项上。距离上单次不要超过屏幕高度六成，越靠边缘越容易落进系统手势区。</p>
+        <p>滑动开始前列表可能已在惯性滚动，此时再滑两个速度叠加，结果不可预测。先等静止再执行，断言也等静止；判断标准可以是连续两次采样位置不变。</p>
+        <p>取舍在便捷方法与 W3C 之间。driver.swipe 一行能滑，适合快速验证；要控制加速度、多段轨迹或按下停顿，必须用 W3C，代价是代码更长、坐标要自己换算。</p>
+
+        <div class="code-head"><span>python — 按比例滑动并按距离调时长</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import time
+
+from selenium.webdriver.common.actions import interaction
+from selenium.webdriver.common.actions.action_builder import ActionBuilder
+
+
+def swipe_ratio(driver, x1, y1, x2, y2, speed=1.2):
+    """坐标用 0 到 1 的比例表示，speed 单位是屏幕高度每秒。"""
+    size = driver.get_window_size()
+    width, height = size["width"], size["height"]
+
+    sx, sy = int(width * x1), int(height * y1)
+    ex, ey = int(width * x2), int(height * y2)
+
+    distance = ((ex - sx) ** 2 + (ey - sy) ** 2) ** 0.5
+    duration = max(200, min(800, int(distance / (height * speed) * 1000)))
+
+    actions = ActionBuilder(driver)
+    finger = actions.add_pointer_input(interaction.POINTER_TOUCH, "finger")
+    finger.create_pointer_move(duration=0, x=sx, y=sy, origin="viewport")
+    finger.create_pointer_down(button=0)
+    finger.create_pointer_move(duration=duration, x=ex, y=ey, origin="viewport")
+    finger.create_pointer_up(button=0)
+    actions.perform()
+    return duration
+
+
+# 慢拖：可控，适合精确翻到某一张卡片
+swipe_ratio(driver, 0.8, 0.5, 0.2, 0.5, speed=0.35)
+time.sleep(0.8)   # 仅作为示例；生产代码应轮询位置是否稳定</code></pre>
+
+        <h2>双指缩放、旋转与多指组合</h2>
+        <p>双指是分水岭。正确做法是在同一个 ActionBuilder 里注册两个触摸指针，让动作落在相同 tick：同时按下、同时移动、同时抬起。很多教程写成两个 builder 各自 perform，看起来并行，实际是两段先后执行的单指滑动，地图被拖动两次而不是缩放，而且不报错。</p>
+        <p>捏合的几何很简单：以控件中心为基准，初始间距决定起始倍率，结束间距决定目标倍率，间距比就是缩放比。移动要分步，一步到位只给系统两个端点，某些控件会当成两次快速拖动。旋转同理，两指沿圆弧分步走，只用起终点则轨迹是弦，更像捏合。</p>
+        <p>三指及以上只是多注册几个指针，保证每个指针动作数量一致，tick 才能对齐。iOS 的 XCUITest 对多指 W3C 支持有限，双指缩放优先用驱动手势命令或插件，W3C 多指主要放 Android 验证。</p>
+        <p>断言落在结果上：图片看缩放比例或容器尺寸，地图看比例尺文字，旋转看角度指示，不要断言中间坐标。</p>
+
+        <div class="code-head"><span>python — 双指缩放与旋转</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import math
+
+from selenium.webdriver.common.actions import interaction
+from selenium.webdriver.common.actions.action_builder import ActionBuilder
+
+
+def pinch(driver, cx, cy, start_gap, end_gap, duration=400):
+    actions = ActionBuilder(driver)
+    f1 = actions.add_pointer_input(interaction.POINTER_TOUCH, "finger1")
+    f2 = actions.add_pointer_input(interaction.POINTER_TOUCH, "finger2")
+
+    # 交替调用，保证两指的动作落在同一个 tick
+    f1.create_pointer_move(duration=0, x=cx - start_gap // 2, y=cy, origin="viewport")
+    f2.create_pointer_move(duration=0, x=cx + start_gap // 2, y=cy, origin="viewport")
+    f1.create_pointer_down(button=0)
+    f2.create_pointer_down(button=0)
+    f1.create_pointer_move(duration=duration, x=cx - end_gap // 2, y=cy, origin="viewport")
+    f2.create_pointer_move(duration=duration, x=cx + end_gap // 2, y=cy, origin="viewport")
+    f1.create_pointer_up(button=0)
+    f2.create_pointer_up(button=0)
+    actions.perform()
+
+
+def rotate(driver, cx, cy, radius, start_deg, end_deg, steps=12):
+    actions = ActionBuilder(driver)
+    f1 = actions.add_pointer_input(interaction.POINTER_TOUCH, "finger1")
+    f2 = actions.add_pointer_input(interaction.POINTER_TOUCH, "finger2")
+
+    a0 = math.radians(start_deg)
+    f1.create_pointer_move(duration=0, x=cx + radius * math.cos(a0),
+                           y=cy + radius * math.sin(a0), origin="viewport")
+    f2.create_pointer_move(duration=0, x=cx - radius * math.cos(a0),
+                           y=cy - radius * math.sin(a0), origin="viewport")
+    f1.create_pointer_down(button=0)
+    f2.create_pointer_down(button=0)
+
+    for i in range(1, steps + 1):
+        angle = math.radians(start_deg + (end_deg - start_deg) * i / steps)
+        f1.create_pointer_move(duration=16, x=cx + radius * math.cos(angle),
+                               y=cy + radius * math.sin(angle), origin="viewport")
+        f2.create_pointer_move(duration=16, x=cx - radius * math.cos(angle),
+                               y=cy - radius * math.sin(angle), origin="viewport")
+
+    f1.create_pointer_up(button=0)
+    f2.create_pointer_up(button=0)
+    actions.perform()
+
+
+map_view = driver.find_element("id", "com.demo:id/map")
+rect = map_view.rect
+cx = rect["x"] + rect["width"] // 2
+cy = rect["y"] + rect["height"] // 2
+pinch(driver, cx, cy, start_gap=160, end_gap=520)
+rotate(driver, cx, cy, radius=180, start_deg=0, end_deg=90)</code></pre>
+
+        <h2>手势冲突：谁该接管这次滑动</h2>
+        <p>冲突的本质是事件分发。手指落下后事件先到父容器，父容器可以在拦截方法里决定抢不抢；不抢就继续传给子控件。于是同一个横滑，在不同起点和速度下会落到不同组件：左边缘可能被系统返回截获，卡片中间可能被轮播接管，列表项上可能触发滑动删除。</p>
+        <p>测试靠截图没意义，要看谁响应了。把用例拆成三个变量：起点（边缘内、组件中心、交界）、方向（纯横、纯竖、斜向、先竖后横）、速度（慢拖、快甩）。每组断言一个可观测状态，比如页码没变、条目位移了、页面退出了。</p>
+        <p>判定标准要写进交互规范：边缘返回区归系统，中间横滑归轮播，列表项横滑归删除，斜向按主方向。规范没写清，开发和测试就会各执一词。</p>
+
+        <div class="code-head"><span>python — 验证边缘滑动不被页面抢走</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from selenium.webdriver.common.actions import interaction
+from selenium.webdriver.common.actions.action_builder import ActionBuilder
+
+
+def gesture(driver, start, end, duration=250):
+    actions = ActionBuilder(driver)
+    finger = actions.add_pointer_input(interaction.POINTER_TOUCH, "finger")
+    finger.create_pointer_move(duration=0, x=start[0], y=start[1], origin="viewport")
+    finger.create_pointer_down(button=0)
+    finger.create_pointer_move(duration=duration, x=end[0], y=end[1], origin="viewport")
+    finger.create_pointer_up(button=0)
+    actions.perform()
+
+
+def current_page(driver):
+    return driver.find_element("id", "com.demo:id/page_title").text
+
+
+size = driver.get_window_size()
+y = size["height"] // 2
+
+# 从离左边缘 8 像素处横滑：应触发系统返回，页面标题随之变化
+before = current_page(driver)
+gesture(driver, (8, y), (int(size["width"] * 0.7), y))
+assert current_page(driver) != before, "边缘滑动没有触发返回，被应用拦截了"
+
+# 从屏幕中部横滑：应翻到下一张卡片，页面标题不变
+page = current_page(driver)
+gesture(driver, (int(size["width"] * 0.75), y), (int(size["width"] * 0.25), y))
+assert current_page(driver) == page
+assert driver.find_element("id", "com.demo:id/card_2").is_displayed()</code></pre>
+
+        <h2>自绘控件、游戏与画布：坐标加图像识别</h2>
+        <p>自绘控件是死胡同式的问题：整个画布在 UI 树里只有一个节点，没有子元素、文本和资源 id，基于定位器的写法全失效。地图、图表、图片编辑器、小游戏都属这类，能用的只有坐标和像素。</p>
+        <p>常规方案是截图加模板匹配：截屏转灰度，用 OpenCV 在参考小图上匹配，拿最大相似度位置换算成设备坐标点下去。适合界面稳定、元素重复出现的场景，比如游戏固定按钮、画布工具图标。代价是脆，换主题、换分辨率、加动画都可能让阈值失效，所以模板按密度分套，阈值留日志，失败存标注图。</p>
+        <p>另一条路是让开发配合：给画布加无障碍覆盖层，或暴露测试专用调试接口，按业务语义触发。这条路最稳，但需要开发投入，游戏引擎未必支持。取舍是：图像识别测试侧能独立完成但维护贵，调试接口长期成本最低但跨团队慢。短期用前者兜底，长期推动后者。</p>
+
+        <div class="code-head"><span>python — 模板匹配定位后点击</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import cv2
+import numpy as np
+from selenium.webdriver.common.actions import interaction
+from selenium.webdriver.common.actions.action_builder import ActionBuilder
+
+
+def tap_at(driver, x, y):
+    actions = ActionBuilder(driver)
+    finger = actions.add_pointer_input(interaction.POINTER_TOUCH, "finger")
+    finger.create_pointer_move(duration=0, x=x, y=y, origin="viewport")
+    finger.create_pointer_down(button=0)
+    finger.create_pointer_up(button=0)
+    actions.perform()
+
+
+def find_and_tap(driver, template_path, threshold=0.85):
+    png = driver.get_screenshot_as_png()
+    screen = cv2.imdecode(np.frombuffer(png, np.uint8), cv2.IMREAD_GRAYSCALE)
+    template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+
+    result = cv2.matchTemplate(screen, template, cv2.TM_CCOEFF_NORMED)
+    _, best, _, loc = cv2.minMaxLoc(result)
+    if best &lt; threshold:
+        cv2.imwrite("match_failed.png", screen)
+        raise AssertionError(f"未找到目标，最高相似度 {best:.3f}")
+
+    h, w = template.shape
+    tap_at(driver, loc[0] + w // 2, loc[1] + h // 2)
+
+
+find_and_tap(driver, "templates/xxhdpi/brush_tool.png")</code></pre>
+
+        <h2>稳定性设计：重试动作，不重试断言</h2>
+        <p>手势用例的稳定性八成取决于两件事：等界面真的停下来，把断言放在结果上。界面没停就断言，等于赌动画时长；断言中间坐标，等于赌渲染顺序。正确顺序是执行手势、等静止、断言最终状态。静止别用固定 sleep，改成轮询位置或文本，连续两次一致才算稳定。</p>
+        <p>重试要分清对象。动作可以重试，因为元素没出现、坐标暂时无效说明动作根本没发出去；断言不能重试，因为断言失败说明结果不对，重试只会把真 bug 变成偶发红，最后被标成已知问题。很多团队 flaky 率降不下来，就是给整个用例套了三次重试。</p>
+        <p>有持续动画的页面，UiAutomator2 的 waitForIdleTimeout 会让每次查找都等界面空闲，反而拖慢甚至超时，可以按需设为 0，再配<a class="ilink" href="web-wait-strategies.html">显式等待</a>。失败时保留录屏和页面结构，比事后复现便宜。</p>
+
+        <div class="code-head"><span>python — 只重试动作的封装</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import time
+
+from selenium.common.exceptions import WebDriverException
+
+
+def perform(action, attempts=2, settle=0.6):
+    """只重试动作本身；结果断言永远放在外面。"""
+    last_error = None
+    for _ in range(attempts):
+        try:
+            action()
+        except WebDriverException as exc:
+            # 元素不可交互、坐标非法等，说明动作没发出去
+            last_error = exc
+            time.sleep(settle)
+            continue
+        time.sleep(settle)
+        return
+    raise last_error
+
+
+def wait_until_stable(driver, locator, timeout=3.0):
+    end = time.time() + timeout
+    last = None
+    while time.time() &lt; end:
+        rect = driver.find_element(*locator).rect
+        current = (rect["x"], rect["y"])
+        if current == last:
+            return
+        last = current
+        time.sleep(0.15)
+    raise AssertionError("列表在超时时间内仍未停止滚动")
+
+
+perform(lambda: swipe_ratio(driver, 0.5, 0.75, 0.5, 0.25, speed=1.0))
+wait_until_stable(driver, ("id", "com.demo:id/feed_item_1"))
+assert driver.find_element("id", "com.demo:id/refresh_done").is_displayed()</code></pre>
+
+        <h2>手势相关的高频 Bug</h2>
+        <p>手势问题里，真正由 API 写错的不到两成，剩下都是阈值和事件分发。把高频类型列出来，排查时先对号入座，比漫无目的重跑有效。</p>
+        <table>
+          <thead>
+            <tr><th>类型</th><th>典型现象</th><th>根因</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>短滑变点击</td><td>卡片没翻页，反而打开了详情</td><td>位移小于触摸斜率阈值，或时长过短</td></tr>
+            <tr><td>长按被滚动抢走</td><td>想调出菜单，结果列表动了</td><td>按住期间发生位移</td></tr>
+            <tr><td>双指中心漂移</td><td>缩放后地图跳到别处</td><td>两指未在同一 tick 按下或抬起</td></tr>
+            <tr><td>侧滑返回误触</td><td>想拉出抽屉却退出了页面</td><td>起点落在系统边缘返回区</td></tr>
+            <tr><td>惯性未停就断言</td><td>同一条用例偶发失败</td><td>没有等待滚动空闲</td></tr>
+            <tr><td>列表复用滑错项</td><td>删除的不是目标条目</td><td>按坐标取元素，滚动后坐标失效</td></tr>
+            <tr><td>折叠屏展开后偏移</td><td>点击位置整体错位</td><td>坐标写死，未按新窗口重算</td></tr>
+            <tr><td>大字体下点不中</td><td>按钮明明在，却点不到</td><td>固定坐标未用元素矩形</td></tr>
+          </tbody>
+        </table>
+        <p>排查先确认事件到没到应用。开发者选项的指针位置看轨迹，adb shell getevent 看原始事件；系统层面就没事件，问题在系统手势或屏幕区域；有事件但应用没响应，问题在分发或命中区域。两步做完再怀疑脚本。</p>
+        <p>修复方向上，能改交互就别改脚本。把侧滑抽屉触发区从边缘往里收，或给横滑卡片加明确起手阈值，这些改动同时利好真实用户。只改脚本适应错误交互，等于把问题藏起来。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>把手势验证压缩成一张表放进每个版本回归。它覆盖不了所有组合，但能保证用户每天都会做的动作在主力机型上通。</p>
+        <table>
+          <thead>
+            <tr><th>手势</th><th>必测点</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>单击与双击</td><td>命中区域、双击间隔、是否被父容器拦截</td></tr>
+            <tr><td>长按</td><td>0.5 秒阈值两侧、按住期间轻微移动是否取消</td></tr>
+            <tr><td>滑动</td><td>慢拖与快甩、到顶回弹、惯性停稳后的位置</td></tr>
+            <tr><td>双指</td><td>缩放中心是否漂移、最大最小倍率、旋转角度</td></tr>
+            <tr><td>多指</td><td>三指动作是否被系统截获、tick 是否对齐</td></tr>
+            <tr><td>冲突</td><td>边缘返回与抽屉、横滑卡片与翻页、下拉刷新与列表</td></tr>
+            <tr><td>自绘控件</td><td>模板匹配阈值、不同密度下的模板、失败标注图</td></tr>
+            <tr><td>异常形态</td><td>折叠屏展开、分屏、大字体下的坐标重算</td></tr>
+            <tr><td>稳定性</td><td>动作重试范围、断言对象、失败录屏与页面结构</td></tr>
+          </tbody>
+        </table>
+        <p>表格按用户真实操作频率排序，发版前至少把前六项在最低配和最新系统上各跑一遍；新增手势交互时，同步补一行。</p>
+        <p>最后给一个判断标准：一条手势用例如果只能在某台设备、某个固定分辨率、某个固定等待时间下通过，那它验证的不是产品，而是环境。合格的用例换一台同尺寸手机能跑，折叠屏展开也能跑，失败时能说清是系统截获、应用分发还是脚本参数的问题。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://appium.io/docs/en/latest/guides/gestures/" target="_blank" rel="noopener">Gestures 手势指南 — Appium</a></li>
+            <li><a href="https://www.w3.org/TR/webdriver/#actions" target="_blank" rel="noopener">WebDriver 规范：Actions 与 tick 模型 — W3C</a></li>
+            <li><a href="https://github.com/appium/appium-gestures-plugin" target="_blank" rel="noopener">appium-gestures-plugin：scrollGesture 与 swipeGesture — GitHub</a></li>
+            <li><a href="https://developer.android.com/develop/ui/views/touch-and-input/gestures" target="_blank" rel="noopener">Android 手势与触摸事件处理 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/reference/android/view/ViewConfiguration" target="_blank" rel="noopener">ViewConfiguration：长按超时与甩动速度 — Android Developers</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#app-automation</span>
+          <span class="tag">#gesture</span>
+          <span class="tag">#swipe</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

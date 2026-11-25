@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 日志：让测试脚本「说话」 · 软件测试资料集</title>
+<meta name="description" content="logging 模块配置、级别、格式、写文件，配接口测试全流程打日志完整案例。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-logging-for-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Python 日志：让测试脚本「说话」">
+<meta property="og:description" content="logging 模块配置、级别、格式、写文件，配接口测试全流程打日志完整案例。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-logging-for-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Python 日志：让测试脚本「说话」">
+<meta name="twitter:description" content="logging 模块配置、级别、格式、写文件，配接口测试全流程打日志完整案例。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Python 日志：让测试脚本「说话」","description":"logging 模块配置、级别、格式、写文件，配接口测试全流程打日志完整案例。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-logging-for-testing.html","articleSection":"Python 进阶","keywords":"python, logging, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Python 进阶</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>Python 日志：让测试脚本「说话」</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-logging-for-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Python 3.10+
+# 创建虚拟环境
+python -m venv venv
+venv\Scripts\activate   # Windows
+
+# 安装核心库
+pip install pytest requests pandas
+# 验证
+pytest --version</code></pre>
+<div class="code-head"><span>python — 验证</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+resp = requests.get("https://httpbin.org/get", timeout=5)
+assert resp.status_code == 200
+print("Python 环境就绪 ✓")</code></pre>
+
+<h2>基础应用：第一个测试用例</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+
+def test_api():
+    resp = requests.get("https://httpbin.org/get", params={"name": "test"}, timeout=10)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["args"]["name"] == "test"
+    print("基础接口测试通过 ✓")</code></pre>
+
+<h2>项目进阶：pytest + fixture + 参数化 + 报告</h2>
+<div class="code-head"><span>python — conftest.py</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest, requests
+
+@pytest.fixture
+def api():
+    return requests.Session()
+
+@pytest.fixture
+def user():
+    return {"username": "test@example.com"}</code></pre>
+<div class="code-head"><span>python — 参数化测试</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest
+
+@pytest.mark.parametrize("code", [200, 301, 404, 500])
+def test_status(api, code):
+    resp = api.get(f"https://httpbin.org/status/{code}", timeout=5)
+    assert resp.status_code == code</code></pre>
+
+        <h2>logging 基础：配置 + 记录</h2>
+        <p>logging 是 Python 内置的日志模块。核心就两步：<strong>配置（basicConfig）→ 记录（logger.info/error）</strong>。</p>
+        <div class="code-head"><span>python — 基本用法</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import logging
+
+# 最简配置（一条搞定，默认 INFO 级别 + 控制台输出）
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+
+# 获取 logger（每个模块一个）
+logger = logging.getLogger(__name__)
+
+# 记录日志
+logger.info("测试开始")
+logger.warning("超时配置较低（5s）")
+logger.error("接口 404：/api/orders/999999")
+logger.critical("数据库连接失败，测试终止")
+logger.debug("请求 URL：https://api.example.com/api/orders")   # 控制台不显示（INFO 级别）</code></pre>
+        <div class="callout">
+          <p><strong>日志级别</strong>：DEBUG（调试细节）&lt; INFO（关键步骤）&lt; WARNING（警告但能继续）&lt; ERROR（错误但能继续）&lt; CRITICAL（致命，必须停）。测试脚本一般用 INFO 级别（关键步骤都打），排查问题时切到 DEBUG。</p>
+        </div>
+
+        <h2>五个级别：什么时候用什么</h2>
+        <div class="code-head"><span>python — 日志级别场景</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import logging
+
+logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
+
+# DEBUG：调试细节（开发/测试时看，CI 上关）
+logger.debug("请求参数：username=admin, password=***")
+logger.debug("接口耗时：156ms")
+
+# INFO：关键步骤（"发生了什么"）
+logger.info("开始测试：用户登录")
+logger.info("登录成功，token=***...（前 20 位）")
+logger.info("测试完成：5/5 通过")
+
+# WARNING：警告但能继续（"有点异常，但没崩"）
+logger.warning("超时配置低于推荐值（5s &lt; 10s）")
+logger.warning("第 3 次重试才成功（接口不稳定）")
+
+# ERROR：错误但能继续（"这条失败了，但其他还能跑"）
+logger.error("用例 test_payment 失败：金额溢出")
+logger.error("接口 500：/api/orders/ORD-999")
+
+# CRITICAL：致命（"整个测试终止"）
+logger.critical("数据库连接失败，所有用例跳过")
+logger.critical("配置文件缺失，测试无法进行")</code></pre>
+
+        <h2>格式：时间 + 级别 + 来源 + 消息</h2>
+        <div class="code-head"><span>python — 日志格式</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import logging
+
+# 自定义格式（含文件名 + 行号）
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s:%(funcName)s:%(lineno)d - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+
+logger = logging.getLogger("api_test")
+
+logger.info("开始测试")
+# 输出：
+# 2026-11-23 10:00:00 [INFO] api_test:main:45 - 开始测试</code></pre>
+
+        <h2>日志写文件 + 控制台（两个 Handler）</h2>
+        <div class="code-head"><span>python — 双 Handler</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import logging
+from logging.handlers import RotatingFileHandler
+from datetime import datetime
+
+# 创建 logger
+logger = logging.getLogger("api_test")
+logger.setLevel(logging.DEBUG)   # logger 级别（最低，所有都传过来）
+
+# Handler 1：控制台（INFO 级别，看关键步骤）
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+console_format = logging.Formatter("[%(levelname)s] %(message)s")
+console_handler.setFormatter(console_format)
+
+# Handler 2：文件（DEBUG 级别，全部记录）
+# 按大小轮转（10MB 一个文件，最多 5 个）
+file_handler = RotatingFileHandler(
+    "test_run.log",
+    maxBytes=10 * 1024 * 1024,
+    backupCount=5,
+    encoding="utf-8"
+)
+file_handler.setLevel(logging.DEBUG)
+file_format = logging.Formatter(
+    "%(asctime)s [%(levelname)s] %(name)s:%(funcName)s:%(lineno)d - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+file_handler.setFormatter(file_format)
+
+# 添加 Handler
+logger.addHandler(console_handler)
+logger.addHandler(file_handler)
+
+# 记录
+logger.debug("请求 URL：https://api.example.com/api/orders")   # 只写文件
+logger.info("测试开始")                                          # 文件 + 控制台
+logger.error("用例失败")                                         # 文件 + 控制台</code></pre>
+        <div class="callout">
+          <p><strong>RotatingFileHandler</strong> 自动按大小轮转（10MB 一个文件），不会「无限增大」。测试跑一整天不会生成 10GB 日志。控制台用 INFO（看关键步骤），文件用 DEBUG（全记录，排查时翻）。</p>
+        </div>
+
+        <h2>pytest 里打日志</h2>
+        <div class="code-head"><span>python — pytest + logging</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># conftest.py（pytest 自动加载）
+import logging
+import pytest
+
+@pytest.fixture(autouse=True)
+def setup_logging():
+    """每个测试前配置日志（autouse：自动使用）"""
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.StreamHandler(),   # 控制台
+        ]
+    )
+
+# test_login.py
+import logging
+
+logger = logging.getLogger("test_login")
+
+def test_user_login():
+    logger.info("测试开始：用户登录")
+    logger.debug("请求参数：username=admin")
+
+    resp = call_api("/api/login")
+    logger.info(f"响应状态码：{resp.status_code}")
+
+    assert resp.status_code == 200
+
+# 跑测试 + 看日志
+# pytest test_login.py -s   # -s：显示 print 和日志
+# 或
+# pytest test_login.py --log-cli-level=INFO   # 显示 INFO 级别日志</code></pre>
+
+        <h2>loguru：简化日志（可选）</h2>
+        <div class="code-head"><span>python — loguru</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># pip install loguru
+from loguru import logger
+
+# 一行配置（比 logging 简洁）
+logger.add("test.log", level="DEBUG", rotation="10 MB", encoding="utf-8")
+
+# 记录（不用 getLogger，直接用 logger）
+logger.info("测试开始")
+logger.bind(case_id="test_001")   # 绑定上下文
+logger.info("用例执行中")
+
+# 输出：
+# 2026-11-23 10:00:00.123 | INFO     | test.py:45 - 测试开始
+# 2026-11-23 10:00:00.456 | INFO     | test.py:48 - 用例执行中</code></pre>
+        <div class="callout">
+          <p><strong>loguru vs logging</strong>：logging 是标准库（不装也能用），loguru 是第三方（pip install 一下，API 更简洁）。测试脚本「快速打日志」用 loguru，「需要自定义 Handler」用 logging。</p>
+        </div>
+
+        <h2>案例：接口测试全流程打日志</h2>
+        <p>把上面学到的串起来，写一个「接口测试全流程打日志」的完整脚本：</p>
+        <div class="code-head"><span>python — 完整案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import logging
+import requests
+from datetime import datetime
+from logging.handlers import RotatingFileHandler
+
+# 1. 配置日志
+def setup_logger(name="api_test"):
+    """配置 logger（控制台 + 文件双 Handler）"""
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+
+    # 控制台（INFO）
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    console.setFormatter(logging.Formatter("[%(levelname)s] %(message)s"))
+    logger.addHandler(console)
+
+    # 文件（DEBUG）
+    log_file = f"test_{datetime.now().strftime('%Y%m%d')}.log"
+    file_handler = RotatingFileHandler(log_file, maxBytes=10*1024*1024, backupCount=3, encoding="utf-8")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    ))
+    logger.addHandler(file_handler)
+
+    return logger
+
+logger = setup_logger()
+
+# 2. 封装"带日志的"接口调用
+def logged_request(method, url, **kwargs):
+    """发请求 + 打日志"""
+    logger.info(f"请求：{method} {url}")
+    logger.debug(f"参数：{kwargs}")
+
+    start = datetime.now()
+    try:
+        resp = requests.request(method, url, timeout=10, **kwargs)
+        elapsed = (datetime.now() - start).total_seconds()
+        logger.info(f"响应：{resp.status_code}（{elapsed*1000:.0f}ms）")
+        return resp
+    except requests.exceptions.Timeout:
+        logger.error(f"请求超时：{url}")
+        raise
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"连接失败：{url}（{e}）")
+        raise
+
+# 3. 测试流程
+def test_user_flow():
+    logger.info("=" * 50)
+    logger.info("测试开始：用户流程")
+
+    # 登录
+    base_url = "https://api.example.com"
+    resp = logged_request("POST", f"{base_url}/api/login",
+        json={"username": "admin", "password": "123456"}
+    )
+    token = resp.json()["token"]
+    logger.info(f"登录成功：token=***...")
+
+    # 查订单
+    resp = logged_request("GET", f"{base_url}/api/orders/ORD-001",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    order = resp.json()
+    logger.info(f"订单 {order['order_id']}：状态 {order['status']}，金额 {order['amount']}")
+
+    # 支付
+    resp = logged_request("POST", f"{base_url}/api/orders/{order['order_id']}/pay",
+        json={"amount": order["amount"]},
+        headers={"Authorization": f"Bearer {token}"}
+    )
+    pay_result = resp.json()
+    if pay_result["status"] == "paid":
+        logger.info("支付成功")
+    else:
+        logger.warning(f"支付异常：{pay_result.get('message')}")
+
+    logger.info("测试完成")
+    logger.info("=" * 50)
+
+# 运行
+if __name__ == "__main__":
+    test_user_flow()</code></pre>
+        <div class="callout">
+          <p>测试脚本「日志三原则」：① <strong>关键步骤打 INFO</strong>（开始/结束/成功/失败）；② <strong>调试细节打 DEBUG</strong>（请求参数、响应内容）；③ <strong>错误打 ERROR</strong>（接口 4xx/5xx、超时、连接失败）。日志写文件（RotatingFileHandler 防无限增大），排查时翻文件，控制台只看 INFO。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/library/logging.html" target="_blank" rel="noopener">Python logging 官方文档</a></li>
+            <li><a href="https://realpython.com/log-logging-python-guide/" target="_blank" rel="noopener">Real Python - logging 完全指南</a></li>
+            <li><a href="https://loguru.org/" target="_blank" rel="noopener">loguru 官方文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#python</span>
+          <span class="tag">#logging</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

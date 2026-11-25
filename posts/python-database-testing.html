@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 连接数据库做测试：sqlite3 和 MySQL 实战 · 软件测试资料集</title>
+<meta name="description" content="造数、校验落库与安全清理三类用途，驱动选型、连接与事务关闭顺序、参数化查询、字段级断言和测试库隔离红线。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-database-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Python 连接数据库做测试：sqlite3 和 MySQL 实战">
+<meta property="og:description" content="造数、校验落库与安全清理三类用途，驱动选型、连接与事务关闭顺序、参数化查询、字段级断言和测试库隔离红线。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-database-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Python 连接数据库做测试：sqlite3 和 MySQL 实战">
+<meta name="twitter:description" content="造数、校验落库与安全清理三类用途，驱动选型、连接与事务关闭顺序、参数化查询、字段级断言和测试库隔离红线。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Python 连接数据库做测试：sqlite3 和 MySQL 实战","description":"造数、校验落库与安全清理三类用途，驱动选型、连接与事务关闭顺序、参数化查询、字段级断言和测试库隔离红线。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-database-testing.html","articleSection":"Python 进阶","keywords":"python, database, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Python 进阶</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>22 min read</span>
+        </div>
+        <h1>Python 连接数据库做测试：sqlite3 和 MySQL 实战</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-database-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>先分清三类用途，再决定要不要连库</h2>
+        <p>这篇写给已经能独立写接口自动化、但每次被问「数据到底写进去了没有」就卡住的测试工程师。典型现场是这样的：下单接口返回 200，前端也跳到了成功页，第二天运营说订单表里没有这一单；或者参数校验接口返回 400，看起来一切正常，库里却多出一条金额为 0 的脏记录。接口层的断言覆盖不到这些，必须有人去看落库结果。</p>
+        <p>但「连数据库」本身不是目的。测试脚本连库只有三类用途，把它们分清楚之后，很多争论会自动消失。</p>
+        <table>
+          <thead>
+            <tr><th>用途</th><th>典型动作</th><th>读写</th><th>写错的后果</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>造数</td><td>插入前置数据、构造边界值</td><td>写</td><td>污染测试库，影响同库其他人</td></tr>
+            <tr><td>校验落库</td><td>查询接口调用后的副作用</td><td>只读</td><td>通常只是一次误判</td></tr>
+            <tr><td>清理</td><td>按批次删除本次造的数据</td><td>写</td><td>误删他人数据，影响不可撤销</td></tr>
+          </tbody>
+        </table>
+        <p>三类用途的风险并不对称。校验是只读的，写错了最多得到一次错误的通过或失败；造数和清理要写库，脚本一旦指错环境，破坏是即时的。后面所有关于隔离与清理的规矩，都是为这两类写操作准备的。</p>
+
+        <h2>直连数据库做断言的边界</h2>
+        <p>接口测试要回答的是「经过 HTTP 这一层，系统行为是否符合契约」。一旦用 SQL 查出期望值再断言接口返回，两条路径就共享了同一个数据源，序列化、鉴权、状态机、缓存全被绕过。这类用例在接口改坏时依然会绿，因为它比较的其实是同一个错误。</p>
+        <p>数据库断言应该只用来验证副作用：接口承诺会写库的东西，最终有没有按约定落进去。期望值来自用例设计，而不是来自另一次查询。</p>
+        <div class="code-head"><span>python — 用 SQL 反推期望值，等于没测接口</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 反例：把库里的值查出来，再拿去断言接口返回
+expected = query_one("SELECT amount FROM orders WHERE order_no = %s", order_no)
+resp = client.get(f"/api/orders/{order_no}")
+assert resp.json()["amount"] == expected   # 两边同源，接口错了也发现不了
+
+# 正例：期望值来自用例设计，库只用来验证副作用
+resp = client.post("/api/orders", json={"sku": "SKU-1001", "qty": 2})
+assert resp.status_code == 201
+order_no = resp.json()["order_no"]
+
+row = query_one(
+    "SELECT sku, qty, status FROM orders WHERE order_no = %s",
+    order_no,
+)
+assert row is not None, "接口返回成功，但订单未落库"
+assert row["sku"] == "SKU-1001"
+assert row["qty"] == 2
+assert row["status"] == "created"</code></pre>
+        <p>判断标准可以压缩成一句话：把这条 SQL 删掉，用例还剩多少验证能力？如果什么都不剩，说明它已经退化成数据库测试，接口只是陪跑；如果还能验证状态码、响应结构和业务字段，那这条 SQL 才是有价值的补充。</p>
+        <p>另一条边界是不要用 SQL 去「修」数据让用例通过：下单失败后直接 UPDATE 订单状态，再断言查询接口返回已支付，这种用例永远不会失败，也就永远没有价值。</p>
+
+        <h2>驱动选型：pymysql、psycopg2 与 sqlite3</h2>
+        <p>选型只由一件事决定：被测系统用的是哪种数据库。测试脚本不该为了「统一技术栈」去装一个异构驱动再靠中间件转接，那只会让出问题时多一层排查。</p>
+        <table>
+          <thead>
+            <tr><th>驱动</th><th>目标数据库</th><th>占位符</th><th>安装成本</th><th>适用场景</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>pymysql</td><td>MySQL / MariaDB</td><td>%s</td><td>纯 Python，pip 即可</td><td>接口测试校验落库</td></tr>
+            <tr><td>psycopg2</td><td>PostgreSQL</td><td>%s</td><td>依赖 libpq</td><td>需要服务端游标或批量导入</td></tr>
+            <tr><td>sqlite3</td><td>SQLite</td><td>? 或 :name</td><td>标准库内置</td><td>单元测试、本地夹具、离线复现</td></tr>
+          </tbody>
+        </table>
+        <p>三者都遵循 PEP 249 定义的 DB-API 2.0，connect、cursor、execute、fetchone、commit 这一套接口基本同构，所以封装一层薄适配并不难。真正不一样的是占位符风格和游标返回类型，这两点在跨库复用代码时最容易踩。</p>
+        <p>连接池要不要上？测试脚本通常不需要：一个进程活几分钟，建连十几次的开销可以忽略。造数脚本是例外，如果要循环写几万行，每次握手的成本会明显拖慢整体，这时用 DBUtils 或 SQLAlchemy 的 QueuePool 包一层是值得的。代价是多一个依赖，池里归还的连接也可能带着旧事务快照。下面这个薄封装把参数收在一处，也顺手统一了提交与关闭。</p>
+        <div class="code-head"><span>python — 连接薄封装</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import contextlib
+import os
+
+import pymysql
+
+DB = {
+    "host": os.environ["QA_DB_HOST"],
+    "port": 3306,
+    "user": os.environ["QA_DB_USER"],
+    "password": os.environ["QA_DB_PASSWORD"],
+    "database": os.environ["QA_DB_NAME"],
+    "charset": "utf8mb4",
+    "autocommit": False,
+    "cursorclass": pymysql.cursors.DictCursor,
+}
+
+
+@contextlib.contextmanager
+def db_cursor(commit=False):
+    conn = pymysql.connect(**DB)
+    try:
+        with conn.cursor() as cur:
+            yield cur
+        if commit:
+            conn.commit()
+        else:
+            conn.rollback()   # 只读也显式结束事务，避免长事务占着旧快照
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()</code></pre>
+        <p>这里有两个刻意的设计。只读查询也调用 rollback，是为了让连接尽快结束事务；在可重复读隔离级别下，一个没结束的事务会一直拿着旧快照，后续再查同一个库可能看不到别人刚提交的数据。提交用参数控制而不是让调用方随手调，是为了避免「忘了提交」和「提前提交」两种错误散落在业务代码里。</p>
+
+        <h2>连接、游标、事务的关闭顺序</h2>
+        <p>关闭顺序只有一个正确答案：先游标，后连接。游标是连接上的执行句柄，连接关掉之后再操作游标，pymysql 会抛 ProgrammingError 提示 cursor closed；SQLite 上的表现更隐蔽，可能只是静默失败，让人误以为语句没生效。</p>
+        <p>很多人对 with 的理解有偏差。sqlite3 的 <code>with conn</code> 只负责事务：正常退出提交，异常退出回滚，它不会关闭连接。这是官方文档里明确写着的，也是最常见的误解来源。要真正关闭连接，还得再套一层 <code>contextlib.closing</code>。</p>
+        <div class="code-head"><span>python — sqlite3 的事务与关闭是两件事</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import contextlib
+import sqlite3
+
+# with conn 管事务，closing 管关闭，两件事必须分开写
+with contextlib.closing(sqlite3.connect("qa_fixture.sqlite")) as conn:
+    with conn:                       # 正常退出 commit，异常退出 rollback
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "INSERT INTO users (name, email) VALUES (?, ?)",
+                ("qa_20261124_001", "qa_001@test.local"),
+            )
+        finally:
+            cur.close()</code></pre>
+        <p>pymysql 的 Connection 也支持上下文管理器，退出时关闭连接，但同样不替你提交。更省心的写法还是显式 try/except/finally，把提交、回滚、关闭写全。</p>
+        <p>失败模式很具体：某次用例在 with 块里断言失败，异常抛出，连接没关，fixture 也没兜住。跑掉几百条之后服务端开始报 <code>Too many connections</code>，后面的用例全部变成 error，报告一片红，看起来像系统崩了，实际是脚本泄漏。排查时先看测试库的 <code>SHOW PROCESSLIST</code>。</p>
+
+        <h2>参数化查询：占位符不是风格问题</h2>
+        <p>占位符的本质是把 SQL 文本和参数分两次发给服务端：服务端先编译语句结构，再把值填进去。值里无论出现引号、分号还是注释符，都只被当成数据。字符串拼接则相反，值先变成 SQL 文本的一部分，再一起解析，注入的空间就是这样产生的。</p>
+        <div class="code-head"><span>python — 拼接与占位符的差别</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 错误：字符串拼接，数据参与了 SQL 结构
+name = "O'Brien"
+sql = f"SELECT id FROM users WHERE name = '{name}'"
+# 实际执行：... WHERE name = 'O'Brien'  → 1064 语法错误
+
+# 正确：占位符，由驱动负责绑定
+cur.execute("SELECT id FROM users WHERE name = %s", (name,))
+
+# 正确：批量写入同样走绑定，不要拼成一条大 INSERT
+cur.executemany(
+    "INSERT INTO users (name, email) VALUES (%s, %s)",
+    [("qa_001", "qa_001@test.local"), ("qa_002", "qa_002@test.local")],
+)</code></pre>
+        <p>测试代码里更常见的不是恶意攻击，而是意外：姓名里的单引号（O'Brien、D'Angelo）、备注里带反斜杠、金额字段传了 <code>None</code>。这些在拼接写法下都会变成语法错误或类型错误，而报错信息指向 SQL 语句本身，看着像库的问题，实际是拼串造成的。</p>
+        <p>占位符写法按驱动不同：sqlite3 用 <code>?</code> 或命名占位符 <code>:name</code>；pymysql 和 psycopg2 都用 <code>%s</code>。psycopg2 有个额外注意点：SQL 文本里本身的百分号（比如 <code>LIKE '%abc%'</code>）要写成 <code>%%</code>，否则会被当成占位符，报参数数量不匹配。</p>
+
+        <h2>查询结果为空，先别急着判失败</h2>
+        <p>断言查不到数据时，第一反应不该是「功能有 bug」。测试脚本里的空结果至少对应三种完全不同的原因，修复方式也互不相同：数据根本没写进去、查询条件本身写错了、写进去了但事务没提交，或者连到了另一个库。</p>
+        <p>第一种才是真正要抓的缺陷，通常伴随接口成功但业务状态缺失。第二种最常见，条件里的枚举值大小写不一致、时间字段存的是 UTC 而查询用了本地时间、软删除的表忘了过滤 <code>is_deleted</code>，都会让一条本该存在的记录消失。第三种最隐蔽：被测服务和测试脚本是两个独立连接，服务端提交了，脚本的连接若处在可重复读的事务里，读到的还是旧快照。</p>
+        <p>排查顺序按成本从低到高：先确认连的是哪个库、哪张表，打印 <code>SELECT DATABASE()</code> 和不带条件的 <code>COUNT(*)</code>；逐条去掉 WHERE 条件，看哪一步结果变空；最后才怀疑被测服务。把这些中间值写进断言失败信息，别人接到报告就能自己往下查。</p>
+
+        <h2>断言升级：从「有这条记录」到「字段值全对」</h2>
+        <p><code>fetchone() is not None</code> 只能证明行存在。接口把金额写成 0、把状态写成草稿，这条断言依然通过。落库校验的价值在字段级比对，但直接 <code>SELECT *</code> 全字段对比又走向另一个极端：自增 id、updated_at、加密后的手机号每次都不同，用例会稳定失败，最后被人加个 skip 关掉。</p>
+        <p>正确做法是白名单：只取接口契约里承诺的字段，构造一份期望字典，逐字段断言，失败信息里带上字段名。下面这个 helper 把「查不到」和「字段不对」区分成两种失败，前者说明写入缺失，后者说明业务逻辑算错了。</p>
+        <div class="code-head"><span>python — 字段级落库断言</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>FIELDS = ("sku", "qty", "status")
+
+
+def fetch_order(cur, order_no):
+    cur.execute(
+        "SELECT sku, qty, status FROM orders WHERE order_no = %s",
+        (order_no,),
+    )
+    return cur.fetchone()
+
+
+def assert_order_written(cur, order_no, expected):
+    row = fetch_order(cur, order_no)
+    assert row is not None, f"订单 {order_no} 未落库，但接口返回了成功"
+    for field in FIELDS:
+        assert row[field] == expected[field], (
+            f"字段 {field} 期望 {expected[field]!r}，实际 {row[field]!r}"
+        )</code></pre>
+        <p>字段多了要分级：金额、状态、关联 id 必须精确断言；创建时间只断言落在合理区间；扩展 JSON 只断言关键 key 存在。全部精确比对的维护成本会在表结构变更时集中爆发，最后没人愿意改。</p>
+
+        <h2>隔离红线：测试库与生产库之间必须有硬边界</h2>
+        <p>隔离不能靠自觉，要靠机制。三条红线：连接串里不允许出现生产库的 host 或库名；测试账号在测试库上只有增删改查权限，没有 DROP 和 GRANT；脚本启动时做一次环境自检，发现库名、host 或数据量符合生产特征就直接退出，而不是弹个确认框等人点。</p>
+        <p>最典型的事故是配置复制：把 staging 的配置文件复制一份改名叫 prod，只改了 host 忘了改库名，或者反过来。清理脚本随后按标记删除，而生产数据恰好也有同样的标记前缀，一次运行就删掉真实数据。</p>
+        <div class="code-head"><span>python — 启动时的目标库自检</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import os
+import sys
+
+ALLOWED_HOSTS = {"127.0.0.1", "mysql-test.internal"}
+FORBIDDEN_HOSTS = {"mysql-prod.internal", "10.0.0.11"}
+FORBIDDEN_DB = {"shop", "shop_prod"}
+
+
+def assert_safe_target(host: str, database: str) -&gt; None:
+    if host in FORBIDDEN_HOSTS or database in FORBIDDEN_DB:
+        sys.exit(f"拒绝执行：目标是 {host}/{database}，疑似生产库")
+    if host not in ALLOWED_HOSTS:
+        sys.exit(f"拒绝执行：{host} 不在测试库白名单内")
+
+
+def db_target():
+    host = os.environ.get("QA_DB_HOST", "")
+    database = os.environ.get("QA_DB_NAME", "")
+    if not host or not database:
+        sys.exit("缺少 QA_DB_HOST / QA_DB_NAME，不允许使用默认值")
+    assert_safe_target(host, database)
+    return host, database</code></pre>
+        <p>第三条容易被忽略：只读账号也会造成泄露。校验脚本可能把真实手机号、身份证号打进日志，而这些日志会作为附件上传到 CI。测试库的数据要么脱敏，要么全部由造数脚本生成。</p>
+
+        <h2>清理：按造数标记删，永远不要无条件 DELETE</h2>
+        <p>清理的目标是「只删自己造的，不动别人的」。三种做法各有适用面，选错一种的代价差别很大。</p>
+        <table>
+          <thead>
+            <tr><th>做法</th><th>实现方式</th><th>适用场景</th><th>代价</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>标记字段删除</td><td>造数写统一前缀或批次号，按前缀删</td><td>共享测试库，多人并行</td><td>表里需要预留可标识的字段</td></tr>
+            <tr><td>独立库或 schema</td><td>每次运行重建整个测试库</td><td>独占环境、数据量小</td><td>建库耗时，无法与其他任务共享</td></tr>
+            <tr><td>事务回滚</td><td>造数后不提交，断言完 rollback</td><td>只验证读逻辑</td><td>跨连接、跨服务时无效</td></tr>
+          </tbody>
+        </table>
+        <p>标记法要求造数时就写好归属：统一前缀加批次号，例如 <code>qa_20261124_001</code>，同一批次的所有行共享前缀。清理只按这个前缀删，天然不会碰到历史数据和其他人的数据。批次号用日期加序号，出问题时能反查是哪次运行留下的，也方便先查后删。</p>
+        <div class="code-head"><span>python — 记录批次并把清理放进 finally</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pymysql
+import pytest
+
+BATCH = "qa_20261124_001"
+
+
+@pytest.fixture
+def seeded_order():
+    prefix = f"{BATCH}_"
+    conn = pymysql.connect(**DB)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO orders (order_no, sku, qty, status)"
+                " VALUES (%s, %s, %s, %s)",
+                (f"{prefix}1001", "SKU-1001", 2, "created"),
+            )
+        conn.commit()
+        yield f"{prefix}1001"
+    finally:
+        # 放在 finally，断言失败也一定执行
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM orders WHERE order_no LIKE %s",
+                (f"{prefix}%",),
+            )
+        conn.commit()
+        conn.close()</code></pre>
+        <p>清理一定要放在 finally 或 yield 之后，不能用「用例通过才清理」的写法，否则失败用例留下的脏数据会越积越多，最后连测试库自己都跑不出稳定结果。另一条硬规矩是禁止不带 WHERE 的 DELETE 和 TRUNCATE：TRUNCATE 会隐式提交、无法回滚，在共享测试库上执行一次，就可能让正在并行跑的其他人全部失败。</p>
+
+        <h2>常见坑与排查</h2>
+        <p><strong>症状</strong>：查询结果里中文全是问号或乱码。<strong>原因</strong>：连接没有指定字符集，服务端按默认的 latin1 返回，而表里存的是 utf8mb4。<strong>处理</strong>：连接参数里显式写 <code>charset=utf8mb4</code>，同时确认建库和建表的字符集，服务端排序规则不一致仍会出问题。</p>
+        <p><strong>症状</strong>：库里明明是今天的数据，查出来的时间却差了 8 小时。<strong>原因</strong>：数据库存的是 UTC，驱动或服务端时区配置把值当成服务器本地时间处理，来回转换两次。<strong>处理</strong>：统一约定存 UTC，断言时用带时区的 datetime 比较，不要用字符串比大小。</p>
+        <p><strong>症状</strong>：本地跑得好好的，CI 上偶发 <code>Too many connections</code>。<strong>原因</strong>：fixture 作用域是 function，每条用例新建一条连接，而失败路径上没有关闭；并行执行又把这个问题放大。<strong>处理</strong>：把连接提到 session 或 module 级，用完必须关闭；或者改用上下文管理器，让异常路径也走关闭逻辑。</p>
+        <p><strong>症状</strong>：<code>executemany</code> 返回了，紧接着查询却是空的。<strong>原因</strong>：autocommit 关闭时没有 commit，数据只存在于当前事务里；或者复用了同一个游标，上一条语句的结果集还没读完。<strong>处理</strong>：写操作后显式 commit 再查，同时用独立的游标做校验查询，避免结果集互相干扰。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>把这套脚本接进流水线之前，逐条对一遍，比事后排查便宜得多。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>合格标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>连接凭据</td><td>来自环境变量或密钥管理，仓库里没有明文密码</td></tr>
+            <tr><td>目标库</td><td>启动时做白名单自检，命中生产特征直接退出</td></tr>
+            <tr><td>SQL 写法</td><td>全部使用占位符，没有 f-string 拼 SQL</td></tr>
+            <tr><td>资源释放</td><td>游标先于连接关闭，异常路径也覆盖</td></tr>
+            <tr><td>事务</td><td>写操作显式提交，只读查询结束事务</td></tr>
+            <tr><td>断言粒度</td><td>核心字段精确比对，明细字段断言范围</td></tr>
+            <tr><td>清理</td><td>按批次前缀删除，无无条件 DELETE 与 TRUNCATE</td></tr>
+            <tr><td>失败信息</td><td>包含库名、表名、查询条件与字段期望值</td></tr>
+          </tbody>
+        </table>
+        <p>最后给一个判断标准：如果落库断言失败时，报告里只有一句 <code>assert None is not None</code>，那它离可用还很远；合格的失败信息应让人不打开代码就知道查哪张表、什么条件、期望与实际各是什么。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/library/sqlite3.html" target="_blank" rel="noopener">sqlite3：DB-API 2.0 接口与 with 语义 — Python 官方文档</a></li>
+            <li><a href="https://peps.python.org/pep-0249/" target="_blank" rel="noopener">PEP 249：Python Database API Specification v2.0</a></li>
+            <li><a href="https://pymysql.readthedocs.io/en/latest/user/examples.html" target="_blank" rel="noopener">PyMySQL 使用示例与游标类型 — PyMySQL 文档</a></li>
+            <li><a href="https://www.psycopg.org/docs/usage.html" target="_blank" rel="noopener">psycopg2 参数绑定与事务控制 — psycopg 文档</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/fixtures.html" target="_blank" rel="noopener">pytest fixture：setup 与 teardown — pytest 文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#python</span>
+          <span class="tag">#database</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

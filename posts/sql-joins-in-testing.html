@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>测试时怎么跨表查数据：JOIN 的四种姿势一次讲透 · 软件测试资料集</title>
+<meta name="description" content="用订单-用户-商品三表，演示 INNER/LEFT/RIGHT/FULL JOIN 在数据验证中的用法。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/sql-joins-in-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="测试时怎么跨表查数据：JOIN 的四种姿势一次讲透">
+<meta property="og:description" content="用订单-用户-商品三表，演示 INNER/LEFT/RIGHT/FULL JOIN 在数据验证中的用法。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/sql-joins-in-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="测试时怎么跨表查数据：JOIN 的四种姿势一次讲透">
+<meta name="twitter:description" content="用订单-用户-商品三表，演示 INNER/LEFT/RIGHT/FULL JOIN 在数据验证中的用法。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"测试时怎么跨表查数据：JOIN 的四种姿势一次讲透","description":"用订单-用户-商品三表，演示 INNER/LEFT/RIGHT/FULL JOIN 在数据验证中的用法。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/sql-joins-in-testing.html","articleSection":"数据库测试","keywords":"sql, join, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">数据库测试</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>11 min read</span>
+        </div>
+        <h1>测试时怎么跨表查数据：JOIN 的四种姿势一次讲透</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="sql-joins-in-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 启动 MySQL（Docker）
+docker run -d --name test-mysql -p 3306:3306 \
+  -e MYSQL_ROOT_PASSWORD=test123 -e MYSQL_DATABASE=testdb mysql:8.0
+
+# 连接验证
+mysql -h localhost -u root -ptest123 testdb
+
+# 创建测试表
+CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(100), email VARCHAR(200) UNIQUE);</code></pre>
+
+<h2>基础应用：第一个 SQL 验证</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector
+
+conn = mysql.connector.connect(host="localhost", port=3306, user="root", password="test123", database="testdb")
+cur = conn.cursor()
+cur.execute("INSERT INTO users (name, email) VALUES (%s, %s)", ("测试", "t@e.com"))
+conn.commit()
+cur.execute("SELECT * FROM users WHERE name = %s", ("测试",))
+assert cur.fetchone() is not None
+print("基础验证通过 ✓")
+cur.close(); conn.close()</code></pre>
+
+<h2>项目进阶：并发测试 + 数据一致性</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import mysql.connector, threading
+
+def deduct(uid, qty):
+    c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+    cur = c.cursor()
+    cur.execute("UPDATE products SET stock=stock-%s WHERE product_id=1 AND stock>=%s", (qty, qty))
+    c.commit(); cur.close(); c.close()
+
+threads = [threading.Thread(target=deduct, args=(i, 2)) for i in range(10)]
+[t.start() for t in threads]
+[t.join() for t in threads]
+
+# 验证库存非负
+c = mysql.connector.connect(host="localhost", user="root", password="test123", database="testdb")
+cur = c.cursor()
+cur.execute("SELECT stock FROM products WHERE product_id=1")
+assert cur.fetchone()[0] >= 0
+print("并发测试通过 ✓")</code></pre>
+
+        <h2>为什么测试时需要跨表查</h2>
+        <p>业务系统里，一张表几乎从不孤立存在。订单表存了 <code>user_id</code> 和 <code>product_id</code>，但没有用户名、没有商品名，要展示就得去用户表、商品表里「顺藤摸瓜」。测试时最常见的两类需求都依赖跨表能力：</p>
+        <ul>
+          <li><strong>展示核对</strong>：页面上「订单-商品」是不是库里两张表对得上的；</li>
+          <li><strong>一致性验证</strong>：订单里的用户 ID，必须在用户表里真实存在，否则就是「孤儿记录」，是数据脏了的直接证据。</li>
+        </ul>
+        <p>下面先建一个三表模型（users / orders / products），后面所有示例都基于它：</p>
+        <div class="code-head"><span>setup.sql — 三表建表 + 造数</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>CREATE TABLE users (
+  id INT PRIMARY KEY,
+  username VARCHAR(64) NOT NULL
+);
+
+CREATE TABLE products (
+  id INT PRIMARY KEY,
+  name VARCHAR(128) NOT NULL
+);
+
+CREATE TABLE orders (
+  id INT PRIMARY KEY,
+  user_id INT NOT NULL,          -- 注意：这里故意不加外键约束，模拟"裸关联"场景
+  product_id INT NOT NULL,
+  amount DECIMAL(10,2) NOT NULL
+);
+
+INSERT INTO users (id, username) VALUES (1, 'alice'), (2, 'bob');
+INSERT INTO products (id, name) VALUES (101, '键盘'), (102, '鼠标');
+
+-- 3 笔订单：user 1 买了键盘和鼠标，user 999（不存在的用户）买了鼠标
+INSERT INTO orders (id, user_id, product_id, amount) VALUES
+ (1, 1, 101, 89),
+ (2, 1, 102, 25),
+ (3, 999, 102, 25);</code></pre>
+        <div class="callout">
+          <p>第 3 笔订单的 <code>user_id = 999</code> 是故意造的「脏数据」——用户表里没有 999 这个用户。它就是我们要抓的「孤儿记录」原型，后文会反复用到。</p>
+        </div>
+
+        <h2>四种 JOIN，结果差在哪</h2>
+        <p>先记一个口诀：<strong>INNER 只要两边都有的；LEFT 保住左边全部；RIGHT 保住右边全部；FULL 两边全保</strong>。逐一看：</p>
+        <h3>INNER JOIN：只要两边都匹配上</h3>
+        <div class="code-head"><span>join1.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>SELECT o.id AS order_id, u.username, p.name AS product_name
+FROM orders o
+INNER JOIN users u ON o.user_id = u.id
+INNER JOIN products p ON o.product_id = p.id;</code></pre>
+        <p>结果只有 2 行（订单 1、订单 2）。订单 3 因为 user 999 在用户表里查不到，直接被「丢掉了」——INNER JOIN 的特点是<strong>匹配不上的记录整行消失</strong>，它不会告诉你「有记录对不上」，只会让结果看起来「少了几行」。</p>
+        <h3>LEFT JOIN：保住左表全部</h3>
+        <div class="code-head"><span>join2.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>SELECT o.id AS order_id, o.user_id, u.username
+FROM orders o
+LEFT JOIN users u ON o.user_id = u.id;</code></pre>
+        <p>结果 3 行全在，其中订单 3 那行的 <code>username</code> 是 <code>NULL</code>——左表（orders）的记录一条不丢，右表（users）匹配不上就用 NULL 占位。<strong>这正是「找孤儿记录」的核心机制</strong>，后面专门演示。</p>
+        <h3>RIGHT JOIN：保住右表全部</h3>
+        <div class="code-head"><span>join3.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>SELECT u.username, o.id AS order_id
+FROM users u
+RIGHT JOIN orders o ON o.user_id = u.id;</code></pre>
+        <p>效果等价于把上面 LEFT JOIN 的表左右调换一下。实际写的时候，大多数团队习惯统一用 LEFT JOIN + 调换表顺序，少记一种写法。</p>
+        <h3>FULL JOIN：两边全保（MySQL 8 不支持原生写法）</h3>
+        <p>MySQL 没有 <code>FULL OUTER JOIN</code> 关键字，等价写法是用 LEFT JOIN 和 RIGHT JOIN 做并集：</p>
+        <div class="code-head"><span>join4.sql — MySQL 里模拟 FULL JOIN</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>SELECT o.id AS order_id, o.user_id, u.username
+FROM orders o LEFT JOIN users u ON o.user_id = u.id
+UNION
+SELECT o.id, o.user_id, u.username
+FROM users u RIGHT JOIN orders o ON o.user_id = u.id
+WHERE u.id IS NULL;
+-- 上面这句 UNION 等价于：把"只有左没有右"和"只有右没有左"的记录全部捞出来</code></pre>
+        <table>
+          <thead><tr><th>JOIN 类型</th><th>左表独有记录</th><th>右表独有记录</th><th>两边都有</th></tr></thead>
+          <tbody>
+            <tr><td>INNER</td><td>丢</td><td>丢</td><td>保留</td></tr>
+            <tr><td>LEFT</td><td>保留（右侧填 NULL）</td><td>丢</td><td>保留</td></tr>
+            <tr><td>RIGHT</td><td>丢</td><td>保留（左侧填 NULL）</td><td>保留</td></tr>
+            <tr><td>FULL</td><td>保留</td><td>保留</td><td>保留</td></tr>
+          </tbody>
+        </table>
+
+        <h2>测试场景：用 LEFT JOIN 抓「孤儿订单」</h2>
+        <p>需求一句话：<strong>订单表里每个 user_id，都必须在用户表里存在</strong>。验证方法固定套路：LEFT JOIN + WHERE 右表主键 IS NULL。</p>
+        <div class="code-head"><span>find_orphans.sql</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>-- 找出"订单存在、但用户不存在"的记录
+SELECT o.id AS orphan_order_id, o.user_id
+FROM orders o
+LEFT JOIN users u ON o.user_id = u.id
+WHERE u.id IS NULL;
+
+-- 同理，反向再查一遍：商品侧
+SELECT o.id AS orphan_order_id, o.product_id
+FROM orders o
+LEFT JOIN products p ON o.product_id = p.id
+WHERE p.id IS NULL;</code></pre>
+        <p>跑第一条，会命中我们故意造的订单 3（user_id = 999）。第二条应该是空结果，说明商品侧数据干净。</p>
+
+        <h2>Python 脚本：跑 JOIN 查询并输出差异</h2>
+        <p>把上面的 SQL 包成可自动化的脚本，跑完直接告诉你「有没有孤儿、有几条」，可以无缝进 CI：</p>
+        <div class="code-head"><span>check_orphans.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pymysql
+
+def get_conn():
+    return pymysql.connect(
+        host="127.0.0.1", port=3306,
+        user="test_user", password="test_pwd",
+        database="shop", charset="utf8mb4",
+        cursorclass=pymysql.cursors.DictCursor,
+    )
+
+def find_orphan_orders():
+    sql = """
+        SELECT o.id AS orphan_order_id, o.user_id
+        FROM orders o
+        LEFT JOIN users u ON o.user_id = u.id
+        WHERE u.id IS NULL
+    """
+    with get_conn() as conn, conn.cursor() as cur:
+        cur.execute(sql)
+        return cur.fetchall()
+
+def main():
+    orphans = find_orphan_orders()
+    if orphans:
+        print(f"❌ 发现 {len(orphans)} 条孤儿订单：")
+        for row in orphans:
+            print(f"   order_id={row['orphan_order_id']}, user_id={row['user_id']}（用户在 users 表里不存在）")
+        return 1   # 用退出码 1 标记失败，方便 CI 判断
+    print("✅ 没有发现孤儿订单，用户侧数据一致")
+    return 0
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main())</code></pre>
+        <div class="callout warn">
+          <p>LEFT JOIN 找孤儿，前提是<strong>关联键本身不能是 NULL</strong>。如果订单表的 user_id 允许为空，NULL 也会出现在结果里，得先用 <code>o.user_id IS NOT NULL</code> 把这类记录排除掉，再判断「真孤儿」。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/join.html" target="_blank" rel="noopener">MySQL 官方文档：JOIN</a></li>
+            <li><a href="https://dev.mysql.com/doc/refman/8.0/en/using-joins.html" target="_blank" rel="noopener">MySQL 官方文档：使用 JOIN 的示例</a></li>
+            <li><a href="https://pymysql.readthedocs.io/en/latest/" target="_blank" rel="noopener">PyMySQL 官方文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#sql</span>
+          <span class="tag">#join</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

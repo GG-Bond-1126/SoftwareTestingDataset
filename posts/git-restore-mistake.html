@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git 误操作急救：撤销提交、还原文件、找回删除 · 软件测试资料集</title>
+<meta name="description" content="误提交、误删除、误 reset、误 force push 四个高频场景的急救命令，每条配为什么这样做的解释。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-restore-mistake.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Git 误操作急救：撤销提交、还原文件、找回删除">
+<meta property="og:description" content="误提交、误删除、误 reset、误 force push 四个高频场景的急救命令，每条配为什么这样做的解释。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-restore-mistake.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Git 误操作急救：撤销提交、还原文件、找回删除">
+<meta name="twitter:description" content="误提交、误删除、误 reset、误 force push 四个高频场景的急救命令，每条配为什么这样做的解释。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Git 误操作急救：撤销提交、还原文件、找回删除","description":"误提交、误删除、误 reset、误 force push 四个高频场景的急救命令，每条配为什么这样做的解释。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-restore-mistake.html","articleSection":"Git 版本控制","keywords":"git, reflog, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>9 min read</span>
+        </div>
+        <h1>Git 误操作急救：撤销提交、还原文件、找回删除</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="git-restore-mistake">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Git
+# 配置用户
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+# 验证
+git --version</code></pre>
+<div class="code-head"><span>terminal — 初始化仓库</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>mkdir my-project && cd my-project
+git init
+echo "hello" > test.py
+git add .
+git commit -m "初始提交"</code></pre>
+
+<h2>基础应用：分支操作</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 创建 + 切换分支
+git checkout -b dev
+git commit -m "dev 修改" --allow-empty
+git checkout main
+git merge dev
+
+# 查看日志
+git log --oneline --graph</code></pre>
+
+<h2>项目进阶：Feature 分支 + MR 流程</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># Feature 分支
+git checkout -b feature/login
+git commit -m "feat: 用户登录" --allow-empty
+
+# 提 MR（在 GitHub/GitLab 上）
+# 评审通过后合并
+git checkout main
+git pull origin main
+git merge --squash feature/login
+git commit -m "feat: 用户登录"
+git push origin main
+git branch -d feature/login</code></pre>
+
+        <h2>先记住一条核心原则</h2>
+        <div class="callout">
+          <p><strong>Git 不会真的删除东西</strong>。所有「删除」操作在 Git 眼里都是「移动引用」，历史还在。只要知道怎么「把引用移回去」，任何东西都能找回来。</p>
+        </div>
+
+        <h2>场景一：误提交（提交了不该提交的东西）</h2>
+        <p>刚 <code>git commit</code> 完发现「不该提交那个文件」或「提交信息写错了」，但还没 push。</p>
+
+        <h3>方法 A：撤销提交，保留改动</h3>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 撤销最近一次提交，改动保留在工作区
+git reset HEAD~1
+
+# 重新整理后提交
+git add 该加的文件
+git commit -m "正确的提交信息"</code></pre>
+        <p>为什么用 <code>reset</code> 而不是 <code>revert</code>？reset 是「回到过去」（改写历史），适合还没 push 的提交。revert 是「加一条反向提交」（不改历史），适合已经 push 的。</p>
+
+        <h3>方法 B：撤销提交并丢弃改动</h3>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 撤销最近一次提交，改动直接丢弃
+git reset --hard HEAD~1</code></pre>
+        <div class="callout warn">
+          <p><code>--hard</code> 是危险的，改动直接没了。99% 的场景用 <code>reset HEAD~1</code>（不加 --hard）就够了。</p>
+        </div>
+
+        <h2>场景二：误删除文件</h2>
+
+        <h3>情况 A：删除了还没 add 的文件（工作区删除）</h3>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 从仓库恢复（文件还在仓库历史里）
+git checkout -- 文件名.py
+
+# 或者用新命令（Git 2.23+）
+git restore 文件名.py</code></pre>
+        <p>为什么能恢复？因为文件还在仓库历史里（你之前 commit 过），<code>checkout --</code> 就是「把仓库里的版本放回工作区」。</p>
+
+        <h3>情况 B：误提交了删除（commit 了 rm 操作）</h3>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 撤销那次"删除"提交，文件回来了
+git reset --hard HEAD~1   # 回到删除前的提交
+
+# 或者用 revert（不改历史，加一条"恢复文件"提交）
+git revert HEAD   # 撤销最近一次提交
+git commit -m "fix: 恢复误删的文件"</code></pre>
+        <p>如果这条提交已经 push 了，用 revert 而不是 reset（reset 会改历史，别人拉下来会乱）。</p>
+
+        <h3>情况 C：彻底误删（从仓库里删了、提交了、push 了）</h3>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 用 log 找到删除文件的那条提交
+git log --diff-filter=D --name-only -- 文件名.py
+# 假设找到 commit abc123
+
+# 从那条提交恢复文件
+git show abc123:文件名.py > 文件名.py
+git add 文件名.py
+git commit -m "fix: 恢复误删的文件"
+git push</code></pre>
+
+        <h2>场景三：误 reset / 误 rebase</h2>
+
+        <h3>误 reset（回退了好几格）</h3>
+        <div class="code-head"><span>terminal — 找回「被 reset 掉的」提交</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># reset 之后，被"丢"的提交还在 reflog 里
+git reflog
+# 输出示例：
+# 1a2b3c4 HEAD@{0}: reset: moving to HEAD~2
+# def4567 HEAD@{1}: commit: 我写的那条
+# 890abc1 HEAD@{2}: commit: 再前一条
+
+# 找到被 reset 掉的提交（def4567），切回去
+git reset --hard def4567
+
+# 或者开一条新分支保留（更安全的做法）
+git branch recovery def4567
+git checkout recovery</code></pre>
+
+        <h3>误 rebase</h3>
+        <div class="code-head"><span>terminal — 找回「被 rebase 改掉的」提交</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># rebase 改写了历史，原提交也在 reflog 里
+git reflog
+# 找到 rebase 前的提交
+git reset --hard ORIG_HEAD   # rebase 前自动保存的位置</code></pre>
+        <div class="callout">
+          <p><code>ORIG_HEAD</code> 是 Git 在 <a class="ilink" href="git-merge-vs-rebase.html">rebase</a>、merge、reset 等操作前自动保存的「上一次 HEAD 位置」，99% 的误操作急救都靠它。</p>
+        </div>
+
+        <h2>场景四：误 force push</h2>
+        <p>对公共分支做了 force push，抹掉了别人的提交。</p>
+        <div class="code-head"><span>terminal — 紧急修复</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 先确认抹掉了哪些提交
+git reflog
+
+# 2. 找到被抹掉的提交 ID（比如 999888）
+# 3. 恢复那些提交
+git reset --hard 999888
+git push --force-with-lease origin main
+
+# 如果不确定 999888 是什么
+git show 999888
+git log 999888 --oneline -5</code></pre>
+        <div class="callout warn">
+          <p>force push 公共分支是<strong>协作事故</strong>，不是误操作。事前用 <code>--force-with-lease</code>（比 --force 安全，远端有别人的新提交时拒绝）能减少 80% 的事故。事后立即通知团队，让大家 <code>git fetch</code> 重新同步。</p>
+        </div>
+
+        <h2>reflog：误操作急救的瑞士军刀</h2>
+        <p>所有「找不到」的情况，reflog 都能帮你找回来。它记录了你本地 HEAD 的每一次移动：</p>
+        <div class="code-head"><span>terminal — 用 reflog 找东西</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 查看所有 HEAD 移动记录（最近 50 条）
+git reflog -50
+
+# 查找某条提交是否在 reflog 里
+git log --oneline | grep "我要找的那条"
+
+# 找到后切过去
+git reset --hard 找到的提交ID
+# 或者开新分支保留
+git branch 安全分支 找到的提交ID</code></pre>
+        <div class="callout">
+          <p>reflog 只记录「你本地」的 HEAD 移动，远端 reflog 你查不到。误操作如果发生在远端（比如别人 force push），reflog 帮不了你，需要找管理员查远端日志。</p>
+        </div>
+
+        <h2>急救命令速查表</h2>
+        <div class="code-head"><span>场景 → 命令</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 误提交（未 push）
+git reset HEAD~1              # 撤销提交，保留改动
+git reset --hard HEAD~1       # 撤销提交，丢弃改动（危险）
+
+# 误删除（已 commit）
+git checkout -- 文件名         # 从仓库恢复
+git revert HEAD              # 不改历史，加一条反向提交（已 push 用这个）
+
+# 误 reset / rebase
+git reset --hard ORIG_HEAD    # 回到操作前
+git reflog                    # 查操作记录
+
+# 误 force push
+git reflog                    # 找被抹掉的提交
+git reset --hard 提交ID
+git push --force-with-lease   # 推回去（紧急）</code></pre>
+        <div class="callout">
+          <p>把这张表打印出来贴工位。误操作时最该做的不是「再敲一遍命令」，而是<strong>先 reflog 看看</strong>，确认「东西还在哪」，再决定用什么命令找回。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://git-scm.com/book/zh-cn/v2" target="_blank" rel="noopener">Pro Git 中文版 - Simple Git Tools 章节</a></li>
+            <li><a href="https://git-scm.com/docs/git-reflog" target="_blank" rel="noopener">Git Reflog 官方文档</a></li>
+            <li><a href="https://git-scm.com/docs/git-reset" target="_blank" rel="noopener">Git Reset 官方文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#git</span>
+          <span class="tag">#reflog</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

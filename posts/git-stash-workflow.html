@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git Stash：临时保存改动的实用工作流 · 软件测试资料集</title>
+<meta name="description" content="讲清 stash 存了什么、apply 与 pop 怎么取舍、跨分支恢复为何静默出错，以及切分支前的安全做法。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-stash-workflow.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Git Stash：临时保存改动的实用工作流">
+<meta property="og:description" content="讲清 stash 存了什么、apply 与 pop 怎么取舍、跨分支恢复为何静默出错，以及切分支前的安全做法。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-stash-workflow.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Git Stash：临时保存改动的实用工作流">
+<meta name="twitter:description" content="讲清 stash 存了什么、apply 与 pop 怎么取舍、跨分支恢复为何静默出错，以及切分支前的安全做法。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Git Stash：临时保存改动的实用工作流","description":"讲清 stash 存了什么、apply 与 pop 怎么取舍、跨分支恢复为何静默出错，以及切分支前的安全做法。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-stash-workflow.html","articleSection":"Git 版本控制","keywords":"git, stash, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>19 min read</span>
+        </div>
+        <h1>Git Stash：临时保存改动的实用工作流</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="git-stash-workflow">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>什么时候才该动用 stash</h2>
+        <p>几个很具体的时刻：回归跑到第六十条用例，线上报了个问题，要立刻切到 release 分支复现；你改了三处 <code>conftest.py</code>，想先跑一次干净版本拿到基线，再把自己的改动加回去；或者你只是临时看一眼别人的分支，手上这点调试代码不想带过去弄脏工作区。这些是 stash 的主场——中断时间以分钟计、改动还没成形、不需要别人看见。</p>
+        <p>反过来，不该用 stash 的情况同样明确：要离开半天以上、需要别人 review、需要 CI 验证、或者你自己都说不清改了什么。stash 是贴着工作区的一块便签，不是提交，留在上面的东西不会出现在任何人的 review 里，也不会被任何流水线验证。</p>
+        <p>这篇面向会 add、commit、push，但被 <code>Your local changes would be overwritten by checkout</code> 挡住过的人。读完应该能说清三件事：stash 里到底有什么；pop 和 apply 该选哪个；为什么把 stash 恢复到另一条分支上可能不报错却依然是错的。</p>
+
+        <h2>stash 到底存了什么</h2>
+        <p>执行 <code>git stash</code> 时，Git 会创建一组提交对象，挂在 <code>refs/stash</code> 这个引用上，栈的先后顺序由它自己的 reflog 维护，这就是 <code>stash@{0}</code>、<code>stash@{1}</code> 的来源。它保存的是「已跟踪文件在工作区和暂存区的修改」，也就是相对 HEAD 的差异快照，外加当时索引的状态。</p>
+        <p>不保存什么，比保存什么更值得记。未跟踪文件默认不进 stash——你新建的 <code>test_order_timeout.py</code>、本地导出的日志、截图，都不在里面。被 <code>.gitignore</code> 忽略的文件同样不进。要带上未跟踪文件必须显式加 <code>-u</code>，要连忽略文件一起加 <code>-a</code>。这个默认值是最多事故的来源，因为未跟踪文件不会消失，它会安静地跟着你切到另一条分支。</p>
+        <p>所以 stash 不是给整个目录拍快照，它只拍已跟踪文件的差异。恢复时它把这些差异重新应用到当前工作区。理解这一点，后面 apply 和 pop 的差别、跨分支恢复为什么会冲突，都能自己推出来。</p>
+        <p>内部结构也值得看一眼：<code>git log --graph refs/stash</code> 能看到 stash 本身是一个提交，它的第一个父指向存 stash 那一刻的 HEAD。这个父提交就是恢复时的合并基底，不是你现在所在分支的末端——这正是跨分支恢复会出问题的技术原因。</p>
+
+        <h2>存：push 的四个开关</h2>
+        <p>最常用的是 <code>git stash push -m "说明"</code>。<code>push</code> 是默认子命令，<code>git stash</code> 等价于它，但显式写出来可读性更好，也能直接接参数。</p>
+        <p><code>-m</code> 的说明会出现在 list 里。不加说明，条目只会显示成 <code>WIP on feature/x: 3f2a9c1 test: 新增下单用例</code>，过两天你根本不知道那堆改动里是什么。这是成本最低的一条纪律，值得从今天开始执行。</p>
+        <p><code>-u</code> 把未跟踪文件一起存进来，<code>-a</code> 连忽略文件也存。<code>--keep-index</code> 只存工作区里没有 add 的部分，把已暂存的改动留在原处，适合「先提交一部分，用它跑测试验证另一半」的验证型场景。注意不加这个开关时，已 add 的改动也会被一起存走，暂存区同时被清空。</p>
+        <p>还可以只存指定路径：<code>git stash push -m "只存配置" -- config/ tests/conftest.py</code>。当你改了三处、只想临时收走其中一处时，这个用法比全部存走再手工改回来干净得多。暂存区的部分内容想单独存，用 <code>-p</code> 交互式挑块，颗粒度到 hunk。</p>
+        <div class="code-head"><span>terminal — 四种存法</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 标准做法：带说明，便于日后辨认
+git stash push -m "conftest 隐式等待 10s→3s，待验证"
+
+# 2. 新用例文件也一起存（否则它会跟着你切分支）
+git stash push -u -m "新增 timeout 用例 + 配置改动"
+
+# 3. 只存未暂存部分，保留已 add 的内容用于冒烟
+git add tests/conftest.py
+git stash push --keep-index -m "先验证 conftest"
+
+# 4. 只存指定路径
+git stash push -m "只收走配置" -- config/</code></pre>
+
+        <h2>看：list 与 show 是两道保险</h2>
+        <p><code>git stash list</code> 按时间倒序列出所有条目，<code>stash@{0}</code> 是最新的一条。每一行的结构是「栈位置 + 原分支 + 说明」，说明就是你 push 时写的 <code>-m</code>。</p>
+        <p><code>git stash show</code> 默认只给统计（哪些文件、加减多少行），加 <code>-p</code> 才输出完整补丁。<code>git stash show -p stash@{2}</code> 可以看指定条目。用 <code>-u</code> 存进来的未跟踪文件默认不显示，需要 <code>--include-untracked</code>（较新版本支持）。</p>
+        <p>这两条命令的正确用法不是「好奇看一眼」，而是恢复前的强制检查。补丁只有二十行，扫一遍十秒钟，能挡掉「恢复到错误分支」「恢复到错误基线」这两类最难排查的问题。如果看补丁时你想不起当初为什么这么改，那这条 stash 直接 drop 反而更安全。</p>
+        <div class="code-head"><span>terminal — 恢复前的核对</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git stash list
+# stash@{0}: On feature/login: conftest 隐式等待 10s→3s，待验证
+# stash@{1}: On main: 临时调试打印
+
+# 看统计，确认涉及哪些文件
+git stash show stash@{0}
+
+# 看完整补丁，确认改动是否还对得上当前基线
+git stash show -p stash@{0}
+
+# 含未跟踪文件的条目
+git stash show -p --include-untracked stash@{1}</code></pre>
+
+        <h2>取：apply 与 pop 的取舍</h2>
+        <p><code>pop</code> 等于 <code>apply</code> 加一次成功后的 <code>drop</code>，差别只在「取完删不删条目」。日常一次性的临时改动，pop 是对的；但只要有任何一个不确定因素，apply 更稳。</p>
+        <p>不确定因素有三类：工作区不干净、恢复目标不是原分支、这条 stash 你可能要用第二次。apply 的代价是留下条目，之后必须记得 <code>git stash drop</code>，否则列表越堆越长，最后你自己都分不清哪条是活的。</p>
+        <p>有一个流传很广的说法要纠正：很多人以为 pop 冲突后条目就被删掉了，所以不敢用。实际行为恰恰相反——应用失败时条目会保留，Git 会提示它仍在栈里，方便你重来。真正会丢东西的是 <code>stash drop</code> 和 <code>stash clear</code>，不是 pop。</p>
+        <p>另一个细节：默认的 apply 会把改动全部还原成未暂存状态，即使你当初是 add 过的。想连暂存区一起还原，加 <code>--index</code>。这个参数在整理提交时有用，但它也可能因为索引冲突而失败，失败时不会有半成品，算是安全的那种失败。</p>
+        <div class="code-head"><span>terminal — 两种取法</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 确定只取一次：取完自动删除条目
+git stash pop
+
+# 不确定：先应用，确认无误再手工删
+git stash apply stash@{0}
+git diff                       # 看实际落到工作区的内容
+git stash drop stash@{0}
+
+# 连同原来的暂存状态一起还原
+git stash apply --index stash@{0}</code></pre>
+
+        <h2>只恢复其中一部分，或指定某条</h2>
+        <p><code>git checkout stash@{0} -- tests/conftest.py</code> 只把某个文件恢复成 stash 里的版本，其他文件不动，stash 条目也不会被删除。新版 Git 也可以写 <code>git restore --source=stash@{0} tests/conftest.py</code>，语义更清楚。</p>
+        <p>典型场景是 stash 里混着三种东西：要保留的配置改动、废弃的调试打印、临时注释掉的等待。逐文件 checkout 能把要的部分取出来，剩下的原样留在 stash 里，看完直接 drop。</p>
+        <p>注意这个操作会覆盖目标文件当前的未提交改动，没有任何确认。取之前如果该文件有你还想留的东西，先 commit 或再 stash 一次。反向操作——从 stash 里删掉某一个文件、保留其余——没有直接命令，只能 apply 之后手工改回，或者干脆逐文件 checkout 后丢弃条目。</p>
+
+        <h2>恢复时冲突了怎么办</h2>
+        <p>冲突的来源要讲清：stash 恢复本质上是一次三方合并，基底是存 stash 时的那个 HEAD，目标是你现在的工作区。如果目标分支上同一个文件被改过，Git 找不到干净的应用方式，就会把冲突交给你。</p>
+        <p>现象是 <code>CONFLICT (content)</code> 加文件里的冲突标记，<code>git status</code> 里出现 unmerged 路径。处理方式和 merge 一致：编辑文件、删掉标记、<code>git add</code>。区别是不需要 <code>--continue</code>，因为 stash 不是多步操作；解决完自己 <code>git stash drop</code> 清理条目即可。</p>
+        <p>如果这条 stash 已经放了很久、基线差得远，别硬解冲突。用 <code>git stash branch &lt;新分支&gt; stash@{0}</code>，Git 会以存 stash 时的那个 HEAD 为基点建一条新分支，再把改动应用上去，冲突概率大幅下降，同时也把「临时改动」升级成了一条真正可提交、可评审的分支。</p>
+        <div class="code-head"><span>terminal — 冲突与降级方案</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git stash pop
+# CONFLICT (content): Merge conflict in tests/conftest.py
+# The stash entry is kept in case you need it again.
+
+# 解决后标记
+git add tests/conftest.py
+git stash drop            # 手工清理，没有 --continue
+
+# 基线差太远时的正确姿势
+git stash branch fix/conftest-timeout stash@{0}</code></pre>
+
+        <h2>跨分支恢复：最危险的是不冲突</h2>
+        <p>举个真实形状的例子。你在 feature 分支上把<a class="ilink" href="web-wait-strategies.html">显式等待</a>从 10 秒调到 3 秒，存成 stash；切到 main 处理别的事；回头在 main 上 pop。如果 main 的 <code>conftest.py</code> 结构没变，Git 会安安静静地应用成功，可你其实把 main 上别人刚加的两个 fixture 参数一起覆盖了。</p>
+        <p>原因在于三方合并的判定依据是文本行，不是意图。同一行被两边改过才冲突；一边改左边、一边改右边，Git 直接接受，合出来的结果可能谁都不是想要的。这种静默错误比冲突难查得多，通常要等到某条用例莫名其妙超时才发现。</p>
+        <p>所以规范只有一句：pop 之前必须 <code>git stash show -p</code>，确认补丁相对当前基线仍然成立；跨分支恢复后立刻跑一次最小冒烟，别跳过直接提 MR。冒烟的成本是几分钟，静默错误的成本是一下午。</p>
+        <p>实在拿不准，就用 <code>stash branch</code> 让改动在原始基线上落地，再 merge 到目标分支。这样至少是一次显式合并，冲突和语义差异都会被摆到台面上，而不是被一个「成功」的应用藏起来。</p>
+
+        <h2>stash 不是备份</h2>
+        <p>三个理由，每一个单独都足够。第一，stash 不参与 push，远端没有副本，换台机器、重装系统就没了。第二，<code>git stash clear</code> 一条命令清空全部，没有确认步骤，也不在常规的恢复路径上。第三，它不会被 review、不会被 CI 验证，凡是只能你自己看见的改动，在团队意义上等于不存在。</p>
+        <p>清掉之后还有救吗？stash 产生的提交对象在被垃圾回收前仍然存在，<code>git fsck --unreachable</code> 有时能列出 dangling commit，把哈希交给 <code>git stash apply &lt;sha&gt;</code> 还可能捞回来。但这属于运气，不能写进流程，更不能当作「反正能找回」的理由。</p>
+        <p>正确替代方案很朴素：改动超过一天，或者需要别人看到，就开一条 <code>wip/xxx</code> 分支提交并推远端。哪怕提交信息只写 WIP，它也可推送、可对比、可合并、可被 CI 跑到，安全性比 stash 高一个量级。</p>
+        <p>还有一个常见误区是把 stash 当待办清单。栈里没有优先级、没有归属人、没有提醒，条目超过五六条之后，你必然忘记每一条是什么。真要做待办，用 issue 或者一张纸，别用 stash。</p>
+
+        <h2>测试工程师的典型场景：跑到一半要切分支</h2>
+        <p>最典型的中断：回归跑到第六十条，线上报警，需要立刻切到 release 分支复现。此时工作区有调试改动，直接 checkout 会被拒绝，<code>git status</code> 还显示两个新建的用例文件。</p>
+        <p>标准流程是五步：先 <code>git status</code> 看清未跟踪文件有哪些；<code>git stash push -u -m "回归调试改动，来源 feature/order"</code>；切分支复现；回来后 <code>git stash list</code> 加 <code>show -p</code> 核对；最后 pop 并跑一次冒烟。每一步都别省，尤其是 <code>-u</code> 和 show 这两处。</p>
+        <p>但如果这次复现要花四十分钟，有更合适的工具：<code>git worktree add ../hotfix release/1.9</code> 会在另一个目录检出分支，两个工作区互不干扰，长跑的 pytest 也不会因为文件被瞬间替换而报奇怪的导入错误。取合是它多占一份磁盘和一套依赖环境。</p>
+        <p>三者的定位可以这么分：几分钟的中断用 stash；几十分钟以上的并行工作用 worktree；超过半天、需要别人协作的改动直接提交 WIP 分支。选错工具的代价不是命令写错，而是「以为存好了，其实没存全」。</p>
+        <div class="code-head"><span>terminal — 中断复现的完整动作</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git status --short
+#  M tests/conftest.py
+# ?? tests/test_order_timeout.py     ← 未跟踪，必须带 -u
+
+git stash push -u -m "回归调试改动，来源 feature/order"
+
+git checkout release/1.9
+# ……复现问题、抓日志……
+
+git checkout feature/order
+git stash list
+git stash show -p stash@{0}
+git stash pop
+pytest tests/test_order.py -q      # 冒烟，确认基线没被搅乱</code></pre>
+
+        <h2>常见坑与排查</h2>
+        <p><strong>现象</strong>：恢复后新建的用例文件不见了。<strong>原因</strong>：存的时候没加 <code>-u</code>，未跟踪文件不在快照里。<strong>处理</strong>：先 <code>git status</code> 看看文件是否还在工作区——未跟踪文件通常不会被 stash 动到，多半是切分支时被你自己删了或者本来就在 <code>.gitignore</code> 里。</p>
+        <p><strong>现象</strong>：配置类改动恢复后行为不对，但没有任何报错。<strong>原因</strong>：跨分支恢复到不同基线，三方合并静默接受了旧值。<strong>处理</strong>：<code>git diff</code> 逐行核对关键配置，必要时用 <code>stash branch</code> 回到原始基线重来。</p>
+        <p><strong>现象</strong>：执行 stash 时被拒绝，提示存在未解决的合并路径。<strong>原因</strong>：当前处于 merge 或 <a class="ilink" href="git-merge-vs-rebase.html">rebase</a> 的冲突中间态。<strong>处理</strong>：先把当前冲突解决并收尾（commit 或 <code>rebase --continue</code>），或者 <code>git rebase --abort</code> 回到干净状态，再 stash。不要在中间态叠加另一个临时操作。</p>
+        <p><strong>现象</strong>：后台 pytest 突然报 <code>ImportError</code> 或者找不到某个 fixture。<strong>原因</strong>：测试进程正在读文件时，你执行了 stash 或切分支，<code>conftest.py</code> 被瞬间换成了另一版。<strong>处理</strong>：停止正在跑的测试再动工作区；长任务改用 worktree 隔离。</p>
+        <p><strong>现象</strong>：<code>stash clear</code> 之后才想起有条改动没取。<strong>原因</strong>：把 stash 当成了备份。<strong>处理</strong>：立刻停手，别执行 <code>git gc</code>，用 <code>git fsck --unreachable</code> 找 dangling commit，找到哈希后 <code>git stash apply &lt;sha&gt;</code>。</p>
+
+        <h2>取用前的检查清单</h2>
+        <p>这张表贴在脑子里，比记住十几个参数有用。每一条都对应一个真实出现过的事故类型。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>命令</th><th>通过标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>有没有未跟踪文件</td><td>git status --short</td><td>有 ?? 行就必须带 -u</td></tr>
+            <tr><td>条目能否辨认</td><td>git stash list</td><td>有说明，能看出原分支</td></tr>
+            <tr><td>补丁是否还成立</td><td>git stash show -p stash@{0}</td><td>改动对得上当前基线</td></tr>
+            <tr><td>当前分支是否正确</td><td>git branch --show-current</td><td>是存 stash 时那条分支</td></tr>
+            <tr><td>取完是否清理</td><td>git stash drop</td><td>apply 之后记得删条目</td></tr>
+            <tr><td>恢复后是否验证</td><td>pytest -q 冒烟</td><td>基线行为符合预期</td></tr>
+          </tbody>
+        </table>
+        <p>最后提醒一句：stash 的价值在于「短、临时、只有我自己关心」。任何超出这个边界的东西，都该变成一条提交。判断方法很简单——如果这条改动三天后还需要存在，它就不该待在 stash 里。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://git-scm.com/docs/git-stash" target="_blank" rel="noopener">git-stash：push、apply、pop、branch 与 --keep-index — Git 官方文档</a></li>
+            <li><a href="https://git-scm.com/docs/git-worktree" target="_blank" rel="noopener">git-worktree：多工作区并行开发 — Git 官方文档</a></li>
+            <li><a href="https://git-scm.com/docs/git-fsck" target="_blank" rel="noopener">git-fsck：查找 unreachable 与 dangling 对象 — Git 官方文档</a></li>
+            <li><a href="https://git-scm.com/book/zh/v2" target="_blank" rel="noopener">Pro Git 中文版（暂存与清理章节）— git-scm.com</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#git</span>
+          <span class="tag">#stash</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

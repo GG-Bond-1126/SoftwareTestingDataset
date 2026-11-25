@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web 安全测试：XSS / CSRF / SQL 注入 · 软件测试资料集</title>
+<meta name="description" content="从输入点盘点讲起，拆解 XSS、CSRF、SQL 注入与越权的验证手法、自动化取舍与授权边界。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-security-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Web 安全测试：XSS / CSRF / SQL 注入">
+<meta property="og:description" content="从输入点盘点讲起，拆解 XSS、CSRF、SQL 注入与越权的验证手法、自动化取舍与授权边界。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-security-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Web 安全测试：XSS / CSRF / SQL 注入">
+<meta name="twitter:description" content="从输入点盘点讲起，拆解 XSS、CSRF、SQL 注入与越权的验证手法、自动化取舍与授权边界。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Web 安全测试：XSS / CSRF / SQL 注入","description":"从输入点盘点讲起，拆解 XSS、CSRF、SQL 注入与越权的验证手法、自动化取舍与授权边界。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-security-testing.html","articleSection":"Web 自动化","keywords":"security, xss, sql-injection","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>20 min read</span>
+        </div>
+        <h1>Web 安全测试：XSS / CSRF / SQL 注入</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-security-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>安全测试的边界：你能覆盖什么，必须交给谁</h2>
+        <p>很多团队的做法是上线前用扫描器跑一遍，把报告贴进验收单。问题不在工具差，而在这份报告到底证明了什么没人说清。测试工程师做安全测试，目标不是替代渗透，而是在授权范围内把常见、高影响、可回归的风险挡住，并把需要深挖的部分明确交出去。</p>
+        <p>可以自己覆盖的，判断标准是黑盒可验证、结论明确、不需要扩大利用：输入点的转义与注入、登录与会话、对象级越权、未授权访问、敏感信息暴露、Cookie 与响应头的基础属性、错误页是否泄露堆栈。这些用浏览器加代理就能落结论，失败时能给出可复现的请求。</p>
+        <p>必须交给专业安全团队的：绕 WAF 的深度利用、客户端逆向与加密实现审计、依赖链与供应链漏洞、内网横向、以及业务逻辑的链式组合。测试工程师的职责是发现疑点并保留证据，不是把疑点利用到底。判据很简单：如果验证需要拿到不属于你的真实数据，或者要让服务变慢、不可用，就停手转交。</p>
+
+        <h2>授权、范围与证据留存</h2>
+        <p>授权必须是书面的，并且写到可执行：目标域名或 IP、环境、时间窗、允许的手法、明确禁止的动作、以及出事时的联系人。口头说一句随便测，在真出问题时没有任何保护作用。扫描器对合作方域名或云厂商共享网关发请求，同样算未授权测试，后果由发起人承担。</p>
+        <p>生产环境建议只做只读探测。改状态的接口，比如转账、改密码、删除、审批，只在测试环境用测试账号验证。如果确实要在生产验证越权，用两个自己注册的账号，只碰自己造的数据，验证完立刻清理，并在报告里写明清理记录。</p>
+        <p>证据留存要同时满足两件事：开发能复现，且不制造二次泄露。请求与响应用 HAR 或原始报文保存，账号、时间、环境写清楚；截图里的手机号、身份证、地址先打码再进缺陷系统。很多团队的缺陷单本身就是敏感信息的聚集地，这一点经常被忽略。</p>
+
+        <h2>输入点盘点：从 URL 到富文本</h2>
+        <p>输入点不要凭记忆列。打开代理把注册、登录、下单、退款、改资料、上传、导出这几条主流程走一遍，把每个请求拆成四类：URL 里的 query 与 path、请求体、Header、Cookie。前端做的校验一律不算数，攻击者不会经过你的页面。</p>
+        <p>盘点的目的是排优先级，而不是平均用力。判断顺序是：会不会进数据库、会不会在别的页面回显、会不会进入模板或前端渲染、会不会只写日志。会回显且会渲染的输入点，是 XSS 与存储型注入的高发区；只写日志的风险低得多，但仍要防日志注入和日志里的敏感信息。</p>
+        <table>
+          <thead>
+            <tr><th>输入点</th><th>典型位置</th><th>高发问题</th><th>验证抓手</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>URL 参数与路径</td><td>搜索、详情、跳转</td><td>反射型 XSS、开放重定向</td><td>唯一标记串看响应与渲染</td></tr>
+            <tr><td>表单与 JSON 字段</td><td>注册、下单、评论</td><td>存储型 XSS、注入、越权</td><td>两个账号交叉查看</td></tr>
+            <tr><td>Header</td><td>Referer、X-Forwarded-For</td><td>日志注入、SSRF 绕过</td><td>改值看回显与行为</td></tr>
+            <tr><td>Cookie</td><td>会话、偏好、租户标识</td><td>越权、固定会话</td><td>改租户或用户标识重放</td></tr>
+            <tr><td>文件上传</td><td>头像、附件、导入</td><td>存储型 XSS、路径穿越</td><td>传 HTML 与特殊文件名</td></tr>
+            <tr><td>富文本与 Markdown</td><td>文章、工单、公告</td><td>白名单绕过</td><td>保存与渲染两处分别看</td></tr>
+          </tbody>
+        </table>
+        <p>几个常被漏掉的入口：文件名与文件内容、富文本与 Markdown、回调 URL 与 webhook、导入文件的 CSV 公式注入，以及隐藏字段和 disabled 字段。后端经常无条件信任最后这一类，它们是越权最顺手的入口。</p>
+
+        <h2>XSS 的三类形态与验证手法</h2>
+        <p>反射型的 payload 在请求里，服务端原样拼进响应，验证成本最低：在参数里放一个唯一标记串，看它是否原样出现，以及落在什么上下文，是 HTML 正文、属性值、script 块还是 href。存储型要落库，必须用两个账号，A 提交、B 查看，只用自己一个账号看到自己的内容，证明不了影响面。</p>
+        <p>DOM 型最容易被漏掉：服务端响应里根本没有 payload，是前端 JS 把 location.hash、location.search 或接口返回值塞进了 innerHTML。这类漏洞看响应体永远发现不了，只能看渲染后的 DOM 和实际执行结果。高发位置是返回上一页、错误提示、搜索关键词高亮。</p>
+        <p>三类共用一条判据：浏览器是否真的执行了脚本。自动化里不要用 alert 当探针，它会阻塞页面；改成写一个 window 变量，事后读取，既能判断执行，又不会打断后续步骤。</p>
+        <div class="code-head"><span>python — Playwright 验证三类 XSS</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from playwright.sync_api import sync_playwright
+
+PROBE = "probe20261123"   # 唯一标记，便于在 DOM 里检索
+
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
+    dialogs = []
+    page.on("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))
+
+    # 1) 反射型：payload 是否进入可执行的上下文
+    page.goto(
+        "https://staging.example.com/search"
+        f"?q={PROBE}%3Cimg%20src%3Dx%20onerror%3Dalert(1)%3E"
+    )
+    page.wait_for_load_state("networkidle")
+    print("反射型是否弹窗:", dialogs)
+
+    # 2) DOM 型：只看渲染后的 DOM，不看响应体
+    page.goto(f"https://staging.example.com/#{PROBE}")
+    page.evaluate("() =&gt; { window.__probe = null; }")
+    print("标记在 DOM 中出现次数:", page.locator(f"text={PROBE}").count())
+
+    # 3) 存储型：A 提交后重新加载，检查探针节点是否被渲染
+    page.fill("#comment", f"&lt;img src=x onerror=window.__hit=1 data-p={PROBE}&gt;")
+    page.click("#submit")
+    page.reload()
+    print("探针节点数量:", page.locator(f"img[data-p='{PROBE}']").count())
+    browser.close()</code></pre>
+
+        <h2>常见绕过与两类误判</h2>
+        <p>最常见的过滤是删掉 script 标签或替换尖括号，两类都能绕：<code>&lt;img src=x onerror=...&gt;</code>、<code>&lt;svg onload=...&gt;</code>、<code>&lt;details open ontoggle=...&gt;</code> 都不含 script 关键字；大小写混写、HTML 实体编码、URL 二次编码可以绕过基于字符串的黑名单；<code>javascript:</code> 伪协议在 href 上依然有效。</p>
+        <p>第一类误判是源码里出现尖括号就报高危。如果它被转义成实体、落在 textarea 里、或者位于 JSON 字符串中且前端用 textContent 渲染，都不会执行。这类报告会消耗开发的信任，几次之后真实漏洞也会被当成噪音。</p>
+        <p>第二类误判是有 CSP 就安全。CSP 会改变可利用性，但常见配置里带着 unsafe-inline，或者只上报不拦截。正确写法是记录实际策略，并说明在这个策略下 payload 是否仍能执行。反过来也要防漏判：innerHTML 场景下 script 不执行，但 img 的 onerror 会执行。</p>
+
+        <h2>CSRF：成因与四步验证</h2>
+        <p>CSRF 的前提有三个：接口用 Cookie 认证、Cookie 会被浏览器自动携带、服务端不校验请求来源。攻击者不需要读到你的响应，只要让你发出一个请求就够了。所以危害集中在改状态的操作上：转账、改邮箱、绑定手机、授权第三方应用。</p>
+        <p>验证顺序是：先确认认证方式，纯 Bearer token 放在 localStorage 的场景基本不成立；再抓一个改状态请求做三组重放，去掉 CSRF token、把 Origin 与 Referer 改成外站、以及最关键的用真实浏览器从另一个源发起表单提交。</p>
+        <p>第三组最容易被做错。用 curl 发一个不带 Cookie 的请求，什么都证明不了，因为 CSRF 的本质是浏览器自动带凭据。必须在已登录的浏览器里访问一个外站页面，让它自动提交表单，再看服务端是否真的执行了。</p>
+        <p>顺手检查 Cookie 属性。没声明 SameSite 的 Cookie 在主流浏览器里按 Lax 处理，能挡跨站 POST，但 GET 型的改状态接口仍可被一个 img 或顶层导航触发。所以 SameSite 缺失本身要记录，但不要直接写成可利用。</p>
+        <div class="code-head"><span>python — 服务端重放与真实浏览器验证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import requests
+from playwright.sync_api import sync_playwright
+
+BASE = "https://staging.example.com"
+
+def replay(session, token=None, origin=None):
+    headers = {}
+    if token:
+        headers["X-CSRF-Token"] = token
+    if origin:
+        headers["Origin"] = origin
+    return session.post(
+        f"{BASE}/api/profile/email",
+        json={"email": "qa-csrf@example.com"},
+        headers=headers,
+    )
+
+# 组 1 带 token 是基线，组 2 去 token，组 3 换 Origin
+# 后两组只能说明服务端有没有校验，不能替代真实浏览器场景
+with sync_playwright() as p:
+    browser = p.chromium.launch()
+    page = browser.new_page()
+    page.goto(f"{BASE}/login")
+    page.fill("#username", "qa_user")
+    page.fill("#password", "qa_password")
+    page.click("button[type=submit]")
+    page.wait_for_url("**/dashboard")
+
+    # 已登录状态下打开攻击者页面，由它自动提交跨站表单
+    page.goto("https://attacker.example.net/csrf.html")
+    page.wait_for_timeout(1500)
+    profile = page.request.get(f"{BASE}/api/profile")
+    print("邮箱是否已被篡改:", "qa-csrf@example.com" in profile.text)
+    browser.close()</code></pre>
+        <div class="code-head"><span>html — 攻击者页面</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>&lt;!-- 放在攻击者控制的站点上，受害者此时已登录目标站 --&gt;
+&lt;form action="https://staging.example.com/api/profile/email" method="POST"&gt;
+  &lt;input type="hidden" name="email" value="attacker@example.net"&gt;
+&lt;/form&gt;
+&lt;script&gt;document.forms[0].submit()&lt;/script&gt;</code></pre>
+
+        <h2>SQL 注入：手工探测与不破坏数据的验证</h2>
+        <p>手工探测的起点是观察错误与差异。在参数后加一个单引号，看是否出现数据库报错或 500；再对比恒真条件与恒假条件的响应是否不同；数字型参数试 <code>1-1</code> 与 <code>2-1</code> 是否返回同一条记录。这些动作都不会修改数据。</p>
+        <p>确认存在注入后，验证深度要克制。用 <code>order by N</code> 探测列数，用 <code>union select 1,2,3</code> 这种纯常量查询确认回显位，不要 <code>union select username,password from users</code>，那是在拖真实数据，已经越过测试边界。布尔盲注做条件对比即可，不必把数据一位一位猜出来。</p>
+        <p>时间盲注要慎用。休眠几秒在共享测试环境会拖慢别人的用例，也可能触发告警；授权明确允许时，把延时压到一两秒、只做一次，能证明延时随条件变化就够了。要区分被 WAF 拦截和被正确转义，前者返回 403 或统一拦截页，后者是业务正常响应里 payload 变成纯文本。数字型参数加引号没反应不代表安全，要试不带引号的逻辑条件。</p>
+        <div class="code-head"><span>python — 只读探测与三组对比</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import time
+import requests
+
+BASE = "https://staging.example.com"
+
+def probe(value):
+    start = time.perf_counter()
+    r = requests.get(f"{BASE}/api/items", params={"q": value}, timeout=10)
+    cost = round(time.perf_counter() - start, 2)
+    return r.status_code, len(r.text), cost
+
+base = probe("book")
+quoted = probe("book'")
+true_cond = probe("book' AND '1'='1")
+false_cond = probe("book' AND '1'='2")
+print("基线:", base, "单引号:", quoted)
+print("恒真:", true_cond, "恒假:", false_cond)
+
+# 恒真与基线的响应接近、恒假明显不同，才说明条件被带进了 SQL
+# 时间盲注只在授权允许时启用，延时压到 2 秒且只跑一次
+# probe("book' AND SLEEP(2)-- ")</code></pre>
+
+        <h2>越权与未授权访问</h2>
+        <p>水平越权是同一角色之间越界，A 用户改个 ID 读到 B 用户的订单。验证方法很朴素：准备两个同角色账号，各自造一条数据，交换资源 ID。要覆盖的不只是详情接口，还有导出、下载、消息列表和按 ID 批量查询的接口。</p>
+        <p>垂直越权是低权限调用高权限接口。前端把菜单藏起来不算防护，用普通账号的 token 直接请求管理接口，看返回 403 还是正常数据。不少系统的鉴权只做在网关的路径前缀上，换个路径或换个方法就绕过去了。</p>
+        <p>未授权访问最容易被忽略：完全不带 token 请求，看是否返回 401。漏网点通常是 health、metrics、swagger、actuator、静态导出文件和老版本遗留接口。这类问题一条 curl 就能确认，收益极高，应该放进每次回归的冒烟里。对象级鉴权缺失则更隐蔽，框架通常只提供是否登录的中间件，这条数据是不是你的要靠业务代码自己写，批量接口里把别人的 ID 混进 ids 列表最容易看出来。</p>
+        <div class="code-head"><span>python — 两个会话交叉验证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import requests
+
+A = {"Authorization": "Bearer token-of-user-a"}
+B = {"Authorization": "Bearer token-of-user-b"}
+BASE = "https://staging.example.com"
+
+order_a, order_b = "10001", "10002"   # 两个账号各自创建的测试订单
+
+print("A 读自己的:", requests.get(f"{BASE}/api/orders/{order_a}", headers=A).status_code)
+print("A 读 B 的:", requests.get(f"{BASE}/api/orders/{order_b}", headers=A).status_code)
+print("无 token 读:", requests.get(f"{BASE}/api/orders/{order_a}").status_code)
+print("普通账号调管理接口:",
+      requests.get(f"{BASE}/api/admin/users", headers=A).status_code)
+print("批量混入他人 ID:",
+      requests.get(f"{BASE}/api/orders?ids={order_a},{order_b}", headers=A).text[:200])</code></pre>
+
+        <h2>敏感信息暴露：响应、错误页与前端产物</h2>
+        <p>先从响应体开始。把主流程的响应存下来，用正则搜手机号、身份证、邮箱、内网 IP、堆栈关键字、SQL 片段和调试字段。搜到不等于漏洞，要判断这条数据是否属于当前用户、是否有必要返回、是否已经脱敏。字段级越权是常被忽略的形态：列表接口只返回昵称，详情接口却返回手机号与身份证，验证方式是拿两个角色的响应做字段对比，而不是只看页面显示。</p>
+        <p>错误页要主动触发。传非法类型、超长字符串、畸形 JSON，看是否返回堆栈、框架版本、内网地址。生产环境统一错误页是基本要求，但内部系统常年跑在 debug 模式，这类问题在验收时最容易被放过。</p>
+        <p>前端产物里的 key 要区分性质：地图 key、埋点 key、公开的 OSS 上传凭证属于常见可接受项；服务端密钥、数据库连接串、内部接口地址被打进 bundle 才是问题。报告里写清这个 key 能做什么，比只写前端泄露密钥有用得多。</p>
+        <div class="code-head"><span>python — 响应体关键字扫描</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import re
+
+PATTERNS = {
+    "手机号": r"1[3-9]\d{9}",
+    "内网IP": r"\b(?:10|172\.(?:1[6-9]|2\d|3[01])|192\.168)\.\d{1,3}\.\d{1,3}\b",
+    "堆栈": r"(Traceback \(most recent call last\)|at com\.|at org\.springframework)",
+    "SQL片段": r"(union\s+select|select\s+.+\s+from)",
+}
+
+def scan(text):
+    hits = {}
+    for name, pattern in PATTERNS.items():
+        found = re.findall(pattern, text, flags=re.I)
+        if found:
+            hits[name] = len(found)
+    return hits
+
+# 先把响应落成本地文本再扫，避免把原始数据写进 CI 日志
+body = open("capture/profile.json", encoding="utf-8").read()
+print(scan(body))</code></pre>
+
+        <h2>哪些该自动化，哪些必须人工</h2>
+        <p>适合自动化的检查有共同特征：输入输出确定、判据能用程序表达。例如无 token 请求应返回 401、响应头必须带 CSP、Cookie 必须带 HttpOnly 与 SameSite、响应里不应出现未脱敏手机号、payload 原样回显且未被转义。这些放进回归流水线，两分钟能跑完，挡住的是回归型问题。</p>
+        <p>不适合自动化的：需要多步业务逻辑组合的越权、需要判断这条数据该不该给这个角色看的语义问题、需要绕 WAF 的利用、以及需要人判断危害等级的发现。硬做成脚本的结果是误报率高到没人看，最后连真实的红灯也被忽略。</p>
+        <p>XSS 自动化的主要成本也是误报。转义后的字符串、JSON 上下文、富文本白名单都会让字符串存在这条判据失效。折中方案是只对新增输入点做定向检测，用无副作用探针判断执行，把已知安全的上下文维护成白名单，而不是追求全站覆盖。整体取舍就是安全冒烟放 CI，做五到八条高价值断言；深度验证放在版本冻结前的人工专项，按输入点表逐条过。</p>
+        <div class="code-head"><span>python — 三条可进 CI 的安全冒烟</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import requests
+
+BASE = "https://staging.example.com"
+
+def test_no_token_should_be_401():
+    r = requests.get(f"{BASE}/api/profile", timeout=5)
+    assert r.status_code == 401, f"未授权访问返回了 {r.status_code}"
+
+def test_cookie_flags():
+    r = requests.post(f"{BASE}/api/login",
+                      json={"user": "qa", "pwd": "qa"}, timeout=5)
+    cookie = r.headers.get("Set-Cookie", "")
+    assert "HttpOnly" in cookie
+    assert "SameSite" in cookie, "会话 Cookie 未声明 SameSite"
+
+def test_security_headers():
+    r = requests.get(f"{BASE}/", timeout=5)
+    assert "Content-Security-Policy" in r.headers
+    assert r.headers.get("X-Content-Type-Options") == "nosniff"</code></pre>
+
+        <h2>漏洞记录与复现模板</h2>
+        <p>一份好的安全缺陷单，开发五分钟内能重现。必备字段：标题、前置条件、请求原文、复现步骤、实际结果、预期结果、影响范围、修复建议、证据附件。缺了前置条件，开发第一句话一定是这边复现不了。</p>
+        <p>严重级别不要凭感觉。至少要写清三件事：是否需要登录、是否需要用户交互、影响的是自己的数据还是他人的数据。这三项决定了它是高危还是低危，比一句感觉挺严重有说服力得多。</p>
+        <p>复现材料用 curl 或 HAR，不要只写一句在搜索框输入 payload。payload 放代码块里，避免被聊天工具自动转义；截图配合请求报文互为佐证。修复后复测要做两件事：原始 payload 再打一次确认不执行，相邻输入点回归一遍，因为全局过滤器很容易误伤富文本的合法标签。</p>
+        <div class="code-head"><span>text — 可直接粘贴的复现模板</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>标题：个人中心-修改邮箱接口可被跨站请求伪造
+环境：staging，账号 qa_user，角色 member
+前置条件：受害者已登录；接口用 Cookie 认证；无 CSRF Token 校验
+复现步骤：
+1. 受害者登录 https://staging.example.com
+2. 访问 https://attacker.example.net/csrf.html，表单自动提交
+3. 回到 /settings 刷新，邮箱已变为 attacker@example.net
+请求原文（已脱敏）：
+POST /api/profile/email
+Cookie: session=****
+Body: email=attacker@example.net
+实际结果：返回 200，邮箱被修改
+预期结果：返回 403 或要求二次验证
+影响：任意已登录用户可被静默改绑邮箱，进而接管账号
+修复建议：校验 CSRF Token，并补充 Origin 校验与 SameSite=Lax
+证据：csrf.har、settings-after.png（手机号已打码）</code></pre>
+
+        <h2>交付前检查清单</h2>
+        <p>这份清单的用途不是打分，而是把安全测试从个人经验变成团队共识。每一条都能在验收会上用一分钟确认，不需要重跑全量回归。前三项是硬性要求，后面几项按项目成熟度取舍。</p>
+        <ul>
+          <li>授权文件是否覆盖本次环境、时间窗与允许的手法；</li>
+          <li>输入点表是否包含新增参数、Header 与文件上传入口；</li>
+          <li>改状态接口是否验证过无 token、外站 Origin 与跨站表单三种情况；</li>
+          <li>越权用例是否覆盖详情、导出、下载与批量查询；</li>
+          <li>无 token 请求是否统一返回 401，而不是返回数据或 500；</li>
+          <li>Cookie 是否带 HttpOnly 与 SameSite，响应头是否带 CSP 与 nosniff；</li>
+          <li>响应与错误页是否扫描过手机号、内网 IP 与堆栈；</li>
+          <li>每个缺陷是否附了脱敏后的请求原文与可复现步骤。</li>
+        </ul>
+        <p>最后提醒一句：所有验证都只在授权范围内进行。发现疑似漏洞时，优先保留证据和缩小影响，不要为了让报告更漂亮而继续利用。安全测试的价值在于让团队更早修掉问题，而不是证明你能攻破多少东西。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://owasp.org/www-project-top-ten/" target="_blank" rel="noopener">OWASP Top 10</a></li>
+            <li><a href="https://owasp.org/www-project-web-security-testing-guide/" target="_blank" rel="noopener">OWASP Web Security Testing Guide</a></li>
+            <li><a href="https://developer.mozilla.org/zh-CN/docs/Web/HTTP/Headers/Set-Cookie/SameSite" target="_blank" rel="noopener">MDN — Set-Cookie 与 SameSite</a></li>
+            <li><a href="https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CSP" target="_blank" rel="noopener">MDN — 内容安全策略 CSP</a></li>
+            <li><a href="https://portswigger.net/web-security" target="_blank" rel="noopener">PortSwigger Web Security Academy</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#security</span>
+          <span class="tag">#xss</span>
+          <span class="tag">#sql-injection</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

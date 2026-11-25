@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web 元素定位技巧：CSS 选择器与 XPath · 软件测试资料集</title>
+<meta name="description" content="从稳定性排序讲起，拆解 CSS 与 XPath 边界、动态 class、Shadow DOM、虚拟列表与降级链设计。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-element-locators.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Web 元素定位技巧：CSS 选择器与 XPath">
+<meta property="og:description" content="从稳定性排序讲起，拆解 CSS 与 XPath 边界、动态 class、Shadow DOM、虚拟列表与降级链设计。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-element-locators.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Web 元素定位技巧：CSS 选择器与 XPath">
+<meta name="twitter:description" content="从稳定性排序讲起，拆解 CSS 与 XPath 边界、动态 class、Shadow DOM、虚拟列表与降级链设计。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Web 元素定位技巧：CSS 选择器与 XPath","description":"从稳定性排序讲起，拆解 CSS 与 XPath 边界、动态 class、Shadow DOM、虚拟列表与降级链设计。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-element-locators.html","articleSection":"Web 自动化","keywords":"css-selector, xpath, web-automation","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>22 min read</span>
+        </div>
+        <h1>Web 元素定位技巧：CSS 选择器与 XPath</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-element-locators">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>定位是自动化里最先腐烂的资产</h2>
+        <p>维护过上百条 UI 用例的人大概都有同样的体验：断言和业务流程的代码半年没动，改的全是选择器。前端做一次改版、升级一次组件库、甚至只改了一句按钮文案，CI 上就出现一片红色，而每个红色背后都是同一句 <code>NoSuchElementException</code>。</p>
+        <p>这篇文章面向已经会写 <code>find_element</code> 与 <code>locator</code>、但仍在为为什么昨天还能跑付账的一线测试。这里不重复语法手册，而是把定位当成工程决策：哪些页面特征可以长期依赖，CSS 与 XPath 的边界在哪，iframe 与 Shadow DOM 怎么穿过去，失败时按什么顺序排查。</p>
+        <p>先给一个可操作的判断口径：把最近一个迭代的自动化提交分类，只统计改选择器、调等待、改定位范围这三类。如果它们超过总提交数的一半，说明问题不在某条选择器写错了，而在定位策略需要重构。这个统计十分钟能做完，比凭感觉讨论要不要换框架有效得多。</p>
+
+        <h2>稳定性排序：从测试属性到绝对路径</h2>
+        <p>判断一个特征是否稳定，只问三件事：它是不是人手写的、它的所有权离测试团队有多近、它会不会被构建工具重写。id 看似最稳，但 React 与 Vue 在列表渲染时经常生成运行期 id，刷新一次就变；name 在表单提交语义里很稳定，却被开发者当作随手字段；class 归样式方案所有，是最容易被重写的部分。</p>
+        <p>CSS 与 XPath 是描述层，本身不提供稳定性，稳定性来自你选中的那个特征。文本定位依赖渲染文案，单语环境很顺手，接入 i18n 后整片失效。相对定位是 Selenium 4 新增的能力，用 above、below、near 描述元素间关系，适合标签与输入框紧邻的表单，但它依赖视觉顺序，响应式布局换行后就可能指向别的元素。</p>
+        <table>
+          <thead>
+            <tr><th>定位方式</th><th>依赖的特征</th><th>稳定性</th><th>适用面</th><th>主要失效原因</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>data-testid</td><td>开发手写属性</td><td>高</td><td>所有可交互元素</td><td>命名不统一、被顺手删掉</td></tr>
+            <tr><td>role + 可访问名称</td><td>无障碍语义</td><td>高</td><td>按钮、输入框、标题</td><td>同名元素多、文案变更</td></tr>
+            <tr><td>name</td><td>表单提交字段</td><td>中高</td><td>输入框、单选、复选</td><td>字段重命名</td></tr>
+            <tr><td>人手写语义 class</td><td>样式约定</td><td>中</td><td>老项目、无测试属性</td><td>样式重构、组件库升级</td></tr>
+            <tr><td>可见文本</td><td>渲染文案</td><td>低</td><td>无属性可用时</td><td>多语言、文案润色</td></tr>
+            <tr><td>位置下标</td><td>节点顺序</td><td>极低</td><td>只用于排序结果</td><td>插入提示条、条件渲染</td></tr>
+            <tr><td>绝对路径</td><td>整棵 DOM 结构</td><td>极低</td><td>不建议使用</td><td>任意一层布局调整</td></tr>
+          </tbody>
+        </table>
+        <p>这张表的读法是自上而下选，而不是横向比较语法。每往下走一行，你依赖的外部约束就多一层。</p>
+
+        <h2>CSS 与 XPath 的能力边界</h2>
+        <p>把两者差别说成 CSS 快、XPath 慢，只说对了一半。真正决定选型的是能力差集。CSS 的匹配方向单向向下，只能描述后代、直接子元素、相邻或后续兄弟，不能从子元素反推父元素，也没有按文本匹配的语法。XPath 把文档当树走路径，可以向上、可以横向、可以按文本与函数过滤。</p>
+        <p>落到测试里最常见的四个需求，CSS 全都做不到：按可见文本点按钮、从子元素反查容器、按兄弟关系找输入框、跨节点取第 N 个。这四件事恰好是 XPath 的主场。CSS 的 <code>:has()</code> 让按后代反选祖先成为可能，但浏览器版本要求较新，表达能力仍限于后代条件，企业定制浏览器上不一定可用。</p>
+        <p>所以默认策略是：能用一条 CSS 说清的用 CSS，需要向上、按文本、按兄弟关系的直接用 XPath，不要为了风格统一硬翻。同时要防另一种矫枉过正，XPath 表达力强的代价是容易失控，没有锚点的深链既慢又脆，改一次布局就废。</p>
+        <div class="code-head"><span>python — CSS 表达不了的四个场景</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 简化结构
+# &lt;div class="order-card"&gt;
+#   &lt;span class="order-no"&gt;SO-20261123-001&lt;/span&gt;
+#   &lt;span class="amount"&gt;128.00&lt;/span&gt;
+#   &lt;button class="cancel"&gt;取消订单&lt;/button&gt;
+# &lt;/div&gt;
+
+# 1) 按可见文本定位，CSS 没有文本选择器
+driver.find_element(By.XPATH, "//button[normalize-space()='取消订单']")
+
+# 2) 先按订单号找卡片，再取卡片里的按钮（CSS 不能向上）
+driver.find_element(
+    By.XPATH,
+    "//span[@class='order-no' and normalize-space()='SO-20261123-001']"
+    "/ancestor::div[contains(@class,'order-card')]//button[contains(@class,'cancel')]",
+)
+
+# 3) 按兄弟关系定位，label 在 input 之前
+driver.find_element(
+    By.XPATH, "//label[normalize-space()='手机号']/following-sibling::input"
+)
+
+# 4) 按节点序取第二个金额单元格
+driver.find_element(By.XPATH, "(//td[@class='amount'])[2]")</code></pre>
+
+        <h2>绝对 XPath 为什么一定会烂，动态 class 怎么绕</h2>
+        <p>绝对路径的问题不是不好看，而是它把每一层结构都变成了契约。<code>/html/body/div[2]/div/div[1]/button</code> 里每个下标都可能在一次布局调整后漂移，失败时只给一句找不到元素，连是哪一层断了都不知道。给容器外面套一层 div 做布局、把按钮从 form 里挪出来，都会应声而断。</p>
+        <p>动态 class 也不是前端不讲究，而是现代样式方案的默认行为。CSS Modules 把 <code>.root</code> 编译成带文件哈希的类名，styled-components 在运行期生成 <code>sc-</code> 前缀的类名，原子化方案的类名稳定但组合顺序随编辑变化、区分度极低。用前缀匹配只是把立刻坏推迟成某天突然坏。</p>
+        <p>应对顺序是：先争取 data-testid，拿不到就锚定语义属性，再不行用稳定祖先加结构关系，最后才考虑前缀匹配。一个快速判断法是把页面上的 class 复制到源码目录里搜，能搜到说明是人写的、相对稳定；搜不到基本就是构建产物。</p>
+        <div class="code-head"><span>html — 构建产物类名的三种形态</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>&lt;!-- CSS Modules：文件名 + 局部名 + 哈希 --&gt;
+&lt;button class="Button_root__3xYz Button_primary__1a2b"&gt;提交&lt;/button&gt;
+
+&lt;!-- styled-components：组件标识 + 运行期哈希 --&gt;
+&lt;button class="sc-bdVaJa kEYwYc"&gt;提交&lt;/button&gt;
+
+&lt;!-- 原子化：类名稳定但组合顺序会变，区分度低 --&gt;
+&lt;button class="px-4 py-2 bg-blue-600 text-white"&gt;提交&lt;/button&gt;
+
+# 不推荐：对构建哈希做前缀匹配
+driver.find_element(By.CSS_SELECTOR, "button[class*='Button_root']")
+
+# 推荐：语义属性 + 稳定祖先
+driver.find_element(
+    By.CSS_SELECTOR,
+    "form[data-testid='checkout-form'] button[type='submit']",
+)
+
+# 可接受：人手写且语义稳定的类名（老项目常见）
+driver.find_element(By.CSS_SELECTOR, ".order-card .btn-cancel")</code></pre>
+
+        <h2>文本定位：多语言、空白字符与模糊匹配</h2>
+        <p>文本定位的第一个坑是空白。源码里常见的写法是按钮标签换行加缩进，渲染后文本变成前后带空格的字符串，<code>text()='提交'</code> 直接匹配不到。XPath 里用 <code>normalize-space()</code> 把连续空白压成单个空格并去掉首尾，这一步能消掉大半莫名其妙的失败。</p>
+        <p>第二个坑是模糊匹配的误伤。<code>contains(text(),'提交')</code> 会同时命中提交、提交订单、重新提交，页面上有三个按钮时直接报匹配到多个。要么把文案写全，要么先限定在表单或弹窗范围内，再按文本找。</p>
+        <p>第三个坑是多语言与特殊字符。测试环境语言被切换、文案被产品润色、日文与中文之间夹了全角空格或不换行空格，都会让固定文本失效。可行做法是固定测试环境语言并加一条语言断言，或者改用 role 加可访问名称，让失败信息指向本地化变更而不是业务崩溃。</p>
+        <div class="code-head"><span>python — 文本定位的正确写法</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 不推荐：对缩进换行敏感，匹配不到就报找不到
+driver.find_element(By.XPATH, "//button[text()='提交']")
+
+# 推荐：压缩空白后再比较
+driver.find_element(By.XPATH, "//button[normalize-space()='提交']")
+
+# 模糊匹配必须限定作用域，否则命中多个
+dialog = driver.find_element(By.CSS_SELECTOR, "[role='dialog']")
+dialog.find_element(By.XPATH, ".//button[contains(normalize-space(),'提交')]")
+
+# Playwright：默认子串匹配，exact=True 才是全字匹配
+page.get_by_role("button", name="提交", exact=True).click()
+page.get_by_text(re.compile(r"^\s*提交\s*$")).click()
+
+# 先确认测试环境语言，避免整片文本定位随语言切换失效
+assert page.locator("html").get_attribute("lang") == "zh-CN"</code></pre>
+
+        <h2>穿透上下文：iFrame 与 Shadow DOM</h2>
+        <p>元素在 iframe 里时，主文档的 XPath 与 CSS 都看不到它，必须先切换。Selenium 用 <code>switch_to.frame()</code>，参数优先传 WebElement 而不是索引，索引会随页面结构变化。两个高频坑：处理完忘记切回默认文档，后续所有定位都在错误上下文里执行；iframe 内元素已出现但 iframe 本身没加载完，切换时抛 <code>NoSuchFrameException</code>。</p>
+        <p>Shadow DOM 是 Web Components 的封装边界。open 模式下，Playwright 的 CSS 定位器会自动穿透 shadow root，写后代选择器就能命中内部节点；XPath 则完全不穿透，在 shadow 内部永远找不到。Selenium 4 提供 <code>shadow_root</code> 属性，需要逐层进入，先拿宿主元素再取 shadow root。</p>
+        <p>closed 模式是真正的墙，外部脚本拿不到 shadowRoot，任何定位器都进不去。这不是工具缺陷，而是封装设计的必然结果。可行路径只有两条：推动开发把 mode 改成 open，或者让组件把关键状态通过属性投影到外部。遇到 closed 时，先确认这个组件是否值得纳入自动化覆盖。</p>
+        <div class="code-head"><span>python — 三种上下文的处理方式</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># Selenium 4：进入 open shadow root 后再查找
+host = driver.find_element(By.CSS_SELECTOR, "price-card")
+shadow = host.shadow_root
+print(shadow.find_element(By.CSS_SELECTOR, ".price").text)
+
+# Selenium：iframe 用 WebElement 切换，处理完切回默认文档
+frame_el = driver.find_element(By.CSS_SELECTOR, "iframe#pay-frame")
+driver.switch_to.frame(frame_el)
+driver.find_element(By.ID, "card-number").send_keys("4111111111111111")
+driver.switch_to.default_content()
+
+# Playwright：CSS 定位器自动穿透 open shadow root，XPath 不穿透
+print(page.locator("price-card .price").inner_text())
+# 下面这行在 shadow 内部会失败，因为 XPath 不穿透
+# page.locator("xpath=.//span[@class='price']")
+
+# Playwright：iframe 用 frame_locator 链式限定，无需手动切换
+pay = page.frame_locator("iframe#pay-frame")
+pay.get_by_label("卡号").fill("4111111111111111")</code></pre>
+
+        <h2>列表项与虚拟列表：第 N 个元素怎么找</h2>
+        <p>列表是定位事故的高发区。最典型的写法是取第 3 行点取消，一旦顶部插了一条系统公告，第 3 行就换了内容。正确做法是用业务键定位行：订单号、手机号、任务名，这些是用户能识别、后端也一定唯一的东西。Playwright 里用 <code>filter(has_text=...)</code> 或 <code>get_by_role('row')</code> 加文本，Selenium 里用 XPath 先锚定行再在行内找按钮。</p>
+        <p>虚拟列表更麻烦。组件只渲染可视区的十几行，滚动时复用 DOM 节点，你按业务键找不到目标行不代表数据不存在。这时候必须滚动加载再重新定位，而且要接受每次滚动后元素引用会失效的事实，不能把 WebElement 缓存在循环外。</p>
+        <p>判断列表是否虚拟化，最快的办法是数 DOM 行数与页面显示的总条数。总条数一万而 DOM 里只有二十行，就是虚拟列表。这类页面不适合断言总条数，总数应该从接口响应或分页信息里拿，DOM 只用来验证当前可视区。</p>
+        <div class="code-head"><span>python — 虚拟列表的滚动查找</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from selenium.webdriver.common.by import By
+
+TARGET = "SO-20261123-001"
+
+def find_virtual_row(driver, target, max_scroll=30):
+    """按业务键在虚拟列表中查找，滚动后必须重新定位"""
+    for i in range(max_scroll):
+        rows = driver.find_elements(By.CSS_SELECTOR, "[data-testid='order-row']")
+        for row in rows:
+            if target in row.text:
+                # 找到就返回行内的按钮，避免跨轮次复用旧引用
+                return row.find_element(By.CSS_SELECTOR, "button.cancel")
+        driver.execute_script(
+            "document.querySelector('[data-testid=list-viewport]')"
+            ".scrollTop += 600;"
+        )
+        driver.implicitly_wait(0.3)
+    raise AssertionError(f"滚动 {max_scroll} 次仍未找到 {target}")</code></pre>
+
+        <h2>一个元素多套定位：降级链怎么设计</h2>
+        <p>单一选择器在改版面前没有冗余，降级链解决的就是这个问题：同一个元素登记两到三套定位，按稳定性从高到低尝试，第一个命中的就是结果。它不能提高单条定位的稳定性，但能把改版带来的失败从必然变成概率。</p>
+        <p>设计要点有三个。顺序按稳定性排，测试属性最前，文本与位置最后；每一级给很短的超时，避免一个坏选择器吃掉三十秒；命中结果要打日志，记录这次走的是第几级，长期统计能看出哪些元素一直在靠兜底。</p>
+        <p>代价也要说清。每次降级都要多一次查询，页面元素多时累积起来不可忽略；更危险的是它掩盖问题，某条用例永远走最后一级文本匹配，表面上一直绿，直到多语言上线才集体崩。所以命中低层级时应当产生告警，而不是静默通过。</p>
+        <div class="code-head"><span>python — 三级降级链</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.common.by import By
+
+
+def find_with_fallback(driver, name, tiers):
+    """tiers 按稳定性从高到低排列，命中后记录层级"""
+    for level, (by, value) in enumerate(tiers, start=1):
+        try:
+            el = driver.find_element(by, value)
+            if level &gt; 1:
+                print(f"[定位降级] {name} 命中第 {level} 级: {value}")
+            return el
+        except NoSuchElementException:
+            continue
+    raise AssertionError(f"{name} 三级定位全部失败: {tiers}")
+
+
+submit = find_with_fallback(driver, "结算按钮", [
+    (By.CSS_SELECTOR, "[data-testid='checkout-submit']"),
+    (By.CSS_SELECTOR, "form[data-testid='checkout-form'] button[type='submit']"),
+    (By.XPATH, "//button[normalize-space()='去结算']"),
+])</code></pre>
+
+        <h2>定位失败的排查顺序</h2>
+        <p>同一个报错背后可能是五种原因，所以排查必须有顺序，按验证成本从低到高。第一问，在不在 DOM：匹配数量是不是零。为零通常是页面没渲染完、定位写错层级，或者元素根本在 iframe 与 shadow root 里。第二问，命中几个：大于一说明选择器不够具体，点下去很可能点到别人。</p>
+        <p>第三问，可见不可见。元素在 DOM 里但 <code>display:none</code>、宽高为零、被移到屏幕外，都会让点击失败，此时问题不是定位而是等待或滚动。第四问，被谁挡住。用一个点坐标做 <code>elementFromPoint</code>，看点击落点上到底是谁，比逐层猜 z-index 快得多。</p>
+        <p>还有一种不属于以上四类的失败：元素被重渲染，定位成功但操作时抛 <code>StaleElementReferenceException</code>。原因是前端用新节点替换了旧节点，而你手里握着旧引用。解法是缩短定位到操作的时间窗，把操作封装成重新定位再执行，不要跨步骤缓存 WebElement。</p>
+        <div class="code-head"><span>python — 一次输出四个问题的诊断</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from selenium.webdriver.common.by import By
+
+
+def diagnose(driver, by, value):
+    elements = driver.find_elements(by, value)
+    print(f"匹配数量: {len(elements)}")
+    if not elements:
+        frames = len(driver.find_elements(By.TAG_NAME, "iframe"))
+        hosts = len(driver.find_elements(By.CSS_SELECTOR, "*"))
+        print(f"iframe 数量: {frames}，文档节点总数: {hosts}")
+        print("提示: 不在 DOM，先查渲染时机、iframe 与 shadow root")
+        return
+
+    el = elements[0]
+    rect = el.rect
+    print(f"可见: {el.is_displayed()} 启用: {el.is_enabled()}")
+    print(f"位置: x={rect['x']} y={rect['y']} "
+          f"w={rect['width']} h={rect['height']}")
+
+    if el.is_displayed() and rect["width"] &gt; 0:
+        cx = rect["x"] + rect["width"] / 2
+        cy = rect["y"] + rect["height"] / 2
+        top = driver.execute_script(
+            "const el = document.elementFromPoint(arguments[0], arguments[1]);"
+            "return el ? el.tagName + '.' + el.className : null;",
+            cx, cy,
+        )
+        print(f"点击落点上的元素: {top}")</code></pre>
+        <p>把这段诊断挂进失败钩子，比在 CI 日志里翻堆栈有用。它同时回答了有没有找到、找到几个、看不看得见、点下去会点到谁，而普通异常只回答第一个。</p>
+
+        <h2>Playwright locator 与 Selenium By 写法对照</h2>
+        <p>两套 API 的心智模型不同。Selenium 的 <code>find_element</code> 是立即查找，找不到就抛异常，等待要靠<a class="ilink" href="web-wait-strategies.html">显式等待</a>或隐式等待控制。Playwright 的 <code>locator</code> 是惰性描述，真正解析发生在动作那一刻，自带自动等待与唯一性检查，所以写起来更像在描述元素，而不是在某一秒抓取元素。这个差别直接影响迁移：Selenium 允许定位到多个时取第一个，Playwright 默认在多个匹配时报 strict mode violation，必须显式 <code>.first</code> 或先限定作用域。</p>
+        <table>
+          <thead>
+            <tr><th>场景</th><th>Selenium</th><th>Playwright</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>测试属性</td><td><code>By.CSS_SELECTOR, [data-testid=x]</code></td><td><code>get_by_test_id(x)</code></td></tr>
+            <tr><td>ID</td><td><code>By.ID, x</code></td><td><code>locator(#x)</code></td></tr>
+            <tr><td>按文本</td><td><code>By.XPATH, //button[normalize-space()=x]</code></td><td><code>get_by_text(x, exact=True)</code></td></tr>
+            <tr><td>按角色</td><td>XPath 拼 <code>@role</code> 与 <code>@aria-label</code></td><td><code>get_by_role(button, name=x)</code></td></tr>
+            <tr><td>按 label</td><td>XPath 找 <code>label</code> 再取兄弟节点</td><td><code>get_by_label(x)</code></td></tr>
+            <tr><td>多个匹配</td><td>默认返回第一个</td><td>默认报错，需 <code>.first</code></td></tr>
+            <tr><td>iframe</td><td><code>switch_to.frame()</code></td><td><code>frame_locator()</code></td></tr>
+            <tr><td>Shadow DOM</td><td><code>shadow_root</code> 逐层进入</td><td>CSS 自动穿透 open 模式</td></tr>
+          </tbody>
+        </table>
+        <div class="code-head"><span>python — 同一操作的两种写法</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># Selenium：立即查找，等待与切帧都要手写
+from selenium.webdriver.common.by import By
+
+driver.find_element(By.CSS_SELECTOR, "[data-testid='search-input']").send_keys("SO-001")
+driver.find_element(By.CSS_SELECTOR, "[data-testid='search-submit']").click()
+driver.switch_to.frame(driver.find_element(By.CSS_SELECTOR, "iframe#detail"))
+print(driver.find_element(By.CSS_SELECTOR, ".order-no").text)
+
+# Playwright：惰性 locator，动作时才解析并自动等待
+page.get_by_test_id("search-input").fill("SO-001")
+page.get_by_test_id("search-submit").click()
+detail = page.frame_locator("iframe#detail")
+detail.locator(".order-no").inner_text()
+
+# 同名元素多时必须限定作用域或显式取第一个
+page.get_by_role("row").filter(has_text="SO-001")
+    .get_by_role("button", name="取消订单").click()</code></pre>
+        <p>迁移时最容易被忽略的是等待语义。Selenium 的隐式等待被取消后，一条原本靠隐式等待撑住的用例会立刻暴露；Playwright 的自动等待只覆盖可操作性检查，不覆盖业务数据加载，接口返回慢时仍然要显式断言等待某个状态，而不是等固定秒数。</p>
+
+        <h2>上线前的定位检查清单</h2>
+        <p>这份清单的用途不是打分，而是把修定位从个人经验变成团队共识。每一条都能在代码评审时用一分钟确认，不需要跑全量回归。前四条是硬性要求，后面几条按项目成熟度取舍。</p>
+        <ul>
+          <li>是否出现绝对路径，或超过四层的后代链；</li>
+          <li>是否用位置下标承担唯一指认的职责；</li>
+          <li>是否引用了构建产物类名，如哈希、<code>sc-</code>、<code>css-</code> 前缀；</li>
+          <li>是否至少有 data-testid、role、name 中的一种语义锚点；</li>
+          <li>文本定位是否处理了空白与多语言，是否限定了作用域；</li>
+          <li>涉及 iframe 与 Shadow DOM 的用例是否显式处理了上下文切换；</li>
+          <li>列表用例是否按业务键定位，虚拟列表是否做了滚动查找；</li>
+          <li>失败时能否看到匹配数量与 DOM 快照，而不只是一行异常。</li>
+        </ul>
+        <p>最后一条经常被忽略，收益却最大：把匹配数量打进日志。定位失败时最需要知道的不是没找到，而是找到了零个还是三个。前者指向时机与上下文，后者指向选择器不够具体，两种修法完全相反。定位没有一劳永逸，只有成本转移：把成本从每次改版后大规模修选择器，转移到上线前与开发约定测试属性。前者的成本随用例数量线性增长，后者基本是一次性投入。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://developer.mozilla.org/zh-CN/docs/Web/CSS/CSS_selectors" target="_blank" rel="noopener">MDN — CSS 选择器</a></li>
+            <li><a href="https://developer.mozilla.org/zh-CN/docs/Web/XML/XPath" target="_blank" rel="noopener">MDN — XPath</a></li>
+            <li><a href="https://www.w3.org/TR/1999/REC-xpath-19991116/" target="_blank" rel="noopener">W3C — XML Path Language (XPath) 1.0</a></li>
+            <li><a href="https://playwright.dev/python/docs/locators" target="_blank" rel="noopener">Playwright — Locators</a></li>
+            <li><a href="https://www.selenium.dev/documentation/webdriver/elements/locators/" target="_blank" rel="noopener">Selenium — 定位器与相对定位</a></li>
+            <li><a href="https://developer.mozilla.org/zh-CN/docs/Web/API/Web_components/Using_shadow_DOM" target="_blank" rel="noopener">MDN — 使用 Shadow DOM</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#css-selector</span>
+          <span class="tag">#xpath</span>
+          <span class="tag">#web-automation</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

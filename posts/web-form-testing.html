@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web 表单测试：输入验证 + 边界值 · 软件测试资料集</title>
+<meta name="description" content="表单测试全维度：边界值、前后端分层验证、幂等与上传伪造、三层断言。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-form-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Web 表单测试：输入验证 + 边界值">
+<meta property="og:description" content="表单测试全维度：边界值、前后端分层验证、幂等与上传伪造、三层断言。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-form-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Web 表单测试：输入验证 + 边界值">
+<meta name="twitter:description" content="表单测试全维度：边界值、前后端分层验证、幂等与上传伪造、三层断言。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Web 表单测试：输入验证 + 边界值","description":"表单测试全维度：边界值、前后端分层验证、幂等与上传伪造、三层断言。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-form-testing.html","articleSection":"Web 自动化","keywords":"form-testing, boundary-value, web-automation","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Web 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>19 min read</span>
+        </div>
+        <h1>Web 表单测试：输入验证 + 边界值</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-form-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>这篇写给谁，解决什么问题</h2>
+        <p>表单是 Web 测试里最高频、也最容易被做浅的场景。多数人测表单的方式是：填一组正常值提交成功，再填一个空值看到红色提示，就算测过了。上线之后仍然会出现手机号带空格注册失败、姓名写四个字被截断、金额少一分钱、用户连点两次生成两笔订单。这些都不是「没填对」，而是某条校验规则在某条路径上没有生效。</p>
+        <p>表单测试的本质是验证规则的一致性：需求文档写的规则、前端实现的规则、服务端实现的规则，三者必须对齐，而且每条规则要在正确的时机被触发。任何一处偏差，都是一个能被用户或攻击者利用的缺口。把这个一致性测出来，比盲目填几百个随机值有效得多。</p>
+        <p>这篇按六个部分展开：先给出可逐条对照的检查维度清单，再把等价类与边界值落到金额、手机号、日期这类真实字段上；然后讲前后端分开验、文案与多语言、幂等与并发提交、上传伪造与落库校验；最后落到自动化的数据驱动与三层断言。可以把它当成一份表单测试的作业手册。</p>
+
+        <h2>检查维度清单：九个方向逐条过</h2>
+        <p>拿到一个字段，先不要急着填值，而是按九个方向过一遍。必填：空值、只填空格、只填换行是否都被拦住。类型：本应是整数的位置填小数、填字母、填布尔字符串。长度：最小、最大、超一位、少一位。格式：手机号、邮箱、证件号的字符集与分段。边界：区间的端点与端点外一位。</p>
+        <p>剩下四个方向最容易被漏。特殊字符：引号、反斜杠、尖括号、emoji、零宽字符、从 Excel 粘进来的不可见字符。前后空格：首尾空格该 trim 还是该报错，中间连续空格是否压缩，全角空格算不算。重复提交：双击、回车键连续按、请求超时后自动重试。并发提交：两个标签页同时提交、两个人同时抢最后一个名额。</p>
+        <p>这九个方向不是每个字段都要全测，而是用来做筛选：金额重点看类型、精度、边界与并发；描述文本框重点看长度、特殊字符与前后空格；枚举重点看非法值与隐藏字段残留。按方向建清单，比按页面建用例更不容易漏，因为同类控件在不同页面上的坑高度重复。</p>
+        <table>
+          <thead>
+            <tr><th>方向</th><th>典型取值</th><th>期望结果</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>必填</td><td>空串、单个空格、换行</td><td>阻止提交并定位到该字段</td></tr>
+            <tr><td>长度</td><td>最大值减一、等于、加一</td><td>边界内通过，边界外被拒</td></tr>
+            <tr><td>格式</td><td>合法样例、少一位、多一段</td><td>只接受符合规则的形态</td></tr>
+            <tr><td>前后空格</td><td>首尾空格、全角空格</td><td>按约定 trim 或提示</td></tr>
+            <tr><td>重复 / 并发</td><td>双击、重放、双标签页</td><td>只产生一条业务记录</td></tr>
+          </tbody>
+        </table>
+
+        <h2>等价类与边界值落到具体字段</h2>
+        <p>等价类划分的核心是同一类里任取一个，结果应该相同。长度三到二十的用户名，有效类是三到二十位的合法字符，无效类包括空、过短、过长、含非法字符，每类取一个代表值就够。边界值是在此之上再切一刀：错误往往发生在边界而不是区间中间，所以三到二十要测二、三、二十、二十一，而且每个边界单独成条，不要合并。</p>
+        <p>金额字段有三层边界，很多人只测了第一层。数值边界是零、负数、上限、上限加一；精度边界是一位小数、两位小数、三位小数，以及 <code>0.1 + 0.2</code> 这类浮点误差；格式边界是千分位、货币符号、科学计数法 <code>1e3</code>、前后空格。金额还要专门测一分钱的差额，因为舍入方式和币种精度常常前后端不一致。</p>
+        <p>手机号与日期各有自己的坑。手机号要覆盖十位、十一位、十二位，首位非一，第二位为零，带 <code>+86</code>、带空格、带横线、全角数字，以及 170 号段这类虚拟运营商。日期要覆盖二月二十九在平年与闰年的差异、十三月、零日、起止日期倒置、跨年、跨时区时「今天」差一天，还有被禁用却仍能通过接口写入的日期。这些值在界面上点不出来，必须用接口直接构造。</p>
+        <div class="code-head"><span>python — 按字段类型生成边界值</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>def amount_cases():
+    return [
+        ('zero', '0.00'),
+        ('negative', '-0.01'),
+        ('one_cent_over', '100.01'),
+        ('third_decimal', '9.999'),
+        ('scientific', '1e3'),
+        ('thousand_sep', '1,000.00'),
+    ]
+
+
+def phone_cases():
+    return [
+        ('ten_digits', '1380000000'),
+        ('eleven_digits', '13800000000'),
+        ('twelve_digits', '138000000000'),
+        ('plus_86', '+8613800000000'),
+        ('fullwidth', '１３８００００００００'),
+        ('with_space', '138 0000 0000'),
+    ]
+
+
+def date_cases(year: int):
+    return [
+        ('leap_day', f'{year}-02-29'),
+        ('month_13', f'{year}-13-01'),
+        ('day_zero', f'{year}-01-00'),
+        ('range_reversed', f'{year}-12-01~{year}-11-01'),
+    ]</code></pre>
+        <p>生成器只负责把值列全，判定仍然要靠人。比如二月二十九在平年该被拒绝，闰年该通过，同一个值在不同年份结论相反；再比如带空格的手机号，有的产品选择自动去除空格，有的选择报错，两种都合理，但不能前后端各选一种。</p>
+
+        <h2>前端校验与后端校验必须分开验</h2>
+        <p>一个字段的校验通常分布在三个位置：输入中或失焦时的即时提示、点击提交时的拦截、服务端的最终校验。前两层都跑在用户浏览器里，用户可以完全控制它。禁用脚本、删掉 <code>maxlength</code> 属性、改掉按钮的禁用状态、直接拿接口地址发请求，任何一种都能让前端校验形同虚设。</p>
+        <p>只测前端会漏掉最严重的一类问题。如果服务端没有独立校验，超长字符串、负数金额、不在枚举内的值、别人的订单号都会直接落库，轻则脏数据，重则越权与注入。只测服务端同样会漏：前端可能把合法输入误判为非法，姓名里的间隔号、少数民族姓名的长度、国际号码的加号、地址里的括号，都可能被一条过严的正则拦下，用户根本提交不上去。</p>
+        <p>所以三层要分别断言，而且断言内容不同：前端层断言提示出现的时机与文案，提交层断言不合法时没有发出请求，服务端层断言绕过界面直接调用也能被正确拒绝。三条用例互相独立，任何一条失败都能直接指向出问题的那一层，而不是笼统地说「表单有问题」。</p>
+        <div class="code-head"><span>python — 三层分别断言</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from playwright.sync_api import Page, expect
+
+
+def test_inline_hint_on_blur(page: Page):
+    phone = page.get_by_label('手机号')
+    phone.fill('1380000')
+    page.keyboard.press('Tab')
+    expect(page.get_by_test_id('phone-error')).to_have_text('请输入 11 位手机号')
+
+
+def test_submit_blocks_request(page: Page):
+    sent = []
+    page.on('request', lambda req: sent.append(req.url))
+    page.get_by_label('手机号').fill('1380000')
+    page.get_by_role('button', name='注册').click()
+
+    expect(page.get_by_test_id('phone-error')).to_be_visible()
+    assert not [url for url in sent if '/api/register' in url]
+
+
+def test_server_rejects_bypass(api):
+    resp = api.post('/api/register', json={'phone': '1380000'})
+    assert resp.status_code == 422
+    assert resp.json()['field'] == 'phone'</code></pre>
+        <p>绕过前端的那条用例最容易写，也最容易忘。它用的就是真实地址和真实参数，唯一去掉的是浏览器这一层，凡是前端有、接口没有的规则，都会在这里露出来。断言要同时看状态码和字段名，因为 500 也会让「非 200」的断言通过，而那恰恰说明服务端崩了而不是校验生效。</p>
+        <div class="code-head"><span>python — 绕过界面直接验证服务端</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import requests
+
+BASE = 'https://app.example.com'
+token = requests.post(f'{BASE}/api/login', json={
+    'account': 'qa_bot', 'password': 'from-env',
+}).json()['token']
+headers = {'Authorization': f'Bearer {token}'}
+
+# 前端 maxlength=20，这里直接发 5000 个字符
+resp = requests.post(f'{BASE}/api/users', headers=headers, json={
+    'username': '测' * 5000,
+    'email': 'qa@example.com',
+})
+assert resp.status_code == 422, '服务端未校验用户名长度'
+assert resp.json()['field'] == 'username'</code></pre>
+
+        <h2>校验提示：文案质量与多语言一致性</h2>
+        <p>提示文案要当需求验收，而不是当随机字符串比对。合格的提示指明哪个字段、错在哪、该怎么改，「手机号需为 11 位数字」比「输入有误」有用得多。位置同样重要：字段级错误紧贴字段，表单级错误在顶部汇总并滚动到可见区域，提交失败后焦点移到第一个出错字段，键盘用户才不用从头 Tab 一遍。</p>
+        <p>多语言是文案测试里最容易翻车的地方，中文环境一切正常，切到英文或德语就出问题。常见三种：文案没进翻译表，界面上直接显示 key；占位符顺序在不同语言里不同，英文是两个参数、日文是一个参数，替换后句子不通；德语、俄语文本普遍比中文长，提示把按钮挤出容器或被截断。这些都要在不同语言下各跑一遍，且要把切换语言的入口做成可自动化的参数，而不是靠人工点。</p>
+        <p>断言怎么写也有讲究。直接断言中文文案，会把用例和语言绑死，以后每加一种语言就要复制一份；更稳的做法是用稳定的错误码或 <code>data-error</code> 属性断言语义，再用一条单独的用例校验该语言的文案内容。文案本身会改，语义不该改，两者分开维护，改动才可控。</p>
+        <p>还有一层常被忽略：提示的可访问性。错误状态不能只靠红色表达，要有 <code>aria-invalid</code>；提示要通过 <code>aria-describedby</code> 关联到字段；动态出现的汇总要加 <code>role=alert</code> 或 <code>aria-live</code>，读屏软件才会播报。这些属性同时也是最稳的测试锚点，比找红色类名可靠得多。</p>
+
+        <h2>提交幂等：双击、重试与返回再提交</h2>
+        <p>用户连点两下提交按钮，在<a class="ilink" href="app-weak-network-testing.html">弱网</a>下是常态而不是异常。如果服务端没有幂等保护，结果就是两笔订单、两条工单、两次扣款。前端把按钮置灰只能降低概率，不能解决问题：请求已经发出去了，刷新后再提、浏览器后退再提、用脚本直接调用，都能绕开这层遮罩。</p>
+        <p>攻击面比想象的多。除了双击，还有客户端或网关在超时后自动重试，同一个请求被投递两次；表单提交后用户按返回键，页面从缓存里恢复，再点一次又发一遍；两个标签页打开同一个表单，各自提交。这些路径的共同点是请求体完全一致，服务端如果只看内容，无法区分它们是不是同一次意图。</p>
+        <p>正确的设计是幂等键：前端进入表单时生成一个唯一标识，随请求一起提交，服务端以它为唯一约束，重复请求返回第一次的结果而不是新建。测试时不要只点两下按钮，要分别模拟双击、同键并发、返回再提交三条路径，然后断言数据库里只有一条记录。断言对象是业务结果，不是页面有没有报错，因为第二次请求可能被静默吞掉，用户以为成功其实没有。</p>
+        <div class="code-head"><span>python — 双击与同键重放都只生成一单</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>def test_double_click_creates_one_order(page: Page, buyer):
+    page.goto('/checkout')
+    btn = page.get_by_role('button', name='提交订单')
+
+    btn.click()
+    btn.click(force=True)
+
+    expect(page).to_have_url('/order/success')
+    assert buyer.order_count() == 1
+
+
+def test_replay_with_same_key(api, buyer):
+    payload = {'sku': 'SKU-1001', 'qty': 1, 'idempotency_key': buyer.new_key()}
+    first = api.post('/api/orders', json=payload)
+    second = api.post('/api/orders', json=payload)
+
+    assert first.status_code == 201
+    assert second.status_code in (200, 201, 409)
+    assert first.json()['order_no'] == second.json()['order_no']</code></pre>
+        <p>第二次请求返回 200、201 还是 409，取决于接口约定，三种都可能正确，关键是订单号一致且没有新建记录。测试要跟着约定走，而不是硬编码某一种状态码，否则接口一调整，用例就误报。</p>
+
+        <h2>文件上传：类型、大小与伪造 MIME</h2>
+        <p>文件上传是表单里安全风险最高的一块。只校验扩展名是典型的假安全，把可执行文件的扩展名改成图片后缀就能通过；只看请求头里的 <code>Content-Type</code> 同样不够，因为那是客户端自己声明的，随便改。真正的校验要读文件头字节，确认实际内容类型与声明一致，同时限制大小、数量和存储路径。</p>
+        <p>测试样本要专门准备：正常图片、把后缀改掉的文本文件、双扩展名 <code>shell.jpg.php</code>、零字节文件、超出上限一字节的文件、文件名带路径穿越 <code>../../etc/passwd</code>、同名文件重复上传、超长文件名、以及内容与后缀不符的图片。每个样本都要分别从前端和接口各提交一次，因为前端可能只拦了后几名，服务端一条都没拦。</p>
+        <p>大小限制要测三个点：等于上限、上限加一字节、以及分片上传时单片超限。类型限制要测白名单与黑名单两种策略的差异，白名单更安全但容易误杀，比如 iPhone 拍的 HEIC 照片。还要确认上传失败后临时文件是否被清理，否则磁盘会被慢慢填满。</p>
+        <div class="code-head"><span>python — 服务端校验内容类型</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>ALLOWED = {
+    b'\xff\xd8\xff': 'image/jpeg',
+    b'\x89PNG\r\n\x1a\n': 'image/png',
+    b'GIF87a': 'image/gif',
+    b'GIF89a': 'image/gif',
+}
+
+
+def sniff(head: bytes) -&gt; str | None:
+    for magic, mime in ALLOWED.items():
+        if head.startswith(magic):
+            return mime
+    return None
+
+
+def test_reject_disguised_upload(api, tmp_path):
+    fake = tmp_path / 'avatar.png'
+    fake.write_bytes(b'&lt;?php echo 1; ?&gt;')   # 后缀是 png，内容是脚本
+
+    with fake.open('rb') as fh:
+        resp = api.post('/api/upload', files={'file': ('avatar.png', fh, 'image/png')})
+
+    assert resp.status_code == 415
+    assert resp.json()['reason'] == 'content_type_mismatch'</code></pre>
+        <p>这个样例的关键在于同时伪造了后缀和请求头，只靠任何单一信号都无法识破，必须读到文件头第一个字节。服务端返回 415 而不是 400，语义更准确，测试断言时也不必纠结具体数字，断言 <code>content_type_mismatch</code> 这个原因码更稳。</p>
+
+        <h2>落库校验：页面成功不等于数据正确</h2>
+        <p>表单测试最后一公里在数据库里。页面提示「保存成功」只说明请求返回了 200，不代表存进去的值和你填的一样。常见的落库偏差有五种：前后空格没 trim，导致「张三」和「张三 」两条并存；emoji 或生僻字在库里的字符集不支持，被替换成问号；金额按浮点存，0.1 加 0.2 变成 0.30000000000000004；日期按本地时间存成 UTC，差八小时；富文本提交的 HTML 被服务端过滤，样式全丢。</p>
+        <p>所以断言要分三层：界面提示、接口响应、落库结果。界面提示证明用户被告知了什么，接口响应证明契约对不对，落库结果证明数据真的正确。三层里最容易被跳过的是第三层，而它恰恰是唯一能发现「静默截断」「悄悄 trim」「精度丢失」的地方。</p>
+        <p>落库校验不等于直接连生产库查数据，测试环境可以通过测试支撑接口读取，或者查只读从库。要断言的不只是值相等，还有类型、精度、字符集和时区：金额字段的 <code>DECIMAL(10,2)</code> 是否真的保留了两位，时间字段存的是 UTC 还是本地时间，长度字段是按字符还是按字节截断。</p>
+
+        <h2>自动化表单用例：数据驱动与三层断言</h2>
+        <p>表单用例天然适合数据驱动：一套步骤，几十组数据。用参数化把字段、取值、期望结果列成表，新增边界只需要加一行。但要注意两点：一是数据表里要带用例标识，失败时能一眼看出是哪组值挂了；二是不要把所有断言塞进同一个参数化用例，前端提示、接口状态、落库结果分属三层，混在一起失败原因就模糊了。</p>
+        <p>断言层次建议固定成模板：第一层断言提示文案或错误码，第二层断言接口状态与字段名，第三层断言落库后的值。前两层可以在同一条用例里完成，第三层单独用接口断言，因为它需要绕开页面直接查数据。这样一条用例失败时，你能立刻判断是提示错了、接口错了还是存错了。</p>
+        <p>输入动作也要封装。先用 <code>fill</code> 清空再赋值，最后让字段失焦，因为不少校验绑在 blur 事件上；日期直接按 ISO 格式填，不要模拟点日历；下拉按标签选而不是按索引，索引会随选项顺序变化；富文本在 iframe 里，要先切进去再操作。把这些收进工具函数，用例本身就能保持可读。</p>
+        <div class="code-head"><span>python — 数据驱动与三层断言</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+from playwright.sync_api import Page, expect
+
+
+@pytest.mark.parametrize('value, hint', [
+    ('', '请输入手机号'),
+    ('1380000', '请输入 11 位手机号'),
+    ('138000000000', '请输入 11 位手机号'),
+    ('138 0000 0000', '手机号不能包含空格'),
+])
+def test_phone_validation(page: Page, api, value, hint):
+    page.goto('/register')
+    field = page.get_by_label('手机号')
+    field.fill('')
+    field.fill(value)
+    page.keyboard.press('Tab')
+
+    # 第一层：提示文案或错误码
+    expect(page.get_by_test_id('phone-error')).to_have_text(hint)
+
+    # 第二层：接口拒绝并指明字段
+    resp = api.post('/api/register', json={'phone': value})
+    assert resp.status_code == 422
+    assert resp.json()['field'] == 'phone'
+
+    # 第三层：确认没有任何账号被写入
+    assert api.get('/test-support/users', params={'phone': value}).json() == []</code></pre>
+        <p>这段用例把三层放在一起，但通过注释和顺序区隔得很清楚。第三层用测试支撑接口查而不是直接连库，好处是权限可控、字段稳定，坏处是需要后端提供接口；没有这个接口时，退一步查只读从库也可以，但要记得在断言里带上精度和时区。</p>
+
+        <h2>常见坑与排查</h2>
+        <p><strong>症状</strong>：本地稳定通过，CI 偶发提示元素不可交互。<strong>原因</strong>：输入后立刻点提交，校验提示把按钮顶了下去，点击落空。<strong>处理</strong>：提交前等提示出现或消失，用可点击条件等待，不要固定延时。</p>
+        <p><strong>症状</strong>：第二次执行失败，提示用户名已存在。<strong>原因</strong>：用例用了固定账号，第一次跑完数据留在库里。<strong>处理</strong>：每次生成带随机后缀的账号，结束后清理，不要依赖上一次的残留数据。</p>
+        <p><strong>症状</strong>：断言提交成功通过，但后台查不到数据。<strong>原因</strong>：断言的是前端提示，请求实际失败或落到了另一个环境。<strong>处理</strong>：加一层接口断言和一层落库断言，页面提示只当辅助信号。</p>
+        <p><strong>症状</strong>：中文输入后长度校验与预期不一致，十个字却提示超长。<strong>原因</strong>：前端按 UTF-16 单元算、服务端按字节算，emoji 与中文各占不同份额。<strong>处理</strong>：先按码点、UTF-16、UTF-8 三种口径打印实际长度，确定边界再写断言，同时把差异作为缺陷反馈给开发统一口径。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>这份清单适合表单上线前逐条过一遍，也适合给已有表单补测。它不追求覆盖所有组合，只确保高风险路径没有被跳过。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>合格判据</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>检查维度</td><td>必填、类型、长度、格式、边界、特殊字符、空格、重复、并发均有覆盖</td></tr>
+            <tr><td>边界值</td><td>每个长度、范围、精度都测了减一、等于、加一</td></tr>
+            <tr><td>前后端分层</td><td>绕过界面直接打接口，每条前端规则都被服务端独立执行</td></tr>
+            <tr><td>提示文案</td><td>可指导修复，多语言下无 key 泄漏、无截断，语义断言不绑文案</td></tr>
+            <tr><td>幂等</td><td>双击、同键重放、返回再提交都只产生一条业务记录</td></tr>
+            <tr><td>上传</td><td>伪造后缀与 MIME 被拒，大小边界、路径穿越、空文件均有样本</td></tr>
+            <tr><td>落库</td><td>值、精度、字符集、时区四项都与提交内容一致</td></tr>
+            <tr><td>自动化</td><td>数据驱动带标识，三层断言分开，失败能定位到具体一层</td></tr>
+          </tbody>
+        </table>
+        <p>最后提醒一句：不要用随机字符串代替边界值。随机值大概率落在区间中间，几乎抓不到边界缺陷，还会让失败难以复现。真正有效的用例是精心挑出来的那几十个值，每一个都能对应一条规则、一个边界、一段历史缺陷。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://developer.mozilla.org/en-US/docs/Learn_web_development/Extensions/Forms/Form_validation" target="_blank" rel="noopener">Client-side form validation — MDN</a></li>
+            <li><a href="https://www.w3.org/WAI/tutorials/forms/" target="_blank" rel="noopener">Forms Tutorial — W3C WAI</a></li>
+            <li><a href="https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html" target="_blank" rel="noopener">Input Validation Cheat Sheet — OWASP</a></li>
+            <li><a href="https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html" target="_blank" rel="noopener">File Upload Cheat Sheet — OWASP</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/parametrize.html" target="_blank" rel="noopener">How to parametrize fixtures and test functions — pytest</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#form-testing</span>
+          <span class="tag">#boundary-value</span>
+          <span class="tag">#web-automation</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

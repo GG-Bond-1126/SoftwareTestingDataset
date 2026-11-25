@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 驱动的 Web 测试 CI/CD：Playwright Agents + GitHub Actions · 软件测试资料集</title>
+<meta name="description" content="把 Playwright 三件套 Agent 接进 CI：spec 评审、自愈边界、分片缓存与成本台账。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-cicd-integration.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="AI 驱动的 Web 测试 CI/CD：Playwright Agents + GitHub Actions">
+<meta property="og:description" content="把 Playwright 三件套 Agent 接进 CI：spec 评审、自愈边界、分片缓存与成本台账。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-cicd-integration.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AI 驱动的 Web 测试 CI/CD：Playwright Agents + GitHub Actions">
+<meta name="twitter:description" content="把 Playwright 三件套 Agent 接进 CI：spec 评审、自愈边界、分片缓存与成本台账。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"AI 驱动的 Web 测试 CI/CD：Playwright Agents + GitHub Actions","description":"把 Playwright 三件套 Agent 接进 CI：spec 评审、自愈边界、分片缓存与成本台账。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/web-cicd-integration.html","articleSection":"CI/CD","keywords":"Playwright, GitHub Actions, LLM Agent, 测试分片","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">CI/CD</span> <span class="post-fw">传统+AI 接口</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>20 min read</span>
+        </div>
+        <h1>AI 驱动的 Web 测试 CI/CD：Playwright Agents + GitHub Actions</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="web-cicd-integration">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<figure class="article-figure">
+  <svg viewBox="0 0 720 340" width="100%" role="img" aria-labelledby="fig-web-cicd-integration-1-title" xmlns="http://www.w3.org/2000/svg">
+    <title id="fig-web-cicd-integration-1-title">PR 门禁流程：PR 提交经变更分析选定用例，并行分片执行后汇总结果，全绿放行、有失败亮红灯；失败用例交给 healer 自动修复，补丁必须人工复核才能合并</title>
+    <defs>
+      <marker id="fig-ci-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--text-faint)"/>
+      </marker>
+      <marker id="fig-ci-arrow-amber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--amber)"/>
+      </marker>
+    </defs>
+    <text x="696" y="20" fill="var(--text-faint)" font-size="11.5" font-family="inherit" text-anchor="end">Agent 只提建议，人做决定</text>
+    <rect x="24" y="28" width="140" height="56" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)"/>
+    <text x="94" y="54" fill="var(--text)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">PR 提交</text>
+    <text x="94" y="72" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">标题写清改动流程</text>
+    <path d="M 164 56 H 188" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-ci-arrow)"/>
+    <rect x="188" y="28" width="160" height="56" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)"/>
+    <text x="268" y="54" fill="var(--text)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">变更分析</text>
+    <text x="268" y="72" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">改动文件与流程</text>
+    <path d="M 348 56 H 372" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-ci-arrow)"/>
+    <rect x="372" y="28" width="160" height="56" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)"/>
+    <text x="452" y="54" fill="var(--text)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">选跑用例</text>
+    <text x="452" y="72" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">只跑受影响范围</text>
+    <path d="M 532 56 H 556" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-ci-arrow)"/>
+    <rect x="556" y="28" width="140" height="56" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)"/>
+    <text x="626" y="54" fill="var(--text)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">并行分片</text>
+    <text x="626" y="72" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">按 shard 并行</text>
+    <path d="M 626 84 V 96 H 390 V 116" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-ci-arrow)"/>
+    <rect x="300" y="116" width="180" height="56" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)"/>
+    <text x="390" y="142" fill="var(--text)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">结果汇总</text>
+    <text x="390" y="160" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">merge-reports 合并</text>
+    <path d="M 300 144 H 114 V 248" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-ci-arrow)"/>
+    <text x="120" y="136" fill="var(--text-dim)" font-size="11.5" font-family="inherit">全部通过</text>
+    <path d="M 390 172 V 202 H 338 V 248" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-ci-arrow)"/>
+    <text x="364" y="194" fill="var(--text-dim)" font-size="11.5" font-family="inherit" text-anchor="middle">有失败</text>
+    <path d="M 480 144 H 520" fill="none" stroke="var(--amber)" stroke-width="1.4" marker-end="url(#fig-ci-arrow-amber)"/>
+    <text x="500" y="136" fill="var(--amber)" font-size="11.5" font-family="inherit" text-anchor="middle">失败</text>
+    <rect x="520" y="116" width="176" height="72" rx="10" fill="rgba(230,180,80,0.14)" stroke="var(--amber)" stroke-width="1.4"/>
+    <text x="608" y="142" fill="var(--amber)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">healer 自动修复</text>
+    <text x="608" y="162" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">补丁重跑，只动定位</text>
+    <text x="608" y="179" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">不碰断言与结构</text>
+    <path d="M 608 188 V 196" fill="none" stroke="var(--amber)" stroke-width="1.2" marker-end="url(#fig-ci-arrow-amber)"/>
+    <rect x="520" y="196" width="176" height="28" rx="10" fill="rgba(230,180,80,0.14)" stroke="var(--amber)" stroke-width="1.2" stroke-dasharray="4 4"/>
+    <text x="608" y="215" fill="var(--amber)" font-size="11.5" font-family="inherit" text-anchor="middle">人工复核后才合并</text>
+    <rect x="24" y="248" width="180" height="56" rx="10" fill="rgba(61,220,132,0.12)" stroke="var(--accent)" stroke-width="1.4"/>
+    <text x="114" y="274" fill="var(--accent)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">放行</text>
+    <text x="114" y="292" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">全绿才进合并队列</text>
+    <rect x="248" y="248" width="180" height="56" rx="10" fill="rgba(230,180,80,0.14)" stroke="var(--amber)" stroke-width="1.4"/>
+    <text x="338" y="274" fill="var(--amber)" font-size="15" font-weight="600" font-family="inherit" text-anchor="middle">红灯</text>
+    <text x="338" y="292" fill="var(--text-dim)" font-size="12.5" font-family="inherit" text-anchor="middle">断言/5xx/资金</text>
+  </svg>
+  <figcaption>图 1 · 门禁只看汇总结果，healer 的补丁只是建议，人工复核是它进合并队列的必经关口</figcaption>
+</figure>
+<h2>为什么要把 Agent 放进流水线，而不是只在自己电脑上跑</h2>
+<p>假定你已经用 Playwright 加 pytest 维护着两三百条 E2E，本地也试过官方的 planner、generator、healer，觉得效果还行。但很快会卡在三件事上：别人复现不出你的结果，生成出来的代码没人知道从哪冒出来，出了问题没人敢说是谁改的。</p>
+<p>本地跑 Agent 本质是一次性对话——prompt 在某个人的剪贴板里，模型随客户端自动升级，生成的用例改完就丢。放进流水线，这三点同时被固定：Agent 定义进了仓库，同一个 commit 对应同一份定义；spec 与测试代码成为提交物，可以从代码回溯到规划；PR 上只剩 diff 和失败现场，不需要谁贴聊天记录。</p>
+<p>但代价很清楚：CI 里的 Agent 是一个会失败的外部依赖，可能超时、可能返回不合约定的格式、同一条 prompt 两次结果不同。所以全篇主线只有一句——<strong>Agent 只产出建议，人做决策，CI 负责执行与留证</strong>。凡是让 Agent 直接改写主分支测试的设计，最后都以一次「谁把回归改绿了」的事故收场。</p>
+
+<h2>先认清 Agents 的真实形态，别照着博客抄包名</h2>
+<p>Playwright 随包提供的三个 Agent 不是可以 import 的库，也不是某个叫 <code>@playwright/test-agents</code> 的命令行工具（不少文章这么写，照着敲只会 404）。它的形态是「给 AI 客户端的指令加一组 MCP 工具」，用 <code>npx playwright init-agents</code> 生成到仓库，再由支持 agent 的客户端驱动，官方回路有 VS Code、Claude Code、Codex、OpenCode 四种。</p>
+<p>三个节点的边界要背下来，它决定了流水线怎么切：planner 探索页面并输出 Markdown 计划，落在 <code>specs/</code>；generator 读计划、边跑边校验选择器，产出 <code>tests/</code> 下的用例；healer 拿失败用例名，重放步骤、观察当前 UI、给补丁并重跑，直到通过或被护栏叫停。</p>
+<table>
+  <thead>
+    <tr><th>节点</th><th>输入</th><th>输出</th><th>CI 里的典型失败</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>planner</td><td>需求描述、seed 用例、可选 PRD</td><td><code>specs/*.md</code></td><td>seed 跑不起来，规划为空</td></tr>
+    <tr><td>generator</td><td><code>specs/</code> 下的 Markdown</td><td><code>tests/**/*.spec.ts</code></td><td>选择器对但断言被弱化</td></tr>
+    <tr><td>healer</td><td>失败用例名与运行时现场</td><td>补丁，或判定功能真坏后跳过</td><td>把真 bug 修成假绿</td></tr>
+  </tbody>
+</table>
+<p>有个绕不开的现实：generator 产出的是 Playwright Test 的 TypeScript 用例，不是 pytest。存量是 pytest 的话只有三条路。双栈：Agent 产出的 TS 独立成目录用 <code>npx playwright test</code> 跑，pytest 继续跑自己的，代价是两份报告要合并。单一契约：只把 spec 当契约，团队自己写确定性翻译层转成 pytest，代价是多维护一层。只用 planner：把它当需求分析器，代码仍由人写。三条都成立，但别指望一个开关就把 TS 变 pytest。</p>
+<div class="callout warn"><p>判断教程是否可信，看它有没有提 <code>init-agents</code> 与 <code>specs/</code> 目录。只出现某个包名加 <code>--node planner</code> 的，基本是把 Agent 当命令行程序编出来的。</p></div>
+
+<h2>Planner 吃什么，spec 归谁</h2>
+<p>planner 的输入质量决定后面全部工作的上限。稳定的三样是：本次改动的业务描述（PR 标题加正文，写清改了什么流程、期望什么结果）、变更文件清单（圈定受影响模块，避免它去规划无关页面）、以及一个 seed 用例。seed 最容易被忽略，却最关键：planner 会真的跑它一遍，从而拿到登录态与测试数据，并把它当生成代码的样板。没有 seed，它经常卡在登录页，规划里全是「先登录」这种废话。</p>
+<p>spec 的归属必须写进团队约定，因为它是整条链的契约层。做法是：spec 与代码同 PR 提交，描述里贴一段 spec 变更摘要，评审只看四件事——步骤能否照做、期望能否断言、数据是否明确、边界有没有覆盖（空输入、超长输入、重复提交）。步骤含糊（比如「验证下单成功」），generator 就会自己编断言；期望具体（「状态为待支付，金额等于商品价加运费」），生成的断言才有回归价值。</p>
+<p>目录按「业务域/流程」两层、文件名与用例一一对应，spec 里显式写 seed 路径。下面是一份 planner 产出的规划节选，评审时主要盯 Steps 与 Expected Results 两栏：</p>
+
+<div class="code-head"><span>markdown — specs/checkout/guest-checkout.md 节选</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 游客结算 - 基础流程
+
+Seed: `tests/seed.spec.ts`
+
+## 1.1 未登录下单并支付成功
+
+Steps:
+1. 打开 /cart，点击「去结算」
+2. 在收货地址表单填写姓名、手机号、详细地址
+3. 选择「在线支付」，点击「提交订单」
+
+Expected Results:
+- 跳转到 /pay/confirm，订单号前缀为 GUEST-
+- 应付金额等于商品小计加运费，页面上无折扣行
+- 提交按钮在请求期间置灰，不可重复点击</code></pre>
+
+<p>评审通过后才允许 generator 介入。spec 错在上面，下面生成的全部都错，而且错得很像对的——这是这条链最贵的一种返工。</p>
+
+<h2>Generator 之后，diff 必须有人过一遍</h2>
+<p>generator 是顺着页面写测试，不是顺着需求写测试，这是它最危险的地方。三种典型走样：把断言弱化成元素可见，而需求要的是金额正确；把<a class="ilink" href="web-wait-strategies.html">显式等待</a>写成固定 <code>waitForTimeout</code>，快机器上永远绿、CI 上偶发红；用 <code>nth(0)</code> 或长 CSS 链定位，结构一改就全崩。这三种都能跑通，所以机器审查（跑一遍看绿不绿）发现不了。</p>
+<p>读 diff 的成本要提前算进流程。一条中等复杂度流程认真看一遍五到十分钟（示例值），所以别指望「存量回归全部重新生成」，那只会换来一堆语义退化的用例。正确姿势是：只让 generator 处理本次新增流程，存量继续人维护，价值集中在新需求第一次覆盖这一段。</p>
+<p>人工之外再叠一层机检，把明确的坏味道写成脚本，生成后立刻跑。它替代不了评审，但能把一眼假绿的用例挡在 PR 之前。</p>
+
+<div class="code-head"><span>python — scripts/lint_generated.py 生成物坏味道扫描</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pathlib
+import sys
+
+BANNED = {
+    "waitForTimeout": "固定等待，CI 上必偶发",
+    "nth(0)": "序号定位，结构一变就错",
+    ".only(": "误提交会静默跳过其余用例",
+    "test.skip(": "用跳过掩盖失败",
+}
+
+problems = []
+for spec in pathlib.Path("tests").rglob("*.spec.ts"):
+    body = spec.read_text(encoding="utf-8")
+    if "// spec:" not in body:
+        problems.append((spec, "缺少 spec 出处注释"))
+    for token, reason in BANNED.items():
+        if token in body:
+            problems.append((spec, f"{token} -> {reason}"))
+
+for path, reason in problems:
+    print(f"::error file={path}::{reason}")
+sys.exit(1 if problems else 0)</code></pre>
+
+<p>清单里最该保留的是「必须带 spec 出处注释」。它把代码与规划钉在一起，半年后有人问这条用例为什么这么断言，答案就在注释指向的那份 Markdown 里。</p>
+
+<h2>Healer 的边界：什么时候允许改，什么时候必须红灯</h2>
+<p>healer 会重放失败步骤、看当前 UI、找等价元素、给补丁、重跑。它的输出只有两种：一个能过的测试，或一个被判定功能真坏而跳过的测试。问题在于这两者从流水线看长得几乎一样——都是绿。不设边界，你会得到一条漂亮的全绿曲线，和一个已经挂了三天的支付流程。</p>
+<p>失败要分两类。允许自动改的：定位器失效（文案改了、层级变了、多了个隐藏节点导致多匹配）、等待条件不足、与业务无关的初始化顺序。必须红灯的：断言期望不成立（金额、状态、权限是业务真相）、HTTP 5xx 或资源 404、白屏或关键区块缺失、涉及资金与合规的流程。判据很朴素——<strong>这个失败被修绿，会不会掩盖一个用户能感知的错误</strong>。会，就红灯。</p>
+<p>落地上，healer 的输出不要直接写回主分支。两种可接受：只在 PR 分支提交且必须 reviewer approve 才进合并队列；或者干脆不落盘，补丁作为 artifact 上传、评论里给链接，由人决定是否应用。前者省事，后者安全，刚开始用建议后者。</p>
+<p>再叠一层硬约束，把「不该改的东西」变成自动否决：</p>
+
+<div class="code-head"><span>python — scripts/heal_guard.py 自愈补丁准入判定</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import re
+import sys
+
+MAX_CHANGED_LINES = 40
+FORBIDDEN = (r"expect\(", r"toBe", r"timeout\s*:", r"test\(")
+
+def review(diff_text: str) -> list:
+    reasons = []
+    added = [ln for ln in diff_text.splitlines()
+             if ln.startswith("+") and not ln.startswith("+++")]
+    if len(added) > MAX_CHANGED_LINES:
+        reasons.append(f"改动 {len(added)} 行，超过上限 {MAX_CHANGED_LINES}")
+    for ln in added:
+        for pattern in FORBIDDEN:
+            if re.search(pattern, ln):
+                reasons.append(f"触碰断言或结构: {ln.strip()[:60]}")
+                break
+    return reasons
+
+if __name__ == "__main__":
+    diff = open(sys.argv[1], encoding="utf-8").read()
+    issues = review(diff)
+    for item in issues:
+        print(f"::error::{item}")
+    sys.exit(1 if issues else 0)</code></pre>
+
+<p>护栏故意保守：宁可多拦几次让人看一眼，也不放过一次「删了断言所以过了」。跑一个季度后可以按误报率放宽，但顺序不能反——先严后松，大家才会信绿灯。</p>
+
+<h2>Job 结构：一个 job 只做一件事</h2>
+<p>把 Agent 塞进现有 test job 最省事也最难维护，因为生成、执行、报告三种失败的排查路径完全不同。拆成四段更清楚：plan（仅 PR，产出 spec 建议）、generate（仅 spec 有变更）、test（矩阵分片跑真实用例）、report（合并报告并发评论）。任何一段挂了，看名字就知道找谁。</p>
+<p>缓存分两类。依赖交给 <code>setup-node</code> 的 <code>cache: npm</code>；浏览器单独用 <code>actions/cache</code> 缓存 <code>~/.cache/ms-playwright</code>，key 用 lockfile 哈希，Playwright 一升级浏览器就自然重下。别缓存虚拟环境，除非 Python 版本与依赖都钉死，否则只会收获一类解释不清的环境差异。</p>
+<p>分片用官方 <code>--shard=i/N</code> 配 <code>blob</code> 报告器，每个分片写一个二进制包，最后一个 job 用 <code>merge-reports</code> 合成单份 HTML。这比上传 N 份 HTML 让人手动点开强太多，尤其是 trace 那种按用例目录组织的产物。</p>
+
+<div class="code-head"><span>yaml — .github/workflows/pr-agent-gate.yml</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>name: pr-agent-gate
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: pr-agent-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    # fork 来的 PR 拿不到 secret，直接跳过 Agent 段
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ hashFiles('package-lock.json') }}
+      - run: npm ci
+      - name: Regenerate agent definitions
+        run: npx playwright init-agents --loop=claude
+      - name: Scope changed flows
+        id: scope
+        run: |
+          git diff --name-only origin/${{ github.base_ref }}...HEAD > changed.txt
+          python scripts/scope.py changed.txt >> "$GITHUB_OUTPUT"
+      - name: Planner suggests specs only
+        if: steps.scope.outputs.spec != ''
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          # 非交互参数因客户端而异，此处以 Claude Code 的 --print 为例
+          python scripts/run_agent.py planner \
+            --flows "${{ steps.scope.outputs.spec }}" \
+            --out specs/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: spec-suggestions
+          path: specs/
+          retention-days: 7
+
+  test:
+    needs: plan
+    if: always()
+    runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.56.0-noble
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - name: Run tests
+        run: |
+          npx playwright test \
+            --shard=${{ matrix.shard }}/4 \
+            --reporter=blob \
+            --retries=1
+        env:
+          PLAYWRIGHT_BLOB_OUTPUT_DIR: blob-report
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blob-${{ matrix.shard }}
+          path: blob-report
+          retention-days: 7
+
+  report:
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: blob-*
+          path: blob-reports
+      - run: npm ci
+      - name: Merge shards into one HTML report
+        run: npx playwright merge-reports --reporter=html ./blob-reports
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/</code></pre>
+
+<p>重试要克制。<code>--retries=1</code> 能挡住网络抖动，也会把每三次挂两次的用例变成稳定绿。所以固定为 1，并保留 flaky 标记（Playwright 会把重试后通过的用例记为 flaky），让不稳定可见而不是消失。</p>
+
+<h2>密钥与模型调用成本</h2>
+<p>硬规则：fork 提交的 PR 拿不到仓库 secret，这是安全设计，不要用 <code>pull_request_target</code> 去绕。绕过去等于把密钥交给任意贡献者写的工作流。正确做法是给 fork PR 走降级路径——只跑已提交的测试、不跑 Agent，合进主仓后再补生成。</p>
+<p>成本控制抓三处。范围：只在命中业务域的改动上跑，别每次全站规划。频次：plan 只监听 opened 与 ready_for_review，不要监听 synchronize，否则每次 push 都是一次模型调用；再用 <code>concurrency</code> 取消同 PR 的旧运行。计量：把每次调用的阶段、模型、输入输出 token、耗时记成一行 JSON，汇总进 step summary。不要用「大概几毛钱」做预算，那没法对账；按调用记账才有得谈。</p>
+
+<div class="code-head"><span>python — scripts/usage.py 调用台账与汇总</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import json
+import pathlib
+import time
+
+LEDGER = pathlib.Path("reports/agent-usage.jsonl")
+
+def record(stage: str, model: str, runner):
+    """runner 返回 (结果, usage)，usage 里带输入输出 token 数。"""
+    started = time.monotonic()
+    usage = {}
+    try:
+        result, usage = runner()
+        return result
+    finally:
+        LEDGER.parent.mkdir(parents=True, exist_ok=True)
+        with LEDGER.open("a", encoding="utf-8") as fp:
+            fp.write(json.dumps({
+                "stage": stage,
+                "model": model,
+                "seconds": round(time.monotonic() - started, 1),
+                "tokens_in": usage.get("input", 0),
+                "tokens_out": usage.get("output", 0),
+            }, ensure_ascii=False) + "\n")
+
+def summarize() -> str:
+    rows = [json.loads(ln) for ln in LEDGER.read_text(encoding="utf-8").splitlines()]
+    by_stage = {}
+    for row in rows:
+        bucket = by_stage.setdefault(
+            row["stage"], {"count": 0, "seconds": 0, "in": 0, "out": 0}
+        )
+        bucket["count"] += 1
+        bucket["seconds"] += row["seconds"]
+        bucket["in"] += row["tokens_in"]
+        bucket["out"] += row["tokens_out"]
+    return "\n".join(
+        f"{k}: {v['count']} 次, {v['seconds']} 秒, in {v['in']} / out {v['out']}"
+        for k, v in sorted(by_stage.items())
+    )</code></pre>
+
+<p>把 <code>summarize()</code> 写进 <code>GITHUB_STEP_SUMMARY</code>，PR 页面上就有一张免费成本表。团队对这个数字敏感之后，自然会开始挑「哪些流程值得让 Agent 规划」。</p>
+
+<h2>PR 评论里到底贴什么</h2>
+<p>这是最容易失控的地方。见过最糟的版本把整份 HTML 报告塞进评论，一次两千行，没人看。评论只该回答三个问题：过没过、没过时现场在哪、spec 有没有变。多一个字都是噪音。</p>
+<p>失败现场必须给 trace，因为它是唯一能让人在本地复现「当时到底点了什么」的产物。<code>upload-artifact</code> 的链接要登录，对只看评论的人不友好，所以要么把报告部署到内网静态站点（推荐，点开即用），要么同时给 run 链接与 artifact 名称并写清在哪一步下载。</p>
+
+<div class="code-head"><span>javascript — github-script 发结构化评论</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>- uses: actions/github-script@v7
+  if: always()
+  with:
+    script: |
+      const fs = require('fs')
+      const reportUrl = process.env.REPORT_URL || '(见 artifacts: playwright-report)'
+      const specDiff = fs.existsSync('specs-diff.txt')
+        ? fs.readFileSync('specs-diff.txt', 'utf-8').slice(0, 1200)
+        : '本次未改动 spec'
+
+      const body = [
+        '### E2E 门禁结果',
+        `- 报告: ${reportUrl}`,
+        '- 分层: 4 个分片, 重试 1 次',
+        '',
+        '### spec 变更',
+        '```diff',
+        specDiff,
+        '```',
+      ].join('\n')
+
+      await github.rest.issues.createComment({
+        ...context.repo,
+        issue_number: context.issue.number,
+        body,
+      })</code></pre>
+
+<p>如果换成自建机器人，把模板改成「同一 PR 复用一条评论、每次编辑而不是追加」，能避免刷屏。这个细节决定了大家还愿不愿意看门禁。</p>
+
+<h2>产出物怎么管版本</h2>
+<p>Agent 相关产物有四类，管法不同。Agent 定义（<code>.github/agents/</code>）由 <code>init-agents</code> 生成，Playwright 升级后要重新生成，所以必须提交进仓库，它的 diff 本身就是一次工具能力变化的记录。prompt 模板进仓库放 <code>prompts/</code>，代码里按名字引用，禁止散落在个人笔记里。spec 走代码评审。生成的测试与 spec 同 PR 提交。</p>
+<p>反模式有三个：spec 放共享盘、prompt 在聊天里口口相传、生成代码只存在 CI artifact。三者都会让「这条用例为什么长这样」变成不可回答的问题，而可追溯恰恰是把 Agent 放进流水线的第一动机。</p>
+<p>追溯链该是单向且完整的：commit 指向 spec，spec 头部写了 seed 与需求来源，用例头部注释回指 spec，失败的 trace 留在对应 run 的 artifact 里。任一环断了，半年后的回归排查就会退化成考古。</p>
+<table>
+  <thead>
+    <tr><th>产物</th><th>位置</th><th>Owner</th><th>变更频率</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Agent 定义</td><td><code>.github/agents/</code></td><td>测试基础设施</td><td>跟随 Playwright 版本</td></tr>
+    <tr><td>prompt 模板</td><td><code>prompts/*.md</code></td><td>业务测试 owner</td><td>低，按月</td></tr>
+    <tr><td>spec 规划</td><td><code>specs/&lt;domain&gt;/</code></td><td>模块 owner</td><td>随需求</td></tr>
+    <tr><td>生成用例</td><td><code>tests/</code></td><td>PR 作者加 reviewer</td><td>随需求</td></tr>
+  </tbody>
+</table>
+
+<h2>什么情况下不该上 Agent</h2>
+<p>四类场景建议直接人写。需求模糊、没有验收标准——planner 不会说不知道，它会编一个看起来合理的期望，而这种编造在评审时极难发现。断言带价值判断——合规文案措辞、金额精度与舍入规则、无障碍语义，这些「对不对」来自业务方而不是页面。对抗性流程——验证码、风控、限流，Agent 探索时会真触发防护，把测试账号封掉。极低频的边缘页面——生成一次的成本高于手写十分钟。</p>
+<p>一个很好用的判据：这个流程的正确能不能用一两句话写清，且这两句话里不出现大概、应该能感觉到这类词。能，就让 Agent 打底、人补边界；不能，就人写，Agent 只做资料收集。</p>
+<p>组织成本也别忽略：Agent 产出的用例需要有人长期维护。如果团队本来就没人管存量回归，加一条持续生成新用例的流水线，只会让技术债长得更快。先确认谁负责这些用例的生死，再谈自动化。</p>
+
+<h2>上线前检查清单</h2>
+<p>下面这张表是给「第一次把这套东西推上线」用的，每一条都对应一个真实会翻车的位置。建议逐项截图存档，评审时对着看，而不是凭印象打勾。</p>
+<table>
+  <thead>
+    <tr><th>检查项</th><th>通过标准</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Agent 定义</td><td>由 <code>init-agents</code> 生成并提交，升级后重新生成</td></tr>
+    <tr><td>seed 用例</td><td>能在 CI 容器内独立跑通，登录态与数据齐全</td></tr>
+    <tr><td>spec 评审</td><td>每个 spec 有 owner，步骤与期望可断言</td></tr>
+    <tr><td>生成物门禁</td><td>坏味道扫描为 0，每条用例带 spec 出处注释</td></tr>
+    <tr><td>自愈边界</td><td>断言类失败一律红灯，补丁需人工确认才落盘</td></tr>
+    <tr><td>密钥</td><td>仅同仓 PR 可读 secret，fork PR 走降级路径</td></tr>
+    <tr><td>缓存</td><td>浏览器按 lockfile 哈希缓存，命中率可查</td></tr>
+    <tr><td>报告</td><td>分片合并成单份 HTML，trace 可下载或直链</td></tr>
+    <tr><td>成本</td><td>每次调用进台账，有月度上限</td></tr>
+  </tbody>
+</table>
+<p>这张表可以直接当 PR 模板。全部勾选前，建议只在小范围业务域启用 Agent 段，跑两周看 flaky 率与评审返工量再放开。CI 里的自动化最容易犯的错，是把「能跑」当成「可信」。</p>
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://playwright.dev/docs/test-agents" target="_blank" rel="noopener">Playwright Test Agents（planner / generator / healer）</a></li>
+            <li><a href="https://playwright.dev/docs/ci" target="_blank" rel="noopener">Playwright 持续集成配置</a></li>
+            <li><a href="https://playwright.dev/docs/test-sharding" target="_blank" rel="noopener">Playwright 测试分片与 merge-reports</a></li>
+            <li><a href="https://docs.github.com/en/actions/reference/dependency-caching" target="_blank" rel="noopener">GitHub Actions 依赖缓存</a></li>
+            <li><a href="https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions" target="_blank" rel="noopener">GitHub Actions 安全加固</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">Playwright</span>
+          <span class="tag">GitHub Actions</span>
+          <span class="tag">LLM Agent</span>
+          <span class="tag">测试分片</span>
+          <span class="tag">CI/CD</span>
+          <span class="tag">PR 门禁</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

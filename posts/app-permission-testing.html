@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APP 权限测试：定位 / 相机 / 通知 · 软件测试资料集</title>
+<meta name="description" content="Android 三态权限与 iOS 差异、adb 批量改权限、通知渠道与隐私合规，一份能落地的权限测试手册。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-permission-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="APP 权限测试：定位 / 相机 / 通知">
+<meta property="og:description" content="Android 三态权限与 iOS 差异、adb 批量改权限、通知渠道与隐私合规，一份能落地的权限测试手册。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-permission-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="APP 权限测试：定位 / 相机 / 通知">
+<meta name="twitter:description" content="Android 三态权限与 iOS 差异、adb 批量改权限、通知渠道与隐私合规，一份能落地的权限测试手册。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"APP 权限测试：定位 / 相机 / 通知","description":"Android 三态权限与 iOS 差异、adb 批量改权限、通知渠道与隐私合规，一份能落地的权限测试手册。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-permission-testing.html","articleSection":"APP 自动化","keywords":"permission-testing, app-automation, appium","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>20 min read</span>
+        </div>
+        <h1>APP 权限测试：定位 / 相机 / 通知</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="app-permission-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+
+        <h2>权限缺陷为什么总在生产上翻车</h2>
+        <p>权限问题的特点是测试环境里几乎不出现，一放量就集中爆发。它不是一个功能，而是一个状态机：同一个定位按钮，在已授予、已拒绝、不再询问、仅此一次、用户在系统设置里改过这几种状态下，表现完全不同，而手工测试通常只走了最顺的那一条。</p>
+        <p>失败形态也很隐蔽。权限问题很少弹错误框，更多是白屏、按钮点了没反应、永远转圈、推送永远收不到。提交缺陷时如果只写一句「定位用不了」，开发大概率判为无法复现，因为现场已经没了。</p>
+        <p>这篇写给正在做 App 回归的一线测试，假设你会用 adb 和 Appium，但权限测得不够系统。目标是把权限从「点几下弹窗」变成一张状态矩阵：每格可复现、可复位、失败能自证。</p>
+
+        <h2>前置条件与环境准备</h2>
+        <p>最低配置是一台 Android 8 以上的真机、一台 iOS 16 以上的真机，加上可用的 adb。Android 8 是通知渠道的分界线，再低的机器测通知权限意义有限。模拟器只能冒烟，权限控制器版本常与真机不一致，国产 ROM 没有对应实现。</p>
+        <p>测试包要可调试，且权限已在清单里声明，否则 <code>pm grant</code> 会静默失败。另外准备两台能随时清数据的设备：权限弹窗只在「尚未决定」时出现，一旦点过拒绝并勾选不再询问，后续所有请求都不再弹，用例第二天就会集体失效。</p>
+        <div class="callout"><p>把设备语言固定为简体中文。弹窗按钮文案会随系统语言变化，用文案定位的脚本在英文机器上必然失败；同理，CI 里也不要混用不同语言设置的设备。</p></div>
+
+        <h2>Android 运行时权限的三态与不可逆状态</h2>
+        <p>Android 6.0 起危险权限改为运行时申请，代码能观察到的只有三态：已授予、已拒绝、已拒绝且不再询问。第三种是坑：用户第二次拒绝同一权限时，系统会自动勾上不再询问，此后 <code>requestPermissions</code> 会立刻回调拒绝，连弹窗都不会出现。很多团队把它当成「弹窗不弹」的 bug 提给开发，其实是系统按设计工作。</p>
+        <p>版本演进又叠了几层。Android 11 对定位、相机、麦克风引入「仅此一次」，退到后台一段时间后权限被自动收回；Android 12 把定位拆成精确与大致两档；Android 13 把通知变成运行时权限。这三件事意味着，不能用一套弹窗断言覆盖所有 targetSdk。</p>
+        <p>另一个不可逆状态是系统设置里的用户固定：用户手动关掉某权限后，系统会打上标记，应用再申请同样不弹。从测试角度看，这两种状态必须能主动复位，最可靠的是 <code>pm clear</code> 或重装，只做 revoke 并不保证能清掉标记。</p>
+        <p>应用侧一般会写成下面这样，测试看到的每一种行为都能从这里推出来：<code>shouldShowRequestPermissionRationale</code> 返回 true，说明还值得解释一次；返回 false 且尚未授权，通常意味着已被固定为不再询问。</p>
+
+        <div class="code-head"><span>kotlin — 应用侧的三态分支</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>private fun requestCamera() {
+    when {
+        ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+            == PackageManager.PERMISSION_GRANTED -&gt; openCamera()
+
+        shouldShowRequestPermissionRationale(Manifest.permission.CAMERA) -&gt;
+            showRationaleThenRequest()
+
+        else -&gt; requestPermissions(arrayOf(Manifest.permission.CAMERA), REQ_CAMERA)
+    }
+}</code></pre>
+
+        <h2>iOS 权限模型：没有不再询问，只有一次机会</h2>
+        <p>iOS 的权限弹窗是单次的。用户点了不允许，这条权限就永久停在拒绝，应用再调用授权接口不会出现任何界面，只能引导用户去设置页手动打开。它没有不再询问的勾选项，因此也不存在「拒绝两次自动不再弹」的行为，把 Android 的三态用例直接搬过去，第二步就会卡住。</p>
+        <p>几个 iOS 特有差异要单独记：后台定位需要二次确认，即使你声明了始终允许，系统也会单弹一次并给出「稍后询问」；iOS 14 起定位有精确与模糊开关；iOS 14.5 起还有独立的应用跟踪授权弹窗，它不属于系统权限框架，却同样会打断首次启动的主流程。</p>
+        <p>对自动化最直接的影响是处理方式不同。Android 弹窗是普通系统窗口，可以用 resource-id 点；iOS 弹窗由系统进程托管，不在 App 视图树里，必须走 XCUITest 的中断处理器或 Appium 的 <code>mobile: alert</code> 命令。跨平台脚本到这里必然分叉。</p>
+
+        <h2>三条时间线：首次授权、二次进入、设置页改完回来</h2>
+        <p>第一条是首次授权：从冷启动走到真正需要权限的功能点，弹窗应该在这时出现。不少 App 一进首页就把定位、相机、通知、通讯录全部申请一遍，用户还没看懂产品是什么就连吃四个框，这是流失率最高的写法，也是合规审查的重点。</p>
+        <p>第二条是二次进入。权限已经授予，再进同一功能不应出现任何弹窗，功能直接可用。这条回归频率最高，也最容易在版本迭代中被改坏。验证方法是授权后杀进程重开，再走一遍入口，确认没有多余弹窗，也没有短暂的「权限校验中」白屏。</p>
+        <p>第三条是去系统设置改完权限再回来。这里有两个坑：进程可能在后台被回收，回前台走冷启动，页面状态全部重建；应用往往缓存上次读到的权限结果，回前台不重新检查，于是用户开了权限页面还显示未授权。正确做法是在 <code>onResume</code> 里重读状态，测试时在设置页多停留一会儿。</p>
+        <p>这条路径要用代码固定下来，否则每次都靠手点太慢。用 adb 直接打开本应用的详情页，比在设置里一层层找菜单稳定；改完之后让应用回到前台，断言它在短时间内同步新状态，而不是继续用缓存。</p>
+
+        <div class="code-head"><span>python — 打开详情页并验证回访</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import subprocess
+
+from appium.webdriver.common.appiumby import AppiumBy
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+
+PKG = "com.demo.app"
+
+
+def open_app_detail(udid: str) -&gt; None:
+    subprocess.run([
+        "adb", "-s", udid, "shell", "am", "start",
+        "-a", "android.settings.APPLICATION_DETAILS_SETTINGS",
+        "-d", f"package:{PKG}",
+    ], check=True)
+
+
+def assert_state_refreshed(driver) -&gt; None:
+    driver.activate_app(PKG)
+    WebDriverWait(driver, 8).until(
+        EC.presence_of_element_located((AppiumBy.ID, "com.demo.app:id/permission_banner"))
+    )</code></pre>
+
+        <h2>拒绝之后的降级路径怎么设计断言</h2>
+        <p>拒绝后的处理有三种可接受形态：入口禁用并附一行说明、局部降级（定位拿不到就用城市级粗略位置）、引导跳系统设置页。三种都可以，混用也行，唯独不能什么都不做。断言也不同：前两种看页面元素，最后一种看跳转后的包名。</p>
+        <p>不可接受的是静默失败：点了「获取位置」，转圈三秒回到原页面，没有提示也没有降级，只在 logcat 里留一行被吞掉的异常。断言应该写成「拒绝后 3 秒内出现可读文案或可继续的替代路径」，而不是「页面不崩」。还有一种反模式是反复请求权限，系统不弹框、点击无反应，用户会以为按钮坏了。</p>
+
+        <h2>用 adb 把权限状态批量摆好</h2>
+        <p>经验上，把权限状态做成用例前置，比让脚本去点弹窗稳得多。系统弹窗的 resource-id、按钮顺序、文案都在变，而 <code>pm</code> 与 <code>appops</code> 是命令行接口，不依赖界面。代价是你绕开了弹窗本身，所以要另外保留少量<a class="ilink" href="web-e2e-testing.html">端到端</a>用例专门验弹窗，否则「弹窗根本没弹」这类问题会被前置脚本掩盖。</p>
+        <p><code>pm grant</code> 与 <code>pm revoke</code> 只对危险权限有效，且权限必须已在清单里声明。grant 之后应用申请会直接拿到结果、不弹窗；revoke 之后申请才会重新走弹窗。注意 revoke 改的是授权位，不保证清掉用户固定标记，验证三态时如果结果和真机对不上，先 <code>pm clear</code> 再试。</p>
+
+        <div class="code-head"><span>terminal — 查状态与复位</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>adb devices
+adb shell pm list permissions -g -d                      # 全部危险权限
+adb shell dumpsys package com.demo.app | Select-String "granted"
+adb shell appops get com.demo.app CAMERA                 # 指定 op 的当前值
+adb shell pm clear com.demo.app                          # 授权位与「不再询问」标记一起清掉</code></pre>
+
+        <div class="code-head"><span>terminal — 批量摆状态</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>$PKG = "com.demo.app"
+
+# 1. 直接授予，不触发弹窗
+adb shell pm grant $PKG android.permission.ACCESS_FINE_LOCATION
+adb shell pm grant $PKG android.permission.CAMERA
+
+# 2. 撤销，下次申请会重新弹窗
+adb shell pm revoke $PKG android.permission.CAMERA
+
+# 3. 用 appops 模拟「拒绝但不弹窗」的中间态
+adb shell appops set $PKG CAMERA ignore
+adb shell appops set $PKG POST_NOTIFICATION deny
+
+# 4. 确认结果（不同 ROM 的 op 名有差异，先打印再断言）
+adb shell appops get $PKG</code></pre>
+
+        <p><code>appops</code> 比 pm 低一层，能表达「忽略」这种中间状态，适合模拟用户拒绝过、但系统仍允许查询的场景。各家 ROM 对 op 名的支持不一致，脚本里先把要用的 op 打印出来确认，别把 <code>CAMERA</code> 写成猜测的 <code>android:camera</code>。</p>
+
+        <h2>厂商 ROM 与非标准权限</h2>
+        <p>国产 ROM 在 AOSP 之上加了一批非标准权限：自启动、后台弹出界面、悬浮窗、锁屏显示、后台运行、省电策略。它们不在危险权限列表里，<code>pm grant</code> 完全管不到，却直接决定推送能不能到、后台任务会不会被掐、从通知点进来能不能拉起页面。</p>
+        <p>策略上不要试图全自动化，这些设置页每家路径不同、元素 id 也在变，维护成本高于收益。更现实的做法是主流 ROM 各留一台机器，关键路径手工跑一遍记成矩阵；自动化只检测前置条件，不满足就跳过并标记缺失，而不是判失败。</p>
+
+        <h2>通知渠道、通知开关与免打扰</h2>
+        <p>Android 8.0 之后每条通知都必须归属一个渠道，能否显示由三层决定：渠道重要性、应用通知总开关、系统免打扰。任何一层关掉，界面上看到的结果都是「没有通知」，但原因完全不同。只断言通知栏有没有卡片，等于把三个变量揉成一个结论。</p>
+        <p>渠道有两个特性要记住。第一，渠道创建后重要性只能由用户改，代码里再调 <code>setImportance</code> 不会生效，想提升只能新建一个渠道 id，这也是很多团队版本迭代后通知突然变安静的原因。第二，用户关掉应用通知总开关再打开，渠道级设置会被保留。免打扰是系统开关，用例前复位。</p>
+
+        <div class="code-head"><span>terminal — 通知三层检查</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 渠道是否注册、重要性是多少（比看通知栏可靠）
+adb shell dumpsys notification --noredact | Select-String "com.demo.app" -Context 8
+
+# 通知总开关
+adb shell cmd appops get com.demo.app POST_NOTIFICATION
+
+# 免打扰：0 关闭 / 1 优先 / 2 全部静音 / 3 仅闹钟
+adb shell settings get global zen_mode
+
+# 主动投递一条通知，验证通道是否真的通
+adb shell cmd notification post -S bigtext -t "订单" tag "订单已创建"</code></pre>
+
+        <h2>Appium 处理系统弹窗的正确姿势</h2>
+        <p>Appium 有两条路。第一条是在启动能力里加 <code>autoGrantPermissions</code>，会话建立时一次性授予所有危险权限，弹窗不会出现，适合只想测业务功能的回归集，快且稳，但完全覆盖不到弹窗与拒绝路径。第二条是自己定位并点击，适合权限专项集。两套能力应并存，按标记拆分执行。</p>
+        <p>自己点弹窗的坑集中在三处：Android 11 之后按钮分裂成仅使用时允许、仅此一次、始终允许三套 id，不同版本还会缺其中一个；弹窗宿主进程从 packageinstaller 换成了 permissioncontroller，写死旧包名的脚本会直接找不到元素；iOS 的系统弹窗不在应用上下文里，必须走中断处理器。</p>
+
+        <div class="code-head"><span>python — 多候选 id 依次尝试</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import time
+
+from appium.webdriver.common.appiumby import AppiumBy
+
+ALLOW_IDS = (
+    "com.android.permissioncontroller:id/permission_allow_foreground_only_button",
+    "com.android.permissioncontroller:id/permission_allow_one_time_button",
+    "com.android.permissioncontroller:id/permission_allow_button",
+)
+DENY_ID = "com.android.permissioncontroller:id/permission_deny_button"
+
+
+def click_allow(driver, timeout: float = 6.0):
+    end = time.time() + timeout
+    while time.time() &lt; end:
+        for rid in ALLOW_IDS:
+            for el in driver.find_elements(AppiumBy.ID, rid):
+                if el.is_displayed():
+                    el.click()
+                    print("命中策略", rid)
+                    return rid
+        time.sleep(0.3)
+    print("未找到允许按钮，可能未弹窗或已被 autoGrantPermissions 接管")
+    return None</code></pre>
+
+        <p>建议维护一组候选 id 按优先级尝试，全部失败再退回文案匹配，无论成败都记一条日志说明命中的策略。否则失败时无法判断是「弹窗没出现」还是「出现了没点到」，这两种情况的处理方向完全相反。</p>
+
+        <h2>隐私合规检查点</h2>
+        <p>权限测试的另一半是合规，核心是最小必要与场景触发：不能在用户还没使用某项功能时就申请对应权限，不能在隐私政策弹窗出现前收集设备标识，也不能在后台静默读取剪贴板或位置。这些要求落到测试上是可逐条验证的行为，不是一句口号。</p>
+        <p>静态先看清单：导出安装包里的全部 <code>uses-permission</code>，逐个问它对应哪个功能、在哪个页面申请，答不上来的就是风险项，通讯录、短信、通话记录、精确与后台位置尤其敏感。动态再看首启日志：清数据后冷启动，只停留在首页，抓一段 logcat，看有没有权限请求和设备标识读取的痕迹。</p>
+
+        <div class="code-head"><span>terminal — 静态清点权限</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 需要 Android SDK cmdline-tools，apkanalyzer 在 tools/bin 下
+apkanalyzer manifest permissions app-release.apk
+
+# 顺带确认 targetSdk，它决定运行时权限的具体形态
+apkanalyzer manifest print app-release.apk | Select-String "targetSdkVersion"</code></pre>
+
+        <h2>常见坑与排查</h2>
+        <p><strong>症状</strong>：本地全过，CI 全挂。<strong>原因</strong>：CI 设备是英文语言，且没有预置权限状态，弹窗文案与流程都对不上。<strong>处理</strong>：固定设备语言，用例开头用 adb 把状态摆到明确位置，别指望上一次运行留下的状态。</p>
+        <p><strong>症状</strong>：同一条用例第二次必挂。<strong>原因</strong>：上次执行残留了不再询问标记，弹窗不再出现。<strong>处理</strong>：每条用例前 <code>pm clear</code> 或重装，不要依赖 revoke。</p>
+        <p><strong>症状</strong>：断言「去设置」偶发失败。<strong>原因</strong>：文案匹配命中的是 Toast，一闪而过，<code>page_source</code> 抓不到。<strong>处理</strong>：改成等待固定元素，或者从 logcat 校验，不要赌时序。</p>
+        <p><strong>症状</strong>：iOS 用例第一次跑就失败。<strong>原因</strong>：全局能力开了 <code>autoAcceptAlerts</code>，把本该点拒绝的弹窗自动点了允许。<strong>处理</strong>：拒绝类用例显式关掉该能力，或改用 <code>mobile: alert</code> 精确控制。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>发版前按下面这张表过一遍，五项全绿再提测。除了 ROM 那一项需要人工核对，其余都能塞进 CI 自动跑。把矩阵写成参数化用例后，新增一个权限只需往列表里添一行。</p>
+
+        <div class="code-head"><span>python — 权限矩阵参数化</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>PERM_CASES = [
+    ("android.permission.ACCESS_FINE_LOCATION", "grant"),
+    ("android.permission.ACCESS_FINE_LOCATION", "revoke"),
+    ("android.permission.CAMERA", "grant"),
+    ("android.permission.CAMERA", "revoke"),
+    ("android.permission.POST_NOTIFICATIONS", "grant"),
+    ("android.permission.POST_NOTIFICATIONS", "revoke"),
+]
+
+
+@pytest.mark.parametrize("perm, action", PERM_CASES)
+def test_permission_path(perm, action, device):
+    apply_permission(device.udid, perm, action)
+    reach_feature(device, perm)
+    assert_no_crash(device)</code></pre>
+
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>方法</th><th>通过标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>启动不申请无关权限</td><td>清数据冷启动抓 logcat</td><td>首页停留期间无权限请求</td></tr>
+            <tr><td>三态路径覆盖</td><td>pm clear 后分别授权 / 拒绝 / 拒绝两次</td><td>三条路径表现符合设计</td></tr>
+            <tr><td>设置页回访</td><td>改权限后 activate_app</td><td>3 秒内状态同步，无残留白屏</td></tr>
+            <tr><td>通知三层</td><td>dumpsys notification 加 zen_mode</td><td>渠道存在，重要性符合预期</td></tr>
+            <tr><td>主流 ROM 非标准权限</td><td>自启动、后台弹窗手工核对</td><td>关键路径可用或明确降级</td></tr>
+            <tr><td>合规清单</td><td>apkanalyzer 导出权限逐个对场景</td><td>每个权限都有可指认的触发点</td></tr>
+          </tbody>
+        </table>
+        <p>清单只是底线。真正决定体验的，是失败之后能否三分钟内说清现场，这靠流程，也靠平时把日志养好。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://developer.android.com/training/permissions/requesting" target="_blank" rel="noopener">请求运行时权限 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/about/versions/11/privacy/permissions" target="_blank" rel="noopener">Android 11 权限变更：仅此一次与自动重置 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/develop/ui/views/notifications/channels" target="_blank" rel="noopener">创建与管理通知渠道 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/tools/adb" target="_blank" rel="noopener">adb 命令行工具参考 — Android Developers</a></li>
+            <li><a href="https://developer.apple.com/documentation/corelocation/requesting_authorization_to_use_location_services" target="_blank" rel="noopener">请求定位服务授权 — Apple Developer</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#permission-testing</span>
+          <span class="tag">#app-automation</span>
+          <span class="tag">#appium</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>推送测试：厂商通道、到达率与点击链路 · 软件测试资料集</title>
+<meta name="description" content="打通推送全链路：厂商通道差异、通知渠道、到达率取证与三态点击验证。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-push-notification-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="推送测试：厂商通道、到达率与点击链路">
+<meta property="og:description" content="打通推送全链路：厂商通道差异、通知渠道、到达率取证与三态点击验证。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-push-notification-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="推送测试：厂商通道、到达率与点击链路">
+<meta name="twitter:description" content="打通推送全链路：厂商通道差异、通知渠道、到达率取证与三态点击验证。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"推送测试：厂商通道、到达率与点击链路","description":"打通推送全链路：厂商通道差异、通知渠道、到达率取证与三态点击验证。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-push-notification-testing.html","articleSection":"APP 自动化","keywords":"push-notification, vendor-channel, app-testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>12 min read</span>
+        </div>
+        <h1>推送测试：厂商通道、到达率与点击链路</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="app-push-notification-testing">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <h2>为什么值得做：推送是「以为没问题」的重灾区</h2>
+        <p>推送有一个很不好受的特点：测试环境收到，不代表线上收到；线上收到，不代表用户看得见；用户看见，不代表点进去能落地。</p>
+        <p>去年我们做过一次盘点，线上关于推送的客诉三类最多：一类是完全没收到，一类是收到了但点进去停在首页，一类是收到了却不响不亮只在通知栏顶部静静躺着。抽样三十个工单，第一类占十七个，第二类九个，第三类四个。这三类问题在功能测试里几乎不可能发现，因为它们都不报错。</p>
+        <p>更隐蔽的是厂商通道。国内 Android 手机的推送基本不走自建长连接，而是走华为、小米、OPPO、vivo 的系统级通道。通道是运营方提供的服务，有自己的配额、分级、时段限制和审核规则，任何一条不满足，表现都是「安静地不送达」。你在 App 里加十天日志都看不出来。</p>
+        <p>所以推送测试的核心不是点按钮，而是把链路上的每一段都变成可观测的：谁提交了、平台是否受理、哪个通道送达、设备什么时候展示、点击后落到哪一页。</p>
+
+        <h2>推送链路全景：从业务服务到通知栏</h2>
+        <p>把链路拆开看，责任边界就清楚了。一条业务推送大概经过六段：</p>
+
+        <table>
+          <thead>
+            <tr><th>环节</th><th>负责方</th><th>失败表现</th><th>定位手段</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>业务触发</td><td>后端服务</td><td>根本没发</td><td>业务日志 + 消息队列积压监控</td></tr>
+            <tr><td>推送平台受理</td><td>个推 / 极光 / 自建</td><td>返回 4xx，无重试</td><td>平台后台的发送记录与错误码</td></tr>
+            <tr><td>通道投递</td><td>APNs / 华为 / 小米 / OPPO / vivo</td><td>受理成功但无回执</td><td>各厂商控制台的送达统计</td></tr>
+            <tr><td>系统展示</td><td>设备系统通知服务</td><td>被渠道关闭、被折叠、被免打扰</td><td>设备端抓通知快照</td></tr>
+            <tr><td>用户点击</td><td>系统 → App</td><td>冷启动丢参数、路由被首页覆盖</td><td>logcat + 页面停留断言</td></tr>
+            <tr><td>落地页</td><td>App 内路由</td><td>跳错页、参数缺失、白屏</td><td>端到端用例断言</td></tr>
+          </tbody>
+        </table>
+
+        <p>这张表最有用的一点是：它告诉你「没收到」这三个字必须继续往下问一层。是没发、平台没受理、通道没投递、系统拦了、还是展示了但用户没注意。五种情况的修法完全不同，混在一起讨论只会互相甩锅。</p>
+
+        <div class="callout">
+          <p>落地做法：让每条推送都带一个唯一的 <code>request_id</code>，同时写进业务日志、推送平台的自定义透传字段、以及通知的 extras。只要设备拿到通知，就能用这个 id 把两端日志串起来，到达率才可能算准。</p>
+        </div>
+
+        <h2>Android：厂商通道差异与 8.0 通知渠道</h2>
+        <p>先说我踩得最深的一个坑：Android 8.0 之后，通知必须归属一个渠道（NotificationChannel），渠道的<strong>重要性</strong>决定了它是否响铃、是否横幅、是否出现在锁屏。重要性一旦创建就写死在系统里，代码再改也无效，只能由用户在设置里调，或者你换一个新的渠道 id 重建。</p>
+        <p>这意味着「把 importance 从 LOW 调到 HIGH」这种需求，在已发布版本上升级是没用的，老用户机器上还留着旧渠道。我们的处理办法是渠道 id 里带版本号，比如 <code>order_v2</code>，改重要级别时新建渠道并做一次静默迁移，旧渠道留着不删，只是不再往里发。</p>
+        <p>四家厂商通道的差异，用一张表更直观。具体配额和审核规则各家都在变，这里只写稳定的结构性差异，用之前务必核对官方文档：</p>
+
+        <table>
+          <thead>
+            <tr><th>维度</th><th>华为</th><th>小米</th><th>OPPO</th><th>vivo</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>接入方式</td><td>Push Kit，服务端 token 鉴权</td><td>MiPush，AppSecret 鉴权</td><td>PUSH 服务，先换 auth token</td><td>Push 服务，authToken 鉴权</td></tr>
+            <tr><td>消息类型</td><td>通知消息 / 数据消息</td><td>通知栏消息 / 透传消息</td><td>通知栏 / 透传</td><td>系统消息 / 运营消息</td></tr>
+            <tr><td>配额</td><td>按应用分级，营销类受限</td><td>按日限额，超限静默丢弃</td><td>公信通道有时段限制</td><td>运营消息按日限条数</td></tr>
+            <tr><td>渠道要求</td><td>需在控制台登记channel</td><td>需登记通知类别</td><td>需申请通知栏权限</td><td>需区分消息类型</td></tr>
+            <tr><td>常见坑</td><td>未上架应用无正式配额</td><td>类别未登记落到默认渠道</td><td>公信通道非全天可发</td><td>运营消息超额直接丢弃</td></tr>
+          </tbody>
+        </table>
+
+        <p>Android 13（API 33）之后还多了一层：<code>POST_NOTIFICATIONS</code> 变成运行时权限，用户可以在首次启动时拒绝。拒绝之后所有通知都展示不了，但厂商通道的投递统计仍然显示「已送达」。这是「后台说送达、用户说没收到」最典型的一种解释。</p>
+        <p>所以测 Android 推送，必须准备的机型至少四台：华为、小米、OPPO、vivo 各一台，系统版本覆盖 Android 9 到 14，并且每台都要单独验证「首次启动拒绝权限」和「设置里关闭渠道」两条路径。</p>
+
+        <h2>iOS：APNs 双环境与静默推送</h2>
+        <p>iOS 相对干净，但有两个坑必须记住。</p>
+        <p>第一，APNs 有 sandbox 和 production 两个环境，设备 token 不通用。用开发证书签的 App 拿到的是 sandbox token，服务端如果往 production 发，返回成功但永远不到。我们线上出过一次：预发环境误用了生产证书，服务端日志全绿，设备一条没收到，查了两小时才发现环境配错。现在的规矩是服务端在初始化时打印环境标识，并在每条消息里带上 <code>apns-topic</code> 与环境名，日志里一眼能看出来。</p>
+        <p>第二，静默推送（<code>content-available: 1</code>）只保证「有机会」唤醒，不保证送达。系统会根据电量、后台刷新开关、用户使用习惯做节流，实测一台闲置的 iPhone 上，一小时发十条静默推送，能唤醒的次数在三条左右。所以它只能用于「顺带刷新」，绝不能用它承载业务必达逻辑。凡是要求必达的，一律用可见通知。</p>
+
+        <div class="code-head"><span>python — 服务端发起推送（华为 + 小米）</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import time
+import uuid
+import requests
+
+HUAWEI_APP_ID = "1088xxxx"
+HUAWEI_TOKEN_URL = "https://oauth-login.cloud.huawei.com/oauth2/v3/token"
+HUAWEI_PUSH_URL = "https://push-api.cloud.huawei.com/v1/{app_id}/messages:send"
+
+def huawei_token(client_id: str, secret: str) -&gt; str:
+    resp = requests.post(HUAWEI_TOKEN_URL, data={
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": secret,
+    }, timeout=10)
+    resp.raise_for_status()
+    return resp.json()["access_token"]
+
+def send_huawei(push_token: str, title: str, body: str) -&gt; str:
+    request_id = uuid.uuid4().hex
+    headers = {"Authorization": f"Bearer {huawei_token(HUAWEI_APP_ID, 'SECRET')}"}
+    payload = {
+        "message": {
+            "token": [push_token],
+            "notification": {"title": title, "body": body},
+            "android": {
+                # 透传字段：设备端能拿到，用来和服务端日志对齐
+                "data": f'{{"request_id":"{request_id}","deeplink":"/order/100"}}',
+                "notification": {"channel_id": "order_v2", "importance": "NORMAL"},
+            },
+        }
+    }
+    resp = requests.post(
+        HUAWEI_PUSH_URL.format(app_id=HUAWEI_APP_ID),
+        json=payload, headers=headers, timeout=10,
+    )
+    if resp.status_code != 200 or resp.json().get("code") != "80000000":
+        raise RuntimeError(f"华为受理失败 {resp.status_code} {resp.text}")
+    return request_id
+
+XIAOMI_SEND_URL = "https://api.xmpush.xiaomi.com/v3/message/regid"
+
+def send_xiaomi(reg_id: str, title: str, body: str) -&gt; str:
+    request_id = uuid.uuid4().hex
+    resp = requests.post(
+        XIAOMI_SEND_URL,
+        headers={"Authorization": "key=XM_APP_SECRET"},
+        data={
+            "registration_id": reg_id,
+            "title": title,
+            "description": body,
+            "payload": f"request_id={request_id}&amp;deeplink=/order/100",
+            "notify_type": -1,          # 使用通知类别里配置的默认行为
+            "extra.channel_id": "order_v2",
+            "time_to_live": 3600,
+        },
+        timeout=10,
+    )
+    result = resp.json()
+    if result.get("code") != 0:
+        # 常见：配额超限、regid 失效、类别未登记
+        raise RuntimeError(f"小米受理失败 {result.get('code')} {result.get('reason')}")
+    return request_id</code></pre>
+
+        <p>这段代码里有两处值得注意。一是 <code>request_id</code> 同时进了服务端返回和透传字段，后面算到达率全靠它。二是 <code>channel_id</code> 显式指定，不指定的话各家会落到默认渠道，而默认渠道往往被用户关掉了。</p>
+
+        <h2>到达率与延迟怎么测</h2>
+        <p>先定义清楚指标，否则数字永远对不上。我们用的是四个：</p>
+        <ol>
+          <li><strong>提交成功率</strong>：平台返回受理成功的请求数除以总请求数。这个数字正常应该在 99.5% 以上。</li>
+          <li><strong>通道到达率</strong>：设备端确实收到通知的条数除以受理成功条数。</li>
+          <li><strong>展示率</strong>：用户肉眼可见的条数除以到达条数，被渠道关闭、被折叠进群组、被免打扰都算未展示。</li>
+          <li><strong>点击率</strong>：业务指标，用来验证落地方案是否有效，不算质量指标。</li>
+        </ol>
+        <p>求通道到达率，必须有设备端证据。最可靠的办法是写一个探针 App，注册 <code>NotificationListenerService</code>，收到属于目标包名的通知就上报 <code>request_id</code> 与 <code>postTime</code>。没有探针能力时，退一步用 adb 抓 <code>dumpsys notification</code>，只看单台设备的单次行为，用来做人工排查。</p>
+
+        <div class="code-head"><span>powershell — adb 抓通知快照与日志</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 先清日志，然后触发一次推送
+adb logcat -c
+
+# 2. 抓通知服务的日志，只保留和本应用相关的行
+adb logcat -v threadtime | Select-String -Pattern "NotificationService|com.demo.app" -SimpleMatch |
+  Tee-Object -FilePath notif.log
+
+# 3. 拉一份未脱敏的通知快照（含 extras、渠道、重要性）
+adb shell dumpsys notification --noredact &gt; dump.txt
+
+# 4. 只输出本应用那条通知的关键字段
+Select-String -Path dump.txt -Pattern "pkg=com.demo.app" -Context 0,16
+
+# 输出解读：
+#   mChannel=order_v2        通知落在哪个渠道
+#   importance=3             3 为 DEFAULT，会有声音；2 为 LOW，静默
+#   postTime=2026-11-23 ...  系统记录的通知落地时间，用它减服务端 send_time 得延迟
+#   extras                   里面有 request_id 和 deeplink，是端到端对齐的唯一凭据
+#   若整个 dump 里找不到本应用，说明通知根本没进入系统，问题在通道侧</code></pre>
+
+        <p>延迟的算法很朴素：服务端记录 <code>send_time</code>，设备端取 <code>postTime</code>，相减就是<a class="ilink" href="web-e2e-testing.html">端到端</a>耗时。我们在近一周的样本里看到，华为通道 P50 在 1.8 秒左右，P90 在 6 秒；小米在夜间时段明显拉长，P90 到过 40 秒以上。这种分位数据比平均值有用得多，因为用户投诉的永远是尾部。</p>
+        <p>两端日志都落地之后，算指标就是一次 join。下面这段是我们每晚跑的统计脚本，输出按通道分桶的到达率与延迟分位：</p>
+
+        <div class="code-head"><span>python — 按通道统计到达率与延迟</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+from collections import defaultdict
+from statistics import median
+
+def load(path):
+    rows = {}
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            idx = line.find("{")
+            if idx &lt; 0:
+                continue
+            rec = json.loads(line[idx:])
+            rows[rec["request_id"]] = rec
+    return rows
+
+# server_send.log: 每行 {"request_id":..., "channel":"huawei", "send_time": 1763...}
+# probe_recv.log:  每行 {"request_id":..., "post_time": 1763..., "pkg":"com.demo.app"}
+sent = load("server_send.log")
+recv = load("probe_recv.log")
+
+print(f"受理 {len(sent)} 条，设备收到 {len(recv)} 条，总体到达率 {len(recv) / len(sent):.1%}")
+
+bucket = defaultdict(lambda: {"total": 0, "arrived": 0, "delays": []})
+for rid, s in sent.items():
+    b = bucket[s["channel"]]
+    b["total"] += 1
+    if rid in recv:
+        b["arrived"] += 1
+        b["delays"].append(recv[rid]["post_time"] - s["send_time"])
+
+for ch, b in sorted(bucket.items()):
+    delays = sorted(b["delays"])
+    p50 = median(delays) if delays else float("nan")
+    p90 = delays[int(len(delays) * 0.9)] if delays else float("nan")
+    print(f"{ch:8s} 提交 {b['total']:4d}  到达率 {b['arrived'] / b['total']:6.1%}  "
+          f"P50 {p50:.1f}s  P90 {p90:.1f}s")</code></pre>
+
+        <p>跑出来的表比单机 adb 观察有用得多，因为它天然按通道切片。我们第一次跑就发现小米通道的到达率只有 62%，而服务端受理成功率是 99.4%——差额全在配额和类别登记上，改完配置后回到 96%。</p>
+
+        <h2>三种进程状态下的点击链路</h2>
+        <p>点击验证是推送测试里价值最高、也最容易被糊弄的一段。至少要覆盖三种状态：进程在跑（热启动）、进程被系统回收（冷启动）、进程被用户彻底杀掉。三者的代码路径完全不同。</p>
+        <ul>
+          <li><strong>热启动</strong>：Activity 还在栈里，系统走 <code>onNewIntent</code>。如果你的启动页是 <code>singleTask</code> 却没重写 <code>onNewIntent</code>，通知里的参数会被直接丢掉，用户永远停留在退出前的页面。</li>
+          <li><strong>冷启动</strong>：进程不存在，系统新建进程并把 intent 带进启动 Activity。典型坑是启动页在 <code>onCreate</code> 里无条件 <code>startActivity</code> 到首页，深链路由还没跑到就被首页覆盖。</li>
+          <li><strong>被杀</strong>：这里有个反直觉的细节。<code>adb shell am force-stop</code> 会把应用置为 stopped 状态，此时系统会清除它的通知，后续推送也被拦下。用 force-stop 模拟「被杀」去测点击，永远测不出来。正确做法是用 <code>am kill</code>（只杀后台进程，不改 stopped 状态），或者手动从最近任务里划掉。</li>
+        </ul>
+
+        <div class="code-head"><span>powershell — 三态点击验证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>$PKG = "com.demo.app"
+
+# --- 状态一：热启动（Activity 在栈里，不杀） ---
+adb shell am start -n "$PKG/.MainActivity"
+adb shell am start -W -a android.intent.action.VIEW -d "demo://order/detail?id=100" $PKG
+# 输出里有 Status: ok、LaunchState、TotalTime，热启动 TotalTime 通常在 100ms 级
+
+# --- 状态二：冷启动（杀后台进程但保留 stopped 状态） ---
+adb shell am kill $PKG
+adb shell dumpsys activity processes | Select-String $PKG   # 确认进程已不在
+adb shell am start -W -a android.intent.action.VIEW -d "demo://order/detail?id=100" $PKG
+# 冷启动 TotalTime 通常在 800ms 到 2s，重点看是否停在目标页而不是首页
+
+# --- 状态三：真的被杀（划掉最近任务，效果接近用户行为） ---
+adb shell am force-stop $PKG          # 注意：通知会被清，只用于验证「不崩溃」兜底
+adb shell am start -W -a android.intent.action.VIEW -d "demo://order/detail?id=100" $PKG
+
+# --- 断言落地页：看当前 resumed activity 与前端路由日志 ---
+adb shell dumpsys activity activities | Select-String "mResumedActivity"
+adb logcat -d -s Router:* | Select-String "request_id="</code></pre>
+
+        <p>脚本化的时候，不要只断言「App 起来了」，要断言「停在哪个 Activity、路由参数是什么」。我们最初的用例只检查 <code>current_package</code>，结果三种状态全绿，实际线上有两成点击落在首页。补上 <code>mResumedActivity</code> 断言之后，当场抓出两个真实缺陷。</p>
+
+        <h2>异常场景：免打扰、折叠、权限与渠道关闭</h2>
+        <p>这些场景在功能测试文档里通常一笔带过，但在客诉里占比不低。逐条说处理方式。</p>
+        <ul>
+          <li><strong>勿扰模式</strong>：Android 上 <code>adb shell cmd notification set_dnd on</code> 可以打开，之后通知照常进通知栏但不响不震。要验证的是「内容仍然正确、点击仍然生效」，而不是「有没有声音」。iOS 的专注模式同理。</li>
+          <li><strong>通知折叠</strong>：同一渠道连续发四条以上，Android 会自动折叠成一组，只显示第一条的摘要。要验证摘要文案不是「4 条新消息」这种无意义字符串，以及展开后每条都能点。</li>
+          <li><strong>权限被拒</strong>：Android 13 上首次启动拒绝 <code>POST_NOTIFICATIONS</code>，之后要验证 App 是否有引导，且不因为拿不到 token 而崩溃或卡在启动页。</li>
+          <li><strong>渠道被关</strong>：用户在设置里关掉 <code>order_v2</code> 之后，服务端仍会显示送达。这条要在验收标准里明确写「属于预期」，否则每次都被当成 bug 提。</li>
+          <li><strong>应用未上架</strong>：华为、小米在应用未上架时对正式配额有限制，测试阶段必须用测试配额或白名单，否则会误判为代码问题。</li>
+        </ul>
+
+        <div class="callout warn">
+          <p>不要用「服务端返回成功」当作推送通过的证据。四家厂商的接口语义不同：有的返回受理成功但后续静默丢弃（配额超限），有的对失效 token 也返回成功。唯一可信的证据是设备端拿到了那条带 <code>request_id</code> 的通知。</p>
+        </div>
+
+        <h2>落到日常流程</h2>
+        <p>推送不像 UI 用例可以天天全量跑，成本太高（每台机器要真机、要真实账号、要等通道）。我们把它拆成三层：</p>
+        <ol>
+          <li><strong>每次发版前必跑</strong>：四台机型各一条，只验「后台状态收到 + 点击落到正确页」，二十分钟内完成。</li>
+          <li><strong>每周一次全量</strong>：三态点击乘以四家通道，共十二条，跑完出一张通道 × 状态的矩阵表，失败项自动附设备截图与通知 dump。</li>
+          <li><strong>线上持续观测</strong>：探针 App 回传 <code>request_id</code> 与 <code>postTime</code>，按通道分桶算到达率和延迟分位，连续两天低于基线就告警。</li>
+        </ol>
+        <p>第三层是真正省钱的部分。它把「用户投诉才发现」变成「提前一天知道」，我们靠它抓到过一次小米通道配额耗尽，赶在活动开始前调了分流比例。</p>
+
+        <h2>踩坑与边界</h2>
+        <ul>
+          <li><strong>症状</strong>：测试环境全部正常，线上华为机型大面积收不到。<strong>原因</strong>：测试包用的是调试签名与白名单配额，正式包走的是另一套分级策略。<strong>处理</strong>：验收必须用与线上同签名的包，且用正式应用在厂商后台的配额。</li>
+          <li><strong>症状</strong>：iOS 服务端日志全绿，设备零到达。<strong>原因</strong>：sandbox 与 production 的 token 混用。<strong>处理</strong>：服务端按环境区分证书与 endpoint，日志里打印环境标识。</li>
+          <li><strong>症状</strong>：改了通知重要性，老用户还是静默。<strong>原因</strong>：渠道 importance 创建后代码不可改。<strong>处理</strong>：换渠道 id 重建，旧渠道做迁移后不再投递。</li>
+          <li><strong>症状</strong>：force-stop 之后怎么点都没反应，以为功能坏了。<strong>原因</strong>：force-stop 会清通知并进入 stopped 状态。<strong>处理</strong>：改用 <code>am kill</code> 或从最近任务划掉。</li>
+        </ul>
+        <p>边界同样要说清楚：推送的最终到达受运营商、系统省电策略、用户设置影响，任何团队都做不到百分之百。能承诺的是「链路上每一段都可查」和「在给定机型与设置下稳定达标」，不是「保证每条都送到」。</p>
+
+        <h2>效果度量</h2>
+        <table>
+          <thead>
+            <tr><th>指标</th><th>改造前</th><th>改造后</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>推送类客诉（月）</td><td>37 单</td><td>9 单</td></tr>
+            <tr><td>点击落错页比例</td><td>约 21%</td><td>0.8%</td></tr>
+            <tr><td>单次排查平均耗时</td><td>2.5 小时</td><td>25 分钟</td></tr>
+            <tr><td>发版前推送验证耗时</td><td>手工 4 人时</td><td>脚本 40 分钟</td></tr>
+          </tbody>
+        </table>
+        <p>点击落错页那 21% 里，绝大部分是冷启动被首页覆盖，靠 <code>mResumedActivity</code> 断言一次性暴露。这类问题不测就永远在，测了就是一行代码的事。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://developer.huawei.com/consumer/cn/doc/HMSCore-Guides/service-introduction-0000001050040060" target="_blank" rel="noopener">Push Kit 服务简介 — 华为开发者文档</a></li>
+            <li><a href="https://developer.android.com/develop/ui/views/notifications/channels" target="_blank" rel="noopener">Create and manage notification channels — Android Developers</a></li>
+            <li><a href="https://developer.apple.com/documentation/usernotifications/sending-notification-requests-to-apns" target="_blank" rel="noopener">Sending notification requests to APNs — Apple Developer</a></li>
+            <li><a href="https://dev.mi.com/distribute/doc/details?pId=155" target="_blank" rel="noopener">小米推送服务端接口文档 — 小米开放平台</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#push-notification</span>
+          <span class="tag">#vendor-channel</span>
+          <span class="tag">#app-testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>我的收藏 · 软件测试资料集</title>
+<meta name="description" content="查看已收藏的测试笔记，支持导出与导入收藏列表。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/favorites.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="我的收藏 · 软件测试资料集">
+<meta property="og:description" content="查看已收藏的测试笔记，支持导出与导入收藏列表。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/favorites.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="我的收藏 · 软件测试资料集">
+<meta name="twitter:description" content="查看已收藏的测试笔记，支持导出与导入收藏列表。">
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="index.html">首页</a>
+      <a href="index.html#posts">文章</a>
+      <a href="tags.html">标签</a>
+      <a href="paths.html">路径</a>
+      <a href="favorites.html" class="active">收藏</a>
+      <a href="about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main>
+  <div class="page-head">
+    <h1>我的收藏 <span class="tag-num">已收藏 <span id="fav-count">0</span> 篇</span></h1>
+    <p>收藏保存在本机浏览器里，换设备时用「导出」备份、用「导入」恢复。</p>
+  </div>
+  <div class="page-body">
+    <div class="fav-tools">
+      <button type="button" id="fav-export">⤓ 导出收藏 (JSON)</button>
+      <label for="fav-import">⤒ 导入收藏</label>
+      <input type="file" id="fav-import" accept="application/json,.json">
+      <button type="button" id="fav-clear">清空全部</button>
+    </div>
+    <div class="post-grid" id="fav-list"></div>
+    <div id="fav-empty" class="search-empty">还没有收藏。打开任意文章，点标题下方的「☆ 收藏」即可加入这里。</div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span>Built with plain HTML / CSS / JS · <a href="index.html">回到首页</a></span>
+  </div>
+</footer>
+
+<script src="assets/main.js"></script>
+</body>
+</html>

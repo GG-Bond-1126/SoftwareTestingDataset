@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Appium + LLM 视觉 Agent：APP 测试的 AI 新范式 · 软件测试资料集</title>
+<meta name="description" content="用 GPT-4V/Claude 视觉 LLM 读取 App 屏幕截图，将自然语言意图转化为 Appium 操作…">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-automation-intro.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Appium + LLM 视觉 Agent：APP 测试的 AI 新范式">
+<meta property="og:description" content="用 GPT-4V/Claude 视觉 LLM 读取 App 屏幕截图，将自然语言意图转化为 Appium 操作…">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-automation-intro.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Appium + LLM 视觉 Agent：APP 测试的 AI 新范式">
+<meta name="twitter:description" content="用 GPT-4V/Claude 视觉 LLM 读取 App 屏幕截图，将自然语言意图转化为 Appium 操作…">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Appium + LLM 视觉 Agent：APP 测试的 AI 新范式","description":"用 GPT-4V/Claude 视觉 LLM 读取 App 屏幕截图，将自然语言意图转化为 Appium 操作…","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-automation-intro.html","articleSection":"APP 自动化","keywords":"Appium, LLM 视觉, 多设备, 需求转用例","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统+AI 接口</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>15 min read</span>
+        </div>
+        <h1>Appium + LLM 视觉 Agent：APP 测试的 AI 新范式</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="app-automation-intro">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<p>本方案以 Appium 为执行层、GPT-4V/Claude Vision 为决策层，通过自然语言意图驱动 App 操作。Android 侧需要 ADB + UiAutomator2 驱动，iOS 侧需要 Xcode + XCUITest 驱动。</p>
+
+<div class="code-head"><span>Android 环境（Linux/macOS/Windows）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 1. 安装 Android SDK Platform Tools
+# Linux:
+sudo apt install android-tools-adb
+# macOS:
+brew install android-platform-tools
+# Windows: 从 https://developer.android.com/tools/releases/platform-tools 下载
+
+# 2. 安装 Appium 2.x
+npm install -g appium
+appium driver install uiautomator2
+
+# 3. Python 依赖
+pip install Appium-Python-Client pytest openai anthropic pillow
+
+# 4. 验证
+adb devices          # 输出: emulator-5554  device
+appium --version     # 输出: 2.x.x</code></pre>
+
+<div class="code-head"><span>iOS 环境（macOS only）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Xcode 15+（App Store 或 developer.apple.com）
+xcode-select --install
+xcrun simctl list devices    # 查看可用模拟器
+
+# Appium iOS 驱动
+appium driver install xcuitest</code></pre>
+
+<div class="code-head"><span>配置 LLM 密钥（.env）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 二选一：OpenAI 或 Anthropic
+OPENAI_API_KEY=sk-xxxxxxxx
+# ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
+
+# LLM 模型配置
+LLM_PROVIDER=openai          # openai | anthropic
+LLM_MODEL=gpt-4o            # 或 claude-sonnet-4-20250514
+
+# Appium 配置
+APPIUM_URL=http://localhost:4723
+ANDROID_PACKAGE=com.example.myapp
+IOS_BUNDLE=com.example.myapp</code></pre>
+
+<div class="code-head"><span>验证 LLM 视觉能力（verify_vision.py）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+验证 LLM 能否正确识别 App 截图中的 UI 元素
+"""
+import base64, os, pathlib
+from openai import OpenAI
+
+client = OpenAI()
+MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
+
+def test_vision_recognition():
+    # 用一张真实的 App 截图测试（可替换为任意图）
+    img_path = "test_screenshot.png"
+    if not pathlib.Path(img_path).exists():
+        print(f"  [SKIP] 测试图片 {img_path} 不存在，请放入一张 App 截图")
+        return
+
+    b64 = base64.b64encode(pathlib.Path(img_path).read_bytes()).decode()
+    resp = client.chat.completions.create(
+        model=MODEL,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": (
+                    "这是一个移动端 App 截图。请列出所有可见的 UI 元素"
+                    "（按钮、输入框、文本、图标），用 JSON 数组输出，"
+                    "每项包含: type, text, approximate_position(top/bottom/left/right)"
+                )},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+            ],
+        }],
+        temperature=0.1,
+    )
+    print("LLM 识别结果:")
+    print(resp.choices[0].message.content)
+
+if __name__ == "__main__":
+    test_vision_recognition()</code></pre>
+
+<div class="callout">Claude Sonnet 4 在 UI 元素识别上准确率较高，适合 iOS 复杂界面；GPT-4o 性价比高，适合批量 CI 运行。建议先用 5 张真实截图做校准测试再投入生产。</div>
+
+<h2>基础应用：自然语言意图 → Appium 操作执行</h2>
+<p>核心类 <code>VisionAgent</code> 接收自然语言意图（如「点击底部 Tab 中的'购物车'」），自动截图 → LLM 分析 → 生成 Appium 操作 → 执行 → 截图验证，全程无需硬编码选择器。</p>
+
+<div class="code-head"><span>vision_agent.py — 视觉 Agent 核心</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+LLM 视觉 Agent：自然语言驱动 Appium 操作
+"""
+import base64, json, os, time, pathlib
+from openai import OpenAI
+from appium import webdriver
+from appium.options.android import UiAutomator2Options
+from appium.webdriver.common.appiumby import AppiumBy
+
+class VisionAgent:
+    """
+    用法:
+        agent = VisionAgent(platform="Android")
+        agent.act("点击搜索框，输入 'python'")
+        agent.act("点击搜索按钮")
+        agent.assert_state("页面显示搜索结果列表")
+        agent.quit()
+    """
+
+    def __init__(self, platform: str = "Android", appium_url: str = None):
+        url = appium_url or os.environ.get("APPIUM_URL", "http://localhost:4723") + "/wd/hub"
+        provider = os.environ.get("LLM_PROVIDER", "openai")
+        model = os.environ.get("LLM_MODEL", "gpt-4o")
+
+        if provider == "anthropic":
+            from anthropic import Anthropic
+            self._client = Anthropic()
+            self._provider = "anthropic"
+        else:
+            self._client = OpenAI()
+            self._provider = "openai"
+
+        self._model = model
+        self._screenshots_dir = pathlib.Path("screenshots")
+        self._screenshots_dir.mkdir(exist_ok=True)
+
+        # 启动 Appium 会话
+        if platform == "Android":
+            caps = {
+                "platformName": "Android",
+                "appPackage": os.environ.get("ANDROID_PACKAGE", ""),
+                "noReset": True,
+                "automationName": "UiAutomator2",
+            }
+            self.driver = webdriver.Remote(url, options=UiAutomator2Options().load_capabilities(caps))
+        else:
+            caps = {
+                "platformName": "iOS",
+                "bundleId": os.environ.get("IOS_BUNDLE", ""),
+                "automationName": "XCUITest",
+                "deviceName": "iPhone 15",
+                "platformVersion": "17.0",
+            }
+            self.driver = webdriver.Remote(url, options=caps)
+
+    # ── 内部：截图 ──
+    def _screenshot(self, tag: str = "") -> str:
+        png = self.driver.get_screenshot_as_png()
+        b64 = base64.b64encode(png).decode()
+        if tag:
+            pathlib.Path(self._screenshots_dir / f"{tag}.png").write_bytes(png)
+        return b64
+
+    # ── 内部：LLM 调用 ──
+    def _llm(self, system: str, user_text: str, image_b64: str = None) -> str:
+        messages = []
+        if image_b64:
+            user_content = [
+                {"type": "text", "text": user_text},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_b64}"}},
+            ]
+        else:
+            user_content = user_text
+
+        if self._provider == "anthropic":
+            resp = self._client.messages.create(
+                model=self._model,
+                max_tokens=1024,
+                system=system,
+                messages=[{"role": "user", "content": user_content}],
+            )
+            return resp.content[0].text
+        else:
+            resp = self._client.chat.completions.create(
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user_content},
+                ],
+                temperature=0.1,
+                max_tokens=1024,
+            )
+            return resp.choices[0].message.content
+
+    # ── 核心：执行意图 ──
+    def act(self, intent: str, max_retry: int = 3):
+        """
+        执行自然语言操作意图
+        LLM 返回 Appium Python 代码，我们 exec 执行
+        失败自动重试（重新截图让 LLM 再看一次）
+        """
+        system = (
+            "你是移动端 UI 自动化专家。根据截图和用户意图，"
+            "生成一条 Appium Python 代码（使用 self.driver）。"
+            "支持的操作：click、send_keys、find_element、swipe、wait。"
+            "输出纯代码，不要解释。如果操作已完成，输出 'DONE'。"
+        )
+        for attempt in range(max_retry):
+            shot = self._screenshot(f"act_{attempt}")
+            user_text = f"用户意图: {intent}\n请生成 Appium 代码（使用 self.driver）："
+            code = self._llm(system, user_text, shot).strip()
+
+            if code.upper() == "DONE":
+                print(f"  [OK] 意图完成: {intent}")
+                return
+
+            # 清理可能的 markdown 包裹
+            code = code.removeprefix("```python").removeprefix("```").removesuffix("```").strip()
+            print(f"  [exec] {code[:100]}")
+
+            try:
+                # 将 self.driver 注入到执行环境
+                local = {"self": self, "AppiumBy": AppiumBy}
+                exec(code, local)
+                time.sleep(1)
+                return  # 成功
+            except Exception as e:
+                print(f"  [retry {attempt+1}] 执行失败: {e}")
+                time.sleep(0.5)
+
+        raise RuntimeError(f"意图执行失败（重试 {max_retry} 次）: {intent}")
+
+    def assert_state(self, description: str):
+        """截图 → LLM 判断当前界面是否符合描述"""
+        system = (
+            "你是移动端测试断言专家。根据截图判断界面状态，"
+            "输出 JSON: {\"pass\": true/false, \"reason\": \"...\"}"
+        )
+        shot = self._screenshot("assert")
+        result = self._llm(system, f"请判断: {description}", shot)
+        parsed = json.loads(result.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip())
+        if not parsed.get("pass"):
+            raise AssertionError(f"界面断言失败: {parsed.get('reason')}")
+        print(f"  [assert OK] {description}")
+
+    def quit(self):
+        self.driver.quit()</code></pre>
+
+<div class="code-head"><span>test_shopping_flow.py — 购物流程示例</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest
+from vision_agent import VisionAgent
+
+@pytest.fixture
+def agent():
+    a = VisionAgent(platform="Android")
+    yield a
+    a.quit()
+
+def test_add_to_cart(agent):
+    """自然语言描述整个购物流程，无需选择器"""
+    agent.act("点击底部导航栏中的'首页'Tab")
+    agent.act("点击第一个商品卡片")
+    agent.assert_state("页面显示商品详情页，有'加入购物车'按钮")
+    agent.act("点击'加入购物车'按钮")
+    agent.assert_state("弹出加购成功提示或购物车数量增加")
+
+def test_search_product(agent):
+    agent.act("点击顶部搜索框")
+    agent.act("输入 '蓝牙耳机'")
+    agent.act("点击搜索按钮或按回车")
+    agent.assert_state("页面显示搜索结果列表，至少包含 1 条商品")</code></pre>
+
+<div class="callout">每次 <code>act()</code> 调用消耗 1 次 LLM 视觉请求。一条 5 步用例约 $0.05–0.10（GPT-4o）。批量 CI 前建议先跑 1 条用例验证 LLM 输出稳定性。</div>
+
+<h2>项目进阶：多设备矩阵 + 元素自愈 + 需求转用例</h2>
+<p>将 VisionAgent 扩展为生产级测试框架：多设备并行、UI 变更自动自愈、从需求文档直接生成测试用例并执行。</p>
+
+<div class="code-head"><span>requirement_to_tests.py — 需求文档 → 测试用例</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+从需求文档（Markdown/自然语言）自动生成测试用例
+"""
+import json, os, pathlib, re
+from openai import OpenAI
+
+client = OpenAI()
+MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
+
+def extract_test_cases(requirement_md: str, app_context: str = "") -> list[dict]:
+    """
+    输入：需求文档 Markdown 文本
+    输出：测试用例列表，每项:
+      {"id": "TC-001", "title": "...", "precondition": "...",
+       "steps": ["步骤1", "步骤2"], "expected": "预期结果"}
+    """
+    system = (
+        "你是移动端测试用例设计专家。从需求文档中提取可测试场景，"
+        "覆盖正向、异常、边界三种类型。输出 JSON 数组。"
+    )
+    prompt = f"""
+    需求文档:
+    {requirement_md[:3000]}
+
+    应用上下文: {app_context}
+
+    请生成测试用例，JSON 格式：
+    [
+      {{
+        "id": "TC-001",
+        "title": "用例标题",
+        "precondition": "前置条件",
+        "steps": ["步骤1", "步骤2"],
+        "expected": "预期结果",
+        "type": "normal|exception|boundary"
+      }}
+    ]
+    """
+    resp = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.2,
+        max_tokens=4096,
+    )
+    text = resp.choices[0].message.content.strip()
+    text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    return json.loads(text)
+
+def run_test_case(agent, tc: dict, platform: str = "Android"):
+    """用 VisionAgent 执行一条测试用例"""
+    print(f"\n=== 执行 {tc['id']}: {tc['title']} ===")
+    # 前置条件（可选）
+    if tc.get("precondition"):
+        agent.act(tc["precondition"])
+    # 步骤
+    for i, step in enumerate(tc["steps"], 1):
+        print(f"  Step {i}: {step}")
+        agent.act(step)
+    # 断言
+    agent.assert_state(tc["expected"])
+    print(f"  [PASS] {tc['id']}")
+
+if __name__ == "__main__":
+    # 示例需求
+    requirement = """
+    ## 搜索功能
+    - 用户可在首页顶部搜索框输入关键词
+    - 支持搜索商品名称和商品 ID
+    - 搜索结果为空时显示"暂无结果"
+    - 输入超过 50 字符时截断
+    """
+    cases = extract_test_cases(requirement, "电商 App，首页有搜索框")
+    for tc in cases:
+        print(f"  {tc['id']}: {tc['title']} [{tc['type']}]")</code></pre>
+
+<div class="code-head"><span>multi_device_matrix.py — 多设备并行测试</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+多设备并行执行测试矩阵
+Android 用真机（ADB），iOS 用模拟器（Xcode）
+"""
+import os, subprocess, json, pathlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from vision_agent import VisionAgent
+
+# 设备配置（从 .env 或 CI 环境变量读取）
+DEVICES = json.loads(os.environ.get("TEST_DEVICES", "[]"))
+# 格式: [{"platform":"Android","deviceName":"pixel_6","package":"com.example"},
+#        {"platform":"iOS","deviceName":"iPhone_15","bundle":"com.example"}]
+
+def run_on_device(device: dict, test_cases: list[dict]) -> dict:
+    """在单台设备上执行所有用例"""
+    results = {"device": device, "cases": []}
+    try:
+        agent = VisionAgent(
+            platform=device["platform"],
+            appium_url=os.environ.get("APPIUM_URL"),
+        )
+        # 指定设备
+        agent.driver.implicit_wait(15)
+        for tc in test_cases:
+            try:
+                run_test_case(agent, tc)
+                results["cases"].append({"id": tc["id"], "status": "PASS"})
+            except Exception as e:
+                results["cases"].append({"id": tc["id"], "status": "FAIL", "error": str(e)})
+        agent.quit()
+    except Exception as e:
+        results["error"] = str(e)
+
+    return results
+
+def main():
+    requirement = pathlib.Path("requirements/search_feature.md").read_text()
+    cases = extract_test_cases(requirement, "电商 App")
+    print(f"生成 {len(cases)} 条用例，在 {len(DEVICES)} 台设备上并行执行\n")
+
+    with ThreadPoolExecutor(max_workers=len(DEVICES)) as pool:
+        futures = {pool.submit(run_on_device, d, cases): d for d in DEVICES}
+        all_results = []
+        for f in as_completed(futures):
+            r = f.result()
+            all_results.append(r)
+            passed = sum(1 for c in r["cases"] if c["status"] == "PASS")
+            print(f"  {r['device']}: {passed}/{len(r['cases'])} 通过")
+
+    # 汇总报告
+    pathlib.Path("test_matrix_report.json").write_text(
+        json.dumps(all_results, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    print(f"\n报告: test_matrix_report.json")
+
+if __name__ == "__main__":
+    main()</code></pre>
+
+<div class="code-head"><span>self_heal.py — 元素 ID 变更自愈</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+当 Appium 原生选择器（resource-id/accessibility-id）失效时，
+LLM 视觉重新定位元素，并更新测试代码中的选择器
+"""
+import base64, json, os, pathlib, re, diff_match_patch
+from openai import OpenAI
+
+client = OpenAI()
+MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
+
+def heal_test_code(test_file: str, driver, failed_selector: str, element_desc: str):
+    """
+    1. 截图让 LLM 找新选择器
+    2. 更新测试文件中的选择器
+    3. 返回 diff 供人工审查
+    """
+    shot = driver.get_screenshot_as_png()
+    b64 = base64.b64encode(shot).decode()
+
+    prompt = f"""
+    Appium 测试中以下选择器定位失败（UI 可能已变更）:
+      旧选择器: {failed_selector}
+      目标元素描述: {element_desc}
+
+    请根据截图推断新的 Appium 选择器（XPath 或 Accessibility ID），
+    输出 JSON: {{"new_selector": "...", "confidence": 0.0-1.0, "reason": "..."}}
+    """
+    resp = client.chat.completions.create(
+        model=MODEL,
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+            ],
+        }],
+        temperature=0.0,
+    )
+    result = json.loads(resp.choices[0].message.content.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip())
+
+    if result.get("confidence", 0) < 0.6:
+        print(f"  [WARN] LLM 置信度低 ({result['confidence']})，建议人工审查")
+        return None
+
+    new_sel = result["new_selector"]
+    old_content = pathlib.Path(test_file).read_text(encoding="utf-8")
+    # 简单替换：将旧选择器替换为新选择器
+    new_content = old_content.replace(failed_selector, new_sel)
+    if new_content == old_content:
+        print("  [INFO] 选择器未在测试文件中找到，无法自动替换")
+        return None
+
+    # 保存为 .patch 供人工审查
+    patch_file = test_file + ".patch"
+    pathlib.Path(patch_file).write_text(
+        f"--- a/{test_file}\n+++ b/{test_file}\n"
+        f"-{failed_selector}\n+{new_sel}\n",
+        encoding="utf-8",
+    )
+    print(f"  [heal] 选择器已更新: {failed_selector} → {new_sel}")
+    print(f"  [heal] patch 文件: {patch_file}（请人工审查后 apply）")
+    return patch_file</code></pre>
+
+<div class="callout warn">LLM 生成的选择器置信度 &lt; 0.6 时不建议自动替换，应标记为 <code>NEEDS_REVIEW</code> 并通知测试人员。批量自愈前务必做 dry-run（不写入文件，只输出 diff）。</div>
+
+<div class="callout">需求转用例的 LLM 温度建议 0.2（平衡多样性和稳定性）。用例步骤描述要具体到可执行粒度，如「点击底部 Tab 购物车」而非「进入购物车页面」。</div>
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+<li>Appium 2.x 官方文档 — <a href="https://appium.io/docs/en/latest/" target="_blank" rel="noopener">https://appium.io/docs</a></li>
+<li>Anthropic Claude Vision API — <a href="https://docs.anthropic.com/en/docs/build-with-claude/vision" target="_blank" rel="noopener">https://docs.anthropic.com</a></li>
+<li>Appium Python Client — <a href="https://github.com/appium/python-client" target="_blank" rel="noopener">https://github.com/appium/python-client</a></li>
+<li>OpenAI 视觉能力 — <a href="https://platform.openai.com/docs/guides/vision" target="_blank" rel="noopener">https://platform.openai.com/docs/guides/vision</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">Appium</span>
+          <span class="tag">LLM 视觉</span>
+          <span class="tag">多设备</span>
+          <span class="tag">需求转用例</span>
+          <span class="tag">自愈测试</span>
+          <span class="tag">GPT-4V</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

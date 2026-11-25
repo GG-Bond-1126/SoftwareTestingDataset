@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>App 自动化 12 个坑与解法 · 软件测试资料集</title>
+<meta name="description" content="从元素定位、Toast、权限到驱动版本与 CI 掉线，12 个真实坑按症状、原因、解法逐条拆开。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-automation-pitfalls.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="App 自动化 12 个坑与解法">
+<meta property="og:description" content="从元素定位、Toast、权限到驱动版本与 CI 掉线，12 个真实坑按症状、原因、解法逐条拆开。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-automation-pitfalls.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="App 自动化 12 个坑与解法">
+<meta name="twitter:description" content="从元素定位、Toast、权限到驱动版本与 CI 掉线，12 个真实坑按症状、原因、解法逐条拆开。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"App 自动化 12 个坑与解法","description":"从元素定位、Toast、权限到驱动版本与 CI 掉线，12 个真实坑按症状、原因、解法逐条拆开。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-automation-pitfalls.html","articleSection":"APP 自动化","keywords":"appium, debugging, flaky","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>15 min read</span>
+        </div>
+        <h1>App 自动化 12 个坑与解法</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="app-automation-pitfalls">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <figure class="article-figure">
+          <svg viewBox="0 0 720 340" width="100%" role="img" aria-labelledby="fig-pitfalls-1-title" xmlns="http://www.w3.org/2000/svg">
+            <title id="fig-pitfalls-1-title">App 自动化用例失败后的四类归因：元素找不到、断言不过、环境异常、数据污染，每类各有取证手段，并按成本从低到高排查</title>
+            <defs>
+              <marker id="fig-pitfalls-1-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--text-faint)"/>
+              </marker>
+            </defs>
+
+            <rect x="300" y="24" width="120" height="44" rx="10" fill="rgba(61,220,132,0.12)" stroke="var(--accent)" stroke-width="1.5"/>
+            <text x="360" y="52" text-anchor="middle" font-family="inherit" font-size="15" fill="var(--accent)">用例失败</text>
+
+            <line x1="360" y1="68" x2="360" y2="96" stroke="var(--text-faint)" stroke-width="1.4"/>
+            <line x1="108" y1="96" x2="612" y2="96" stroke="var(--text-faint)" stroke-width="1.4"/>
+            <line x1="108" y1="96" x2="108" y2="113" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-pitfalls-1-arrow)"/>
+            <line x1="276" y1="96" x2="276" y2="113" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-pitfalls-1-arrow)"/>
+            <line x1="444" y1="96" x2="444" y2="113" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-pitfalls-1-arrow)"/>
+            <line x1="612" y1="96" x2="612" y2="113" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-pitfalls-1-arrow)"/>
+
+            <rect x="36" y="116" width="144" height="40" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.4"/>
+            <text x="108" y="141" text-anchor="middle" font-family="inherit" font-size="15" fill="var(--cyan)">元素找不到</text>
+            <rect x="204" y="116" width="144" height="40" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.4"/>
+            <text x="276" y="141" text-anchor="middle" font-family="inherit" font-size="15" fill="var(--amber)">断言不过</text>
+            <rect x="372" y="116" width="144" height="40" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.4"/>
+            <text x="444" y="141" text-anchor="middle" font-family="inherit" font-size="15" fill="var(--cyan)">环境异常</text>
+            <rect x="540" y="116" width="144" height="40" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.4"/>
+            <text x="612" y="141" text-anchor="middle" font-family="inherit" font-size="15" fill="var(--amber)">数据污染</text>
+
+            <line x1="108" y1="156" x2="108" y2="176" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-pitfalls-1-arrow)"/>
+            <line x1="276" y1="156" x2="276" y2="176" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-pitfalls-1-arrow)"/>
+            <line x1="444" y1="156" x2="444" y2="176" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-pitfalls-1-arrow)"/>
+            <line x1="612" y1="156" x2="612" y2="176" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-pitfalls-1-arrow)"/>
+
+            <rect x="36" y="180" width="144" height="92" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="108" y="206" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">截图：停在哪个页</text>
+            <text x="108" y="232" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">层级：属性是否一致</text>
+            <text x="108" y="258" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">等可点击再操作</text>
+
+            <rect x="204" y="180" width="144" height="92" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="276" y="206" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">先抓 Toast 文案</text>
+            <text x="276" y="232" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">logcat 兜底</text>
+            <text x="276" y="258" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">差异阈值 1%</text>
+
+            <rect x="372" y="180" width="144" height="92" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="444" y="206" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">adb devices 查在线</text>
+            <text x="444" y="232" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">驱动三者版本锁死</text>
+            <text x="444" y="258" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">端口按设备号分配</text>
+
+            <rect x="540" y="180" width="144" height="92" rx="10" fill="var(--panel)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="612" y="206" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">no_reset=False</text>
+            <text x="612" y="232" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">独立账号与单号</text>
+            <text x="612" y="258" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">setup 注入状态</text>
+
+            <text x="360" y="302" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--text-dim)">排查按成本从低到高：截图 → 层级 → 设备 → 日志 → 重跑</text>
+            <text x="360" y="326" text-anchor="middle" font-family="inherit" font-size="11.5" fill="var(--accent)">先取证，再改代码</text>
+          </svg>
+          <figcaption>图 1 · 失败先归四类再取证，比直接改脚本快得多</figcaption>
+        </figure>
+        <h2>坑总是以同样的方式重复出现</h2>
+        <p>我们团队 6 个人维护 480 条 App 自动化用例，跑在 4 台真机加 2 台模拟器上。我统计过 2025 年上半年全部 1 873 次失败，其中 62% 集中在 12 类问题上。也就是说，把下面这 12 条吃透，能直接消掉一大半的红色。</p>
+        <p>这 12 条有个共同特征：它们都不是框架本身的 bug，而是使用方式与真实设备环境之间的错位。框架文档里往往一句话带过，但在真机上会以完全不同的形态出现。下面每条都按症状、原因、解法三段写，症状尽量用报错原文，方便你对照自己的日志。</p>
+        <p>分类方法很土：每周把失败用例的截图和日志翻一遍，<a class="ilink" href="ai-defect-rootcause.html">根因</a>相同的合并成一条并编号。两个月后自然收敛到 12 类。这件事值得做，因为它把「又挂了」变成了「第 5 类，权限弹窗」，处理动作立刻明确，新人也能照着清单自查。</p>
+
+        <h2>定位类：元素为什么就是找不到</h2>
+
+        <h3>坑 1：元素找不到，重跑一次又好了</h3>
+        <p><strong>症状</strong>：偶发 <code>NoSuchElementException</code>，单独重跑必过，全量跑挂的概率大约 30%。<strong>原因</strong>：<code>find_element</code> 是立即返回的，页面还在转场动画或等接口，元素自然不存在。另一种情况是列表项 id 每次启动都变，形如 <code>item_1837</code>，昨天写的定位今天就失效。</p>
+        <p><strong>解法</strong>：禁止在用例里直接调用 <code>find_element</code>，统一走等待封装；定位优先级固定为 content-desc 大于可见文案大于稳定资源 id，动态 id 只做正则或父级约束，绝不硬编码。等待要等到可点击而不是仅存在，否则会点到被遮挡的透明层上。</p>
+
+        <div class="code-head"><span>python — 统一等待封装</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+
+DEFAULT_TIMEOUT = 12
+
+
+def wait_clickable(driver, locator, timeout=DEFAULT_TIMEOUT):
+    return WebDriverWait(driver, timeout, poll_frequency=0.25).until(
+        EC.element_to_be_clickable(locator),
+        message=f"元素在 {timeout}s 内不可点击: {locator}",
+    )
+
+
+def wait_visible(driver, locator, timeout=DEFAULT_TIMEOUT):
+    return WebDriverWait(driver, timeout, poll_frequency=0.25).until(
+        EC.visibility_of_element_located(locator),
+        message=f"元素在 {timeout}s 内不可见: {locator}",
+    )</code></pre>
+
+        <h3>坑 2：Toast 抓不到，断言永远失败</h3>
+        <p><strong>症状</strong>：手动能看到「登录成功」的 Toast，脚本里 <code>page_source</code> 里搜不到，等断言执行时它已经消失了。<strong>原因</strong>：Toast 是系统窗口，不在当前 Activity 的视图树里；Android 的短 Toast 只显示约 2 秒，长 Toast 约 3.5 秒，而一次 <code>page_source</code> 调用在低端机上就要 300ms 以上。</p>
+        <p><strong>解法</strong>：UiAutomator2 驱动可以把 Toast 节点带进 XML，但必须高频轮询才抓得住。更稳的方案是双通道：轮询 XML 拿文案，同时用 logcat 抓系统日志兜底。不要等操作结束后才开始找，要在点击之前就把轮询挂起来。</p>
+
+        <div class="code-head"><span>python — Toast 轮询断言</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import time
+
+
+def wait_toast(driver, text: str, timeout: float = 5.0) -&gt; bool:
+    deadline = time.time() + timeout
+    while time.time() &lt; deadline:
+        if text in driver.page_source:
+            return True
+        time.sleep(0.1)
+    raise AssertionError(f"Toast 未出现: {text}")
+
+
+# 用法：先并发启动轮询，再触发操作，避免错过 2 秒窗口
+toast_seen = wait_toast(driver, "登录成功", timeout=5)</code></pre>
+
+        <h3>坑 3：WebView 里的元素一律定位失败</h3>
+        <p><strong>症状</strong>：原生页面正常，一切到 H5 详情页就报找不到元素，截图里明明有。<strong>原因</strong>：会话还停在 <code>NATIVE_APP</code> 上下文，此时只能看到 WebView 容器这一个节点，H5 内部的 DOM 完全不可见。<strong>解法</strong>：切换到 <code>WEBVIEW_</code> 开头的上下文再定位，切换后要等 DOM 就绪。细节包括调试开关、上下文等待和 JS 执行，单独写了一篇，这里只提醒一条：切回原生要在 finally 里做，否则后续用例会莫名失败。</p>
+
+        <h2>交互类：点得到，但点不对</h2>
+
+        <h3>坑 4：软键盘遮挡输入框与按钮</h3>
+        <p><strong>症状</strong>：<code>click</code> 报 element not visible，或者点击落在了键盘的数字键上。<strong>原因</strong>：页面没有配置 <code>windowSoftInputMode</code> 为 adjustResize，键盘直接把底部按钮盖住，而元素坐标仍然是键盘弹出前的值。<strong>解法</strong>：输入完成后先收起键盘再点下一步；用 <code>driver.hide_keyboard()</code>，iOS 上它经常失效，退而求其次按一次返回键，注意按返回键可能触发页面退出，要在断言里确认当前页面没被关掉。</p>
+
+        <h3>坑 5：权限弹窗让整批用例连锁失败</h3>
+        <p><strong>症状</strong>：新装的包第一次启动弹出相机、定位权限，脚本卡在那里，后面所有用例全超时。<strong>原因</strong>：权限弹窗属于系统包 <code>com.android.permissioncontroller</code>，不在被测 App 的视图树里，App 内部的定位策略完全找不到。<strong>解法</strong>：优先在安装时预授予，同时关掉动画。Android 11 之后的位置权限有「仅本次允许」，预授予只能拿到粗略定位，涉及精确定位的用例要单独处理弹窗，不能指望一次配置解决所有版本。</p>
+
+        <div class="code-head"><span>bash + python — 权限预授予</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 安装时直接授予运行时权限
+adb install -r -g app-staging-5.8.2.apk
+
+# 已安装的包补授权限
+adb shell pm grant com.demo.app android.permission.CAMERA
+adb shell pm grant com.demo.app android.permission.ACCESS_FINE_LOCATION
+adb shell appops set com.demo.app android:coarse_location allow
+
+# 关闭动画，减少等待类抖动
+adb shell settings put global window_animation_scale 0
+adb shell settings put global transition_animation_scale 0
+adb shell settings put global animator_duration_scale 0</code></pre>
+
+        <pre><code>from appium.options.android import UiAutomator2Options
+
+opts = UiAutomator2Options()
+opts.platform_name = "Android"
+opts.udid = "emulator-5554"
+opts.auto_grant_permissions = True
+opts.no_reset = False</code></pre>
+
+        <h3>坑 6：换一台手机，坐标全偏</h3>
+        <p><strong>症状</strong>：在 1080×2400 上写死的 <code>tap(540, 2100)</code>，到 720×1600 的机器上点到了别处。<strong>原因</strong>：绝对坐标和设备分辨率绑定，而 App 的布局可能是百分比或自适应。<strong>解法</strong>：能用<a class="ilink" href="web-element-locators.html">元素定位</a>就不用坐标。确实需要按坐标（比如画布、签名板、地图）时，按 <code>get_window_size</code> 的比例换算，并且把比例写进配置而不是散落在用例里。</p>
+
+        <h2>环境与驱动类：代码没改，环境变了</h2>
+
+        <h3>坑 7：系统一升级，驱动就起不来</h3>
+        <p><strong>症状</strong>：设备升到 Android 14 后，会话创建报 instrumentation 进程启动失败，或者 UiAutomator 服务反复崩溃。<strong>原因</strong>：新系统收紧了前台服务类型、后台 Activity 启动和隐式广播；targetSdk 34 的应用必须声明前台服务类型，驱动侧的 server 也需要对应版本才能适配新的权限模型。<strong>解法</strong>：设备池锁定系统镜像版本，升级走灰度，先在一台机器上跑冒烟；Appium 驱动与 uiautomator2 server 一起升级，不要只升一个。</p>
+
+        <h3>坑 8：客户端和驱动版本对不上</h3>
+        <p><strong>症状</strong>：昨天还好好的，今天启动就报 server 安装失败或命令不支持。<strong>原因</strong>：Appium-Python-Client、Appium 主程序、uiautomator2 驱动三者版本各自演进，客户端发的命令在新驱动里改名或废弃。<strong>解法</strong>：三者在 <code>requirements.txt</code> 与 <code>package.json</code> 里全部锁版本；升级前先看驱动的 changelog，跑一遍最小会话验证，再合并到主干。</p>
+
+        <h3>坑 9：并行跑两台设备就端口冲突</h3>
+        <p><strong>症状</strong>：单设备正常，起第二个会话时报端口被占用或设备连到了错误的会话。<strong>原因</strong>：uiautomator2 的 <code>systemPort</code> 默认都是 8200，两个会话抢同一个端口；MJPEG 端口也可能撞。<strong>解法</strong>：按设备序号分配端口，把配置集中在一个工厂函数里，不要在每个测试文件里手写 capabilities。</p>
+
+        <div class="code-head"><span>python — 按序号分配端口</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from appium.options.android import UiAutomator2Options
+
+
+def android_options(udid: str, index: int) -&gt; UiAutomator2Options:
+    opts = UiAutomator2Options()
+    opts.platform_name = "Android"
+    opts.udid = udid
+    opts.system_port = 8200 + index
+    opts.mjpeg_server_port = 9100 + index
+    opts.auto_grant_permissions = True
+    opts.new_command_timeout = 120
+    return opts</code></pre>
+
+        <h2>工程类：单跑能过，全量就挂</h2>
+
+        <h3>坑 10：用例之间互相污染状态</h3>
+        <p><strong>症状</strong>：按文件顺序跑全挂，单独指定某条用例就过。<strong>原因</strong>：上一条用例留下了登录态、购物车商品、弹过一次的引导页，或者改了系统设置没还原。<strong>解法</strong>：用例必须能独立执行。会话层面用 <code>no_reset = False</code> 保证每条用例从干净状态开始；数据层面用独立测试账号和唯一业务单号；进入页面尽量用 deep link，跳过前置流程，减少对状态的依赖。另一个有效手段是把初始状态写成可执行的 setup，而不是写在注释里靠人记：需要登录就调登录接口拿 token 注入，需要购物车有商品就调加购接口，速度比点 UI 快十倍。</p>
+
+        <h3>坑 11：CI 上设备跑到一半掉线</h3>
+        <p><strong>症状</strong>：本地稳定，CI 上随机出现 <code>adb devices</code> 显示 offline，或者会话超时。<strong>原因</strong>：USB 口供电不稳、线材接触不良、宿主机 USB 自动休眠、容器里 udev 规则缺失，还有模拟器自身偶发崩溃。<strong>解法</strong>：每条用例开始前做一次健康检查，发现 offline 就 <code>adb reconnect offline</code> 并重试一次；设备序列号写进报告；宿主机禁用 USB 休眠；长期方案是接云设备池，把硬件问题外包出去。</p>
+
+        <h2>断言类：看起来对，其实在误报</h2>
+
+        <h3>坑 12：图片断言天天误报</h3>
+        <p><strong>症状</strong>：同一页面在本地通过，CI 上必挂，肉眼完全看不出差别。<strong>原因</strong>：像素级对比对字体抗锯齿、系统时间、状态栏图标、广告位轮播都极度敏感，换一台机器渲染就差几个像素。<strong>解法</strong>：只在结构稳定的页面做视觉断言；对比前裁掉状态栏与动态区域；用差异像素占比而不是完全相等，阈值控制在 0.3% 到 1% 之间，并用连续 10 次运行校准。</p>
+
+        <div class="code-head"><span>python — 带阈值的图片差异</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from PIL import Image, ImageChops
+
+
+def diff_ratio(expected_path, actual_path, tolerance=12, ignore_boxes=None):
+    expected = Image.open(expected_path).convert("RGB")
+    actual = Image.open(actual_path).convert("RGB")
+    if expected.size != actual.size:
+        actual = actual.resize(expected.size)
+
+    diff = ImageChops.difference(expected, actual).convert("L")
+    for box in ignore_boxes or []:
+        diff.paste(0, box)
+
+    pixels = list(diff.getdata())
+    bad = sum(1 for value in pixels if value &gt; tolerance)
+    return bad / len(pixels)
+
+
+ratio = diff_ratio("baseline/home.png", "artifacts/home.png",
+                   tolerance=12, ignore_boxes=[(0, 0, 1080, 120)])
+assert ratio &lt; 0.003, f"视觉差异过大: {ratio:.4f}"</code></pre>
+
+        <h2>一套可复用的排查顺序</h2>
+        <p>遇到失败不要先改脚本，按下面顺序看一遍，八成能直接定位。</p>
+        <ol>
+          <li>看截图：当前到底停在哪个页面，有没有弹窗、键盘、加载中。</li>
+          <li>看 UI 层级：目标元素是否真的在 XML 里，属性值是否和定位器一致。</li>
+          <li>看上下文：如果是 H5，确认当前上下文是不是还在原生。</li>
+          <li>看设备状态：<code>adb devices</code> 是否 online，屏幕是否熄灭、是否锁屏。</li>
+          <li>看日志：logcat 里搜包名与 FATAL，崩溃往往只在这里留痕。</li>
+          <li>最后才怀疑代码：单独重跑这条用例，再全量重跑一次，区分偶发与稳定失败。</li>
+        </ol>
+        <p>这个顺序的价值在于成本从低到高：看截图和层级是秒级，重跑一次是分钟级，改代码可能是小时级。先做便宜的检查，能省下大量无效修改，也能少走很多弯路，把时间留给真正需要判断的问题。</p>
+        <div class="callout warn">
+          <p>不要用 <code>time.sleep</code> 掩盖问题。加了三秒睡眠后用例通过了，并不代表问题消失，只是把偶发变成了更慢的偶发。所有等待都应该有明确条件。</p>
+        </div>
+
+        <h2>效果度量</h2>
+        <table>
+          <thead>
+            <tr><th>指标</th><th>改造前</th><th>改造后</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>全量运行通过率</td><td>71%</td><td>94%</td></tr>
+            <tr><td>单次运行失败数</td><td>42 条</td><td>9 条</td></tr>
+            <tr><td>失败平均排查耗时</td><td>20 分钟</td><td>6 分钟</td></tr>
+            <tr><td>因等待不足导致的失败占比</td><td>30%</td><td>4%</td></tr>
+            <tr><td>CI 设备掉线导致的失败</td><td>每周 11 次</td><td>每周 1 次</td></tr>
+          </tbody>
+        </table>
+        <p>这 12 条没有一条是奇技淫巧，全是把边界条件想在前面。真正拉开自动化质量差距的，往往不是会不会写定位，而是有没有把设备、系统、网络这些外部变量当成测试对象来管理。最后补一句：以上所有解法都要落进代码模板与代码评审清单，停留在文档里的经验，三个月后一定退回到原来的写法。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://appium.io/docs/en/latest/guides/writing-running-appium/caps/" target="_blank" rel="noopener">Appium Desired Capabilities 说明 — Appium Docs</a></li>
+            <li><a href="https://github.com/appium/appium-uiautomator2-driver" target="_blank" rel="noopener">appium-uiautomator2-driver：systemPort 与 Toast 支持 — GitHub</a></li>
+            <li><a href="https://developer.android.com/training/testing/espresso/web" target="_blank" rel="noopener">Test WebView UI in Android — Android Developers</a></li>
+            <li><a href="https://github.com/appium/appium-inspector" target="_blank" rel="noopener">Appium Inspector：查看 UI 层级与上下文 — GitHub</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#appium</span>
+          <span class="tag">#debugging</span>
+          <span class="tag">#flaky</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

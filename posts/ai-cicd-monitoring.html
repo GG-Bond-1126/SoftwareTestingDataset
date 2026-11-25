@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 应用 CI/CD：Prompt 回归门禁与线上监控 · 软件测试资料集</title>
+<meta name="description" content="把 Prompt 回归做成 PR 合并门禁：评测集入库、通过率阈值、失败样本回写评论，再配灰度对比与线上监控。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-cicd-monitoring.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="AI 应用 CI/CD：Prompt 回归门禁与线上监控">
+<meta property="og:description" content="把 Prompt 回归做成 PR 合并门禁：评测集入库、通过率阈值、失败样本回写评论，再配灰度对比与线上监控。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-cicd-monitoring.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AI 应用 CI/CD：Prompt 回归门禁与线上监控">
+<meta name="twitter:description" content="把 Prompt 回归做成 PR 合并门禁：评测集入库、通过率阈值、失败样本回写评论，再配灰度对比与线上监控。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"AI 应用 CI/CD：Prompt 回归门禁与线上监控","description":"把 Prompt 回归做成 PR 合并门禁：评测集入库、通过率阈值、失败样本回写评论，再配灰度对比与线上监控。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-cicd-monitoring.html","articleSection":"AI 测试","keywords":"ai-cicd, prompt-regression, observability","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>14 min read</span>
+        </div>
+        <h1>AI 应用 CI/CD：Prompt 回归门禁与线上监控</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="ai-cicd-monitoring">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <p>传统项目里，改一行代码至少有类型检查、单测和集成测试三道网。换成 AI 应用，很多人改 Prompt 的方式是：在 Playground 里试三条，感觉不错，直接复制到线上配置。这条路径一定会在某次「只想调一下语气」的改动上翻车。</p>
+
+        <h2>一、为什么 Prompt 改动必须过门禁</h2>
+        <p>我们统计过一个客服机器人在引入门禁前三个月的改动记录：Prompt 相关提交 41 次，其中 17 次只靠人工试了 2 到 3 条样例。这些改动里有 6 次在两周内引发了线上问题，典型的是「答非所问」和「JSON 少字段导致下游解析失败」。同期的代码提交有 300 多次，单测覆盖率 72%，几乎没有出现类似级别的回归。</p>
+        <p>原因很简单：Prompt 是行为逻辑，但它没有编译期检查，也没有单元测试。它唯一的安全网，就是一套随代码一起版本化的<a class="ilink" href="ai-llm-evaluation.html">评测集</a>，加上一个能在 PR 阶段跑起来、跑完必须过阈值的门禁。目标不是零缺陷，而是把「明显退化」挡在合并之前。</p>
+        <p>我们最终把 P0 用例的线上回归从每月 2 到 3 次压到 0 次，P1 问题的平均发现时间从 11 天降到 40 分钟。代价是每次 PR 多花 7 分钟等待，这个交换在业务侧是划算的。</p>
+        <p>还有一个容易被低估的收益：门禁把「谁的改动弄坏了」这个问题变成了可追溯的事实。以前线上出问题，产品和开发会先争论是不是模型自己变差了；现在只要翻出对应 PR 的门禁报告，就能看到当时哪几条用例已经命中失败、是谁点了合并。责任清晰之后，团队对改 Prompt 的心理负担反而下降了。</p>
+
+        <h2>二、方案总览</h2>
+        <table>
+          <thead>
+            <tr><th>环节</th><th>工具</th><th>输入</th><th>输出</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>评测集</td><td>Git + JSONL</td><td>真实问题、边界构造、线上失败</td><td>带严重级别的用例</td></tr>
+            <tr><td>门禁</td><td>Python 脚本</td><td>用例集 + 当前 Prompt</td><td>通过率、失败明细、退出码</td></tr>
+            <tr><td>触发</td><td>GitHub Actions</td><td>PR 变更路径</td><td>PR 评论 + 检查状态</td></tr>
+            <tr><td>灰度</td><td>流量切分</td><td>旧版 / 新版 Prompt</td><td>版本对比数据</td></tr>
+            <tr><td>监控</td><td>日志 + 看板</td><td>线上请求日志</td><td>四指标与告警</td></tr>
+            <tr><td>回流</td><td>人工标注台</td><td>线上异常样本</td><td>新增回归用例</td></tr>
+          </tbody>
+        </table>
+
+        <h2>三、仓库结构与评测集</h2>
+        <p>第一件事是把评测集当源码管。Prompt、用例、基线结果放在同一个仓库，任何改动都能 diff、能回滚、能追溯到具体提交。目录结构保持扁平，避免新人不清楚该往哪加。</p>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>llm-service/
+├── prompts/
+│   ├── support_v12.md
+│   └── support_v13.md
+├── evals/
+│   ├── regression.jsonl
+│   └── baseline_results.json
+├── tools/
+│   └── prompt_gate.py
+└── requirements-ci.txt
+
+# requirements-ci.txt 只装门禁需要的依赖
+openai==1.54.4
+pyyaml==6.0.2</code></pre>
+        <p>用例格式用 JSONL，一行一条，字段固定。严重级别是必填项，因为它决定阈值和是否阻塞。基线结果单独存，并且带上模型版本，否则跨版本比较毫无意义。</p>
+        <p>用例来源我们按 5:3:2 配比：五成来自真实用户问题，按意图聚类后每类挑 5 到 10 条；三成是边界构造，比如空输入、超长输入、中英混排、带表情；两成是历史线上失败。真实问题保证相关性，边界构造保证健壮性，历史失败保证不会二次踩坑。缺了任何一块，评测集都会失真。</p>
+        <p>维护节奏也要定下来，否则用例集会越积越脏。我们的规则是：每周清理一次重复样本，每月淘汰一批业务已经下线的规则，每季度重算一次阈值。淘汰不是删除，而是移到 <code>evals/archive/</code>，保留可追溯性。评审由写 Prompt 的人和测试共同参与，单方面加用例很容易加进主观偏好。</p>
+        <div class="code-head"><span>evals/regression.jsonl</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>{"id": "P0-001", "severity": "P0", "input": "我的订单什么时候发货", "must_include": ["订单"], "required_fields": ["intent", "reply"]}
+{"id": "P0-002", "severity": "P0", "input": "我要退款，但已经过了七天", "must_not_include": ["无法退款", "不支持"], "required_fields": ["intent", "reply"]}
+{"id": "P1-101", "severity": "P1", "input": "发票可以开公司抬头吗", "must_include": ["发票"], "required_fields": ["intent", "reply"]}
+{"id": "P2-201", "severity": "P2", "input": "你们周末上班吗", "must_include": ["客服"], "required_fields": ["reply"]}</code></pre>
+
+        <h2>四、门禁脚本：通过率、分层阈值与翻转率</h2>
+        <p>门禁脚本只做四件事：跑用例、算分层通过率、和基线比出翻转用例、生成一段能贴到 PR 的 Markdown。判定逻辑全部放在脚本里，不要让 CI 的 YAML 承担业务判断，否则以后调阈值要从两个地方改。</p>
+        <div class="code-head"><span>tools/prompt_gate.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import argparse
+import json
+import os
+from pathlib import Path
+from openai import OpenAI
+
+client = OpenAI()
+THRESHOLDS = {"P0": 1.00, "P1": 0.96, "P2": 0.92}
+MAX_FLIP = 0.03
+
+def load_cases(path):
+    return [json.loads(line) for line in Path(path).read_text(encoding="utf-8").splitlines()
+            if line.strip()]
+
+def call_model(system_prompt, user_input):
+    r = client.chat.completions.create(
+        model=os.environ.get("MODEL", "gpt-4o-mini-2024-07-18"),
+        messages=[{"role": "system", "content": system_prompt},
+                  {"role": "user", "content": user_input}],
+        temperature=0,
+        response_format={"type": "json_object"},
+    )
+    return r.choices[0].message.content
+
+def judge(case, output):
+    for kw in case.get("must_include", []):
+        if kw not in output:
+            return False, f"缺少关键词 {kw}"
+    for kw in case.get("must_not_include", []):
+        if kw in output:
+            return False, f"出现禁用词 {kw}"
+    try:
+        data = json.loads(output)
+    except json.JSONDecodeError:
+        return False, "输出不是合法 JSON"
+    for field in case.get("required_fields", []):
+        if field not in data:
+            return False, f"缺少字段 {field}"
+    return True, ""
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--cases", required=True)
+    ap.add_argument("--prompt", default="prompts/support_v13.md")
+    ap.add_argument("--baseline", default="evals/baseline_results.json")
+    ap.add_argument("--out", default="report.json")
+    ap.add_argument("--comment", default="comment.md")
+    args = ap.parse_args()
+
+    system_prompt = Path(args.prompt).read_text(encoding="utf-8")
+    baseline = json.loads(Path(args.baseline).read_text(encoding="utf-8"))
+    results = []
+    for case in load_cases(args.cases):
+        output = call_model(system_prompt, case["input"])
+        ok, reason = judge(case, output)
+        results.append({"id": case["id"], "severity": case["severity"],
+                        "passed": ok, "reason": reason, "output": output[:200]})
+
+    stats = {}
+    for sev in ("P0", "P1", "P2"):
+        group = [r for r in results if r["severity"] == sev]
+        stats[sev] = round(sum(r["passed"] for r in group) / max(len(group), 1), 4)
+
+    base_map = {b["id"]: b["passed"] for b in baseline["results"]}
+    flipped = [r for r in results if base_map.get(r["id"]) is not None
+               and base_map[r["id"]] != r["passed"]]
+    flip_rate = round(len(flipped) / max(len(results), 1), 4)
+
+    failed_gate = [sev for sev, rate in stats.items() if rate &lt; THRESHOLDS[sev]]
+    if flip_rate &gt; MAX_FLIP:
+        failed_gate.append("FLIP")
+
+    Path(args.out).write_text(json.dumps(
+        {"prompt": args.prompt, "stats": stats, "flip_rate": flip_rate,
+         "results": results}, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    lines = ["&lt;!-- prompt-gate --&gt;", "## Prompt 回归结果", "",
+             "| 级别 | 通过率 | 阈值 |", "| --- | --- | --- |"]
+    for sev in ("P0", "P1", "P2"):
+        lines.append(f"| {sev} | {stats[sev]:.1%} | {THRESHOLDS[sev]:.0%} |")
+    lines += ["", f"翻转率：{flip_rate:.1%}（上限 {MAX_FLIP:.0%}）", "",
+              f"结论：{'**阻塞合入**' if failed_gate else '通过'}", ""]
+    bad = [r for r in results if not r["passed"]][:8]
+    if bad:
+        lines.append("### 失败样本（前 8 条）")
+        for r in bad:
+            lines.append(f"- `{r['id']}` {r['reason']}：{r['output'][:80]}")
+    Path(args.comment).write_text("\n".join(lines), encoding="utf-8")
+    raise SystemExit(1 if failed_gate else 0)
+
+if __name__ == "__main__":
+    main()</code></pre>
+        <p>三个细节值得说清。阈值分三层，P0 必须 100%，因为这几条对应的是资金和合规；P1 允许 4% 的波动，用来吸收模型抖动；P2 只做记录。翻转率单独设阈值，是因为最容易出事的不是「整体变差」，而是「整体分数没变但三条关键用例悄悄挂了」。</p>
+        <p>基线不要手工维护。正确做法是合并到主干成功后自动重跑一遍全量，把结果写回 <code>baseline_results.json</code> 并随提交一起推送。这样基线永远对应主干最新状态，也不会出现「基线是三个月前的，翻转率怎么算都超标」。写回动作要加并发锁，避免两个 PR 同时合入互相覆盖。</p>
+        <p>对于确实存在抖动的用例，允许一次重跑：第一次失败、第二次通过，则记为 flaky 而不是 failed，但必须在报告里单独列出来。如果某条用例一周内 flaky 超过三次，说明判定条件写得太严，应该改断言，而不是继续加白名单。白名单是最容易腐化的地方，我们把它限制在一个文件里，且每条必须写原因和到期时间。</p>
+
+        <h2>五、接进 GitHub Actions</h2>
+        <p>触发条件只挂在 Prompt、评测集和 LLM 调用层这三个路径上，避免每次改前端都跑一遍。PR 评论用 sticky 方式更新，同一个 PR 不刷屏。</p>
+        <div class="code-head"><span>.github/workflows/prompt-gate.yml</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>name: prompt-regression
+on:
+  pull_request:
+    paths:
+      - "prompts/**"
+      - "evals/**"
+      - "src/llm/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: prompt-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install
+        run: pip install -r requirements-ci.txt
+      - name: Run gate
+        id: gate
+        continue-on-error: true
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MODEL: gpt-4o-mini-2024-07-18
+        run: |
+          python tools/prompt_gate.py \
+            --cases evals/regression.jsonl \
+            --prompt prompts/support_v13.md \
+            --baseline evals/baseline_results.json
+      - name: Upsert PR comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (!fs.existsSync('comment.md')) return;
+            const body = fs.readFileSync('comment.md', 'utf8');
+            const { data: list } = await github.rest.issues.listComments({
+              ...context.repo, issue_number: context.issue.number
+            });
+            const old = list.find(c =&gt; c.body.includes('prompt-gate'));
+            if (old) {
+              await github.rest.issues.updateComment({
+                ...context.repo, comment_id: old.id, body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo, issue_number: context.issue.number, body
+              });
+            }
+      - name: Block merge on failure
+        if: steps.gate.outcome == 'failure'
+        run: exit 1</code></pre>
+        <div class="callout warn">
+          <p>不要用 <code>pull_request_target</code> 去拿密钥，它对来自 fork 的 PR 会带来权限风险。内部仓库用 <code>pull_request</code> 加仓库级 secret 就够了；外部贡献场景应改成人工触发。</p>
+        </div>
+
+        <h2>六、灰度发布与版本对比</h2>
+        <p>门禁通过只代表离线评测没退化，不代表线上一定更好。发布前用影子流量跑一遍：同一批真实请求同时打给旧版和新版，只把旧版结果返回给用户，把两版结果都落日志，离线比对差异。</p>
+        <div class="code-head"><span>shadow_compare.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+from pathlib import Path
+
+def load_pair(path):
+    return [json.loads(line) for line in Path(path).read_text(encoding="utf-8").splitlines()
+            if line.strip()]
+
+def compare(pairs, max_diff_ratio=0.08):
+    diff = [p for p in pairs if p["v_old"].strip() != p["v_new"].strip()]
+    ratio = len(diff) / max(len(pairs), 1)
+    # 结构差异比措辞差异更值得看
+    schema_break = [p for p in diff
+                    if set(p["v_old"].keys()) != set(p["v_new"].keys())]
+    print(f"样本 {len(pairs)}，差异率 {ratio:.1%}，结构差异 {len(schema_break)} 条")
+    return ratio &lt;= max_diff_ratio and not schema_break
+
+if __name__ == "__main__":
+    pairs = load_pair("logs/shadow_pairs.jsonl")
+    ok = compare(pairs)
+    raise SystemExit(0 if ok else 1)</code></pre>
+        <p>灰度比例按 5%、20%、50% 三档推进，每档至少观察 2 小时。看的是新版在四个线上指标上有没有变差，而不是看用户说「感觉好多了」。</p>
+        <p>做影子对比时有两个工程细节。一是延迟，新版请求要异步发出并设 3 秒超时，超时就丢样本，绝不能拖慢主链路；二是隐私，落日志前要把手机号、地址、订单号替换成占位符，否则日志表本身就成了泄露面。我们最初省了这一步，后来做数据合规评审时被要求整表重刷，返工了两天。</p>
+
+        <h2>七、线上监控四指标</h2>
+        <p>线上不需要看几十个指标，四个就够用，而且都能从请求日志里算出来，不依赖额外埋点。</p>
+        <table>
+          <thead>
+            <tr><th>指标</th><th>定义</th><th>告警线</th><th>常见原因</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>拒答率</td><td>回复包含拒答模板的占比</td><td>&gt; 8%</td><td>检索为空、Prompt 过严</td></tr>
+            <tr><td>解析失败率</td><td>下游 JSON 解析失败占比</td><td>&gt; 1%</td><td>模型没按 schema 输出</td></tr>
+            <tr><td>P95 延迟</td><td>端到端响应时间</td><td>&gt; 6s</td><td>上下文过长、上游限流</td></tr>
+            <tr><td>点踩率</td><td>用户负反馈 / 总反馈</td><td>&gt; 12%</td><td>答非所问、事实错误</td></tr>
+            <tr><td>单次成本</td><td>tokens × 单价 / 请求数</td><td>&gt; 0.02 元</td><td>上下文膨胀、重试过多</td></tr>
+          </tbody>
+        </table>
+        <div class="code-head"><span>metrics_rollup.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+import statistics
+from collections import Counter
+from pathlib import Path
+
+PRICE_IN, PRICE_OUT = 0.0000015, 0.000006  # 元/token，按实际供应商改
+
+def rollup(path):
+    rows = [json.loads(l) for l in Path(path).read_text(encoding="utf-8").splitlines() if l.strip()]
+    total = len(rows)
+    refuse = sum(1 for r in rows if r["refused"])
+    parse_fail = sum(1 for r in rows if not r["parsed_ok"])
+    lat = sorted(r["latency_ms"] for r in rows)
+    p95 = lat[int(len(lat) * 0.95) - 1]
+    dislikes = sum(1 for r in rows if r.get("feedback") == "down")
+    cost = sum(r["tokens_in"] * PRICE_IN + r["tokens_out"] * PRICE_OUT for r in rows)
+    top_intent = Counter(r.get("intent", "unknown") for r in rows).most_common(3)
+    return {
+        "requests": total,
+        "refuse_rate": round(refuse / total, 4),
+        "parse_fail_rate": round(parse_fail / total, 4),
+        "p95_ms": p95,
+        "dislike_rate": round(dislikes / max(total, 1), 4),
+        "avg_cost": round(cost / total, 6),
+        "top_intent": top_intent,
+    }</code></pre>
+        <p>告警要绑定版本。新版灰度期间拒答率上涨，先回滚再看原因，不要在灰度中调 Prompt，否则数据会彻底混在一起，事后无法归因。</p>
+
+        <h2>八、异常回流与成本监控</h2>
+        <p>监控的价值一半在告警，一半在回流。我们把点踩、解析失败、拒答这三类样本按天抽样 30 条，人工标注后写回 <code>evals/regression.jsonl</code>，标注时必须补齐严重级别和期望行为。三个月下来评测集从 240 条长到 480 条，其中 61% 来自线上。</p>
+        <p>成本要当成测试指标管。做法是给每个用例记录 tokens，门禁报告里直接算「单次评测成本」和「单请求成本」。我们踩过的坑是一次检索增强改动让上下文从 1800 tokens 涨到 5200，延迟和成本同时翻倍，但离线通过率只涨了 1.2 个百分点，最后选择回退。</p>
+        <p>回流样本的质量比数量重要。我们要求每条新增用例必须包含四要素：原始输入、系统当时的输出、期望行为、严重级别。只有输入没有期望行为，这条用例就无法自动判定，最后只能沦为人工目录。标注人每周轮值，避免同一个人把自己的偏好写满整张表。</p>
+        <p>另外建议给回流设一个上限。我们规定每周最多新增 20 条，超出部分按严重级别排序后进 backlog。没有上限的结果是用例集三个月翻倍，门禁从 7 分钟涨到 25 分钟，团队又开始想办法绕过。</p>
+
+        <h2>九、踩坑与边界</h2>
+        <ul>
+          <li><strong>症状：本地全过，CI 上大面积失败。</strong>原因：CI 里没固定模型版本，供应商默认指向了最新快照。处理：模型名写死带日期后缀，基线结果文件里也记录模型名，不匹配时直接报错退出。</li>
+          <li><strong>症状：同一份 Prompt 连跑三次，通过率 94%、91%、96%。</strong>原因：评价标准里含「是否礼貌」这类主观项，且用了 LLM 裁判。处理：主观项改为规则可判的代理指标，或对裁判做三次投票取多数，并在报告里标注抖动区间。</li>
+          <li><strong>症状：PR 评论一直不更新。</strong>原因：脚本异常退出，<code>comment.md</code> 没生成。处理：把报告生成放到 try/finally，CI 步骤用 <code>always()</code>，并在缺失文件时贴一条「门禁执行失败」的兜底评论。</li>
+          <li><strong>症状：门禁耗时超过 20 分钟，开发开始绕过。</strong>原因：串行调用加全量用例。处理：P0 串行、P1/P2 并发 8 路，加 30 分钟结果缓存，同 Prompt 哈希命中直接复用。</li>
+        </ul>
+
+        <h2>十、效果度量</h2>
+        <table>
+          <thead>
+            <tr><th>指标</th><th>引入前</th><th>引入后</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Prompt 引发线上事故</td><td>6 次 / 3 个月</td><td>0 次 / 3 个月</td></tr>
+            <tr><td>P1 问题发现时间</td><td>平均 11 天</td><td>平均 40 分钟</td></tr>
+            <tr><td>门禁平均耗时</td><td>无</td><td>6 分 40 秒</td></tr>
+            <tr><td>评测集规模</td><td>240 条</td><td>480 条</td></tr>
+            <tr><td>单请求成本</td><td>0.018 元</td><td>0.013 元</td></tr>
+          </tbody>
+        </table>
+        <p>一句话总结：把 Prompt 当代码，评测集当测试用例，PR 当合并关口，线上指标当回归输入。四件事都做到，AI 应用的交付才谈得上可控。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.github.com/en/actions" target="_blank" rel="noopener">GitHub Actions Documentation — GitHub Docs</a></li>
+            <li><a href="https://www.promptfoo.dev/docs/integrations/github-action/" target="_blank" rel="noopener">Promptfoo GitHub Action Integration — Promptfoo Docs</a></li>
+            <li><a href="https://github.com/openai/evals" target="_blank" rel="noopener">OpenAI Evals: Framework for Evaluating LLMs — GitHub</a></li>
+            <li><a href="https://arxiv.org/abs/2503.05070" target="_blank" rel="noopener">PromptPex: Automatic Test Generation for Language Model Prompts — arXiv</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#ai-cicd</span>
+          <span class="tag">#prompt-regression</span>
+          <span class="tag">#observability</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

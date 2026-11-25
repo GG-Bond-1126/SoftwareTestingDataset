@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 模块与 import：让测试代码「不重复写」 · 软件测试资料集</title>
+<meta name="description" content="import 的几种方式、__name__ 判断、包结构和相对导入，配把登录方法抽成公共模块案例。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-modules-and-imports.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Python 模块与 import：让测试代码「不重复写」">
+<meta property="og:description" content="import 的几种方式、__name__ 判断、包结构和相对导入，配把登录方法抽成公共模块案例。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-modules-and-imports.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Python 模块与 import：让测试代码「不重复写」">
+<meta name="twitter:description" content="import 的几种方式、__name__ 判断、包结构和相对导入，配把登录方法抽成公共模块案例。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Python 模块与 import：让测试代码「不重复写」","description":"import 的几种方式、__name__ 判断、包结构和相对导入，配把登录方法抽成公共模块案例。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-modules-and-imports.html","articleSection":"Python 编程入门","keywords":"python, modules, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>9 min read</span>
+        </div>
+        <h1>Python 模块与 import：让测试代码「不重复写」</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-modules-and-imports">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Python 3.10+
+# 创建虚拟环境
+python -m venv venv
+venv\Scripts\activate   # Windows
+
+# 安装核心库
+pip install pytest requests pandas
+# 验证
+pytest --version</code></pre>
+<div class="code-head"><span>python — 验证</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+resp = requests.get("https://httpbin.org/get", timeout=5)
+assert resp.status_code == 200
+print("Python 环境就绪 ✓")</code></pre>
+
+<h2>基础应用：第一个测试用例</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+
+def test_api():
+    resp = requests.get("https://httpbin.org/get", params={"name": "test"}, timeout=10)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["args"]["name"] == "test"
+    print("基础接口测试通过 ✓")</code></pre>
+
+<h2>项目进阶：pytest + fixture + 参数化 + 报告</h2>
+<div class="code-head"><span>python — conftest.py</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest, requests
+
+@pytest.fixture
+def api():
+    return requests.Session()
+
+@pytest.fixture
+def user():
+    return {"username": "test@example.com"}</code></pre>
+<div class="code-head"><span>python — 参数化测试</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest
+
+@pytest.mark.parametrize("code", [200, 301, 404, 500])
+def test_status(api, code):
+    resp = api.get(f"https://httpbin.org/status/{code}", timeout=5)
+    assert resp.status_code == code</code></pre>
+
+        <h2>import 的三种基本方式</h2>
+        <p>Python 的「模块」就是「一个 .py 文件」。import 就是「把别人写好的代码拉进来用」。</p>
+        <div class="code-head"><span>python — import 基本方式</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 假设有个文件：test_utils.py
+# 内容：
+# def login(username, password):
+#     ...
+# def create_order(items):
+#     ...
+
+# 方式一：import 整个模块（最常用）
+import test_utils
+test_utils.login("admin", "123456")
+test_utils.create_order([{"name": "手机壳", "qty": 2}])
+
+# 方式二：from 导入指定函数（更简洁）
+from test_utils import login, create_order
+login("admin", "123456")
+create_order([{"name": "手机壳", "qty": 2}])
+
+# 方式三：from 导入所有（不推荐，命名空间污染）
+from test_utils import *
+login("admin", "123456")   # 不用写模块名前缀
+
+# 方式四：改别名（常用库太长的名字）
+import pandas as pd
+import matplotlib.pyplot as plt
+import requests as rq</code></pre>
+        <div class="callout">
+          <p>99% 的场景用<strong>方式一</strong>（import 整个模块）。方式二（from import）适合「只导入一两个函数」且名字不冲突时。方式三（import *）基本不用，命名空间太乱。</p>
+        </div>
+
+        <h2>__name__ == 「__main__」：让脚本「既能被 import，也能直接运行」</h2>
+        <p>这是测试脚本的「入口」判断。一个 .py 文件既可以是「被 import 的模块」，也可以是「直接运行的脚本」：</p>
+        <div class="code-head"><span>python — __name__ 判断</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># test_runner.py（既能被 import，也能直接运行）
+
+def run_test_suite(tests):
+    """跑一组测试（可以被其他模块 import）"""
+    results = []
+    for test in tests:
+        passed = test()
+        results.append(passed)
+    return results
+
+def main():
+    """直接运行时的入口"""
+    print("=== 测试套件 ===")
+    results = run_test_suite([
+        test_login,
+        test_order,
+        test_payment,
+    ])
+    passed = sum(results)
+    print(f"总计 {len(results)} 条，通过 {passed} 条")
+
+# 关键判断
+if __name__ == "__main__":
+    # 直接运行 python test_runner.py 时，__name__ 是 "__main__"
+    main()
+    # 被 import 时，__name__ 是模块名（如 "test_runner"），不执行 main()</code></pre>
+        <div class="callout">
+          <p>测试脚本的标准写法：<strong>函数定义 + <code>if __name__ == "__main__": main()</code></strong>。这样别人 import 你的模块时，不会自动执行 main（只拿到函数），直接运行时才执行。</p>
+        </div>
+
+        <h2>包（package）和 __init__.py</h2>
+        <p>项目大了，「一个文件装不下」，就把文件组织成「文件夹 + __init__.py」，这叫「包」。</p>
+        <div class="code-head"><span>项目结构</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>test_project/
+├── __init__.py          # 标记"这是包"（可以空文件）
+├── api_client.py        # 接口客户端
+├── data_factory.py      # 数据工厂
+├── utils.py             # 工具函数
+└── tests/
+    ├── __init__.py      # 测试包
+    ├── test_login.py
+    └── test_order.py</code></pre>
+        <div class="code-head"><span>python — 包内 import</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 在包外导入（用"点"表示层级）
+from test_project.api_client import ApiClient
+from test_project.utils import load_config
+
+# 包内导入（相对导入，用点表示"当前包"）
+# test_project/utils.py 里
+from . import api_client       # 导入同包的 api_client
+from .api_client import ApiClient  # 导入同包的某个类</code></pre>
+        <div class="callout">
+          <p><strong>__init__.py</strong> 是「包的身份证」。没有它，Python 不认为这个文件夹是包（不能 import）。可以写空文件，也可以写「导出逻辑」（控制 from 包 import * 时导出哪些名字）。</p>
+        </div>
+
+        <h2>sys.path：修改搜索路径</h2>
+        <p>有时候模块不在「标准位置」，需要手动加路径：</p>
+        <div class="code-head"><span>python — sys.path</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import sys
+import os
+
+# 把"当前目录"加到搜索路径
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# 现在可以 import 同目录的模块了
+import test_utils
+
+# 测试场景：测试脚本放在 tests/ 目录，要 import 根目录的 utils.py
+# 方法一：sys.path.insert
+# 方法二：设置 PYTHONPATH 环境变量
+# 方法三（推荐）：用 pip install -e . 把项目装成可编辑包</code></pre>
+
+        <h2>循环导入问题</h2>
+        <div class="code-head"><span>python — 循环导入</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># a.py
+from b import foo   # a 要 b 里的 foo
+
+# b.py
+from a import bar   # b 要 a 里的 bar
+# → 循环导入！a 导入 b 时，b 又导入 a，a 还没加载完，报错
+
+# 解法一：延迟导入（函数内部 import）
+# a.py
+def use_b():
+    from b import foo   # 函数运行时才导入，不在模块加载时
+    return foo()
+
+# 解法二：把公共部分抽到第三个模块
+# c.py（公共定义）
+def foo(): ...
+def bar(): ...
+
+# a.py
+from c import foo, bar   # a 和 b 都从 c 导入，不互相依赖
+# b.py
+from c import foo, bar</code></pre>
+
+        <h2>案例：把登录方法抽成公共模块</h2>
+        <p>测试项目里「登录方法」被 10 条用例引用。把登录逻辑抽成公共模块，所有用例共用：</p>
+        <div class="code-head"><span>项目结构</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>test_project/
+├── __init__.py
+├── config.py          # 配置（base_url、超时）
+├── api_client.py      # 接口客户端（封装 requests）
+├── data_factory.py    # 数据工厂（造测试用户）
+└── tests/
+    ├── __init__.py
+    ├── conftest.py    # pytest fixture
+    ├── test_login.py
+    ├── test_order.py
+    └── test_payment.py</code></pre>
+        <div class="code-head"><span>config.py — 配置模块</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+import os
+
+def load_config():
+    """读配置文件，没有就用默认值"""
+    config_path = os.path.join(os.path.dirname(__file__), "config.json")
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {
+            "base_url": "https://api.example.com",
+            "timeout": 10,
+            "retries": 3,
+        }</code></pre>
+        <div class="code-head"><span>api_client.py — 接口客户端</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import requests
+from config import load_config
+
+class ApiClient:
+    """通用接口客户端（所有测试共用）"""
+
+    def __init__(self, config=None):
+        self.config = config or load_config()
+        self.base_url = self.config["base_url"]
+        self.timeout = self.config.get("timeout", 10)
+        self.session = requests.Session()
+
+    def login(self, username, password):
+        """登录（10 条用例都调这个方法）"""
+        resp = self.session.post(
+            f"{self.base_url}/api/login",
+            json={"username": username, "password": password},
+            timeout=self.timeout
+        )
+        resp.raise_for_status()
+        token = resp.json().get("token")
+        self.session.headers["Authorization"] = f"Bearer {token}"
+        return token
+
+    def get(self, endpoint, **kwargs):
+        resp = self.session.get(
+            f"{self.base_url}{endpoint}",
+            timeout=self.timeout,
+            **kwargs
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+    def post(self, endpoint, data=None, **kwargs):
+        resp = self.session.post(
+            f"{self.base_url}{endpoint}",
+            json=data,
+            timeout=self.timeout,
+            **kwargs
+        )
+        resp.raise_for_status()
+        return resp.json()</code></pre>
+        <div class="code-head"><span>tests/test_order.py — 用公共模块</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+from api_client import ApiClient
+
+# pytest fixture：每个测试前创建客户端
+@pytest.fixture
+def client():
+    return ApiClient()
+
+def test_create_order(client):
+    """下单（登录逻辑复用 api_client 里的 login）"""
+    token = client.login("admin", "123456")
+    order = client.post("/api/orders", data={
+        "user_id": 1001,
+        "items": [{"name": "手机壳", "qty": 2, "price": 49.99}]
+    })
+    assert order.get("order_id")
+
+def test_payment(client):
+    """支付（同样复用 login）"""
+    token = client.login("admin", "123456")
+    result = client.post("/api/orders/ORD-001/pay", data={"amount": 99.99})
+    assert result.get("status") == "paid"</code></pre>
+        <div class="callout">
+          <p>测试项目「不重复写」的三层结构：<strong>config.py</strong>（配置集中管）、<strong>api_client.py</strong>（接口方法封装一次，所有用例共用）、<strong>tests/</strong>（每条用例只写「业务逻辑」，不用重复写「怎么发请求」）。登录方法写了 10 遍 vs 1 遍，维护成本差 10 倍。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/tutorial/modules.html" target="_blank" rel="noopener">Python 官方教程 - 模块</a></li>
+            <li><a href="https://docs.python.org/3/reference/import.html" target="_blank" rel="noopener">Python import 系统参考</a></li>
+            <li><a href="https://realpython.com/python-modules-packages/" target="_blank" rel="noopener">Real Python - 模块与包完全指南</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#python</span>
+          <span class="tag">#modules</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

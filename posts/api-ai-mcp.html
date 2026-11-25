@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>接口自动化新打法：AI IDE + MCP 从文档到可执行脚本 · 软件测试资料集</title>
+<meta name="description" content="用 AI IDE 与 MCP 把接口文档变成可执行的自动化用例，以及必须补上的工程约束。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/api-ai-mcp.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="接口自动化新打法：AI IDE + MCP 从文档到可执行脚本">
+<meta property="og:description" content="用 AI IDE 与 MCP 把接口文档变成可执行的自动化用例，以及必须补上的工程约束。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/api-ai-mcp.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="接口自动化新打法：AI IDE + MCP 从文档到可执行脚本">
+<meta name="twitter:description" content="用 AI IDE 与 MCP 把接口文档变成可执行的自动化用例，以及必须补上的工程约束。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"接口自动化新打法：AI IDE + MCP 从文档到可执行脚本","description":"用 AI IDE 与 MCP 把接口文档变成可执行的自动化用例，以及必须补上的工程约束。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/api-ai-mcp.html","articleSection":"自动化","keywords":"api-testing, mcp, automation","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-15</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>接口自动化新打法：AI IDE + MCP 从文档到可执行脚本</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="api-ai-mcp">☆ 收藏</button>
+      </header>
+
+      <figure class="article-cover">
+        <img src="../assets/covers/ai-ide-mcp.png" alt="AI 生成示意图：AI IDE 从接口文档生成测试脚本" loading="lazy">
+        <figcaption>AI 生成配图 · 契约到脚本的生成工作区示意</figcaption>
+      </figure>
+
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Python 3.10+
+python -m venv venv
+venv\Scripts\activate
+pip install pytest
+pytest --version</code></pre>
+
+<h2>基础应用：第一个测试用例</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>def test_basic():
+    assert 1 + 1 == 2
+    print("基础用例通过 ✓")</code></pre>
+
+<h2>项目进阶：fixture + 参数化 + CI</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest
+
+@pytest.fixture
+def data():
+    return [1, 2, 3, 4, 5]
+
+@pytest.mark.parametrize("n, expected", [(3, 6), (5, 15)])
+def test_sum(data, n, expected):
+    assert sum(data[:n]) == expected</code></pre>
+
+        <p>接口自动化的老问题一直没变：前期搭建慢、接口一改脚本就红、数据依赖复杂、维护成本高于新增成本。大模型出现后，很多团队第一反应是做个“测试知识库问答”，但那条路只能答疑，产不出能跑的资产。</p>
+        <p>更有效的形态是 <strong>AI IDE + MCP</strong>：模型不只回答，还能直接操作工程——读接口文档、写测试文件、调用工具执行、根据报错自我修正。</p>
+
+        <h2>和“知识库方案”的本质区别</h2>
+        <table>
+          <thead>
+            <tr><th>方案</th><th>能力边界</th><th>产出</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>知识库问答</td><td>检索文档、生成文本建议</td><td>一段需要人工搬运的示例代码</td></tr>
+            <tr><td>AI IDE + MCP</td><td>读写文件、调用 API、执行命令、读取结果</td><td>落地到仓库里的可运行用例与脚本</td></tr>
+          </tbody>
+        </table>
+        <p>后者能形成闭环：文档解析 → 用例生成 → 脚本落地 → CI 执行 → 失败回到模型修正。核心前提只有一个：<strong>需求与接口描述必须结构化、清晰</strong>。文档写得含糊，再强的模型也只能猜。</p>
+
+        <h2>一条可落地的链路</h2>
+        <p>把流程拆成固定五步，每步都有确定性产物，避免“一把梭”导致不可控：</p>
+        <ol>
+          <li><strong>契约先行</strong>：OpenAPI / Protobuf 作为唯一事实来源，字段、类型、必填、错误码齐全。</li>
+          <li><strong>用例生成</strong>：按接口 + 业务规则生成正例、异常、边界用例，输出结构化表格。</li>
+          <li><strong>脚本生成</strong>：在既有框架里生成 pytest / Playwright 用例，复用 client 与 fixture。</li>
+          <li><strong>执行与修正</strong>：本地跑通，失败信息回灌给模型，限制修改范围。</li>
+          <li><strong>入 CI</strong>：按 smoke / regression 打标，接入流水线并设置门禁。</li>
+        </ol>
+
+        <div class="callout">
+          <p>第 3 步的关键是「生成到既有框架里」。让模型另起一套目录结构和封装，短期看着整齐，长期会变成谁都不敢动的黑盒。</p>
+        </div>
+
+        <h2>示例：从契约生成可维护的用例</h2>
+        <p>下面这种生成结果的“形状”，比具体代码更重要：分层清晰、断言可追溯、数据自造自清。</p>
+
+        <div class="code-head"><span>tests/test_refund.py — AI 生成后人工校准</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+
+@pytest.mark.regression
+@pytest.mark.parametrize("case", [
+    # 正例：支付后 30 分钟内可取消
+    {"paid_minutes_ago": 10, "expect": "CANCELLED"},
+    # 边界：刚好 30 分钟
+    {"paid_minutes_ago": 30, "expect": "CANCELLED"},
+    # 异常：已发货不可取消
+    {"paid_minutes_ago": 31, "expect": "REJECTED", "code": "ALREADY_SHIPPED"},
+])
+def test_cancel_order(order_service, order_factory, case):
+    order = order_factory.paid(minutes_ago=case["paid_minutes_ago"])
+    resp = order_service.cancel(order["id"])
+    assert resp["status"] == case["expect"]
+    if "code" in case:
+        assert resp["code"] == case["code"]
+    assert order_service.get(order["id"])["status"] == case["expect"]</code></pre>
+
+        <p>注意三个细节：边界值单独成例、错误码也做断言、状态变化通过二次查询验证。这些都是模型常常「顺手省掉」的部分，需要靠评审或 Prompt 强制要求。</p>
+
+        <h2>必须补上的四条工程约束</h2>
+        <ol>
+          <li><strong>生成代码必须评审</strong>：至少检查断言是否验证业务结果，而不是只看状态码 200。</li>
+          <li><strong>数据自造自清</strong>：fixture 创建前置数据、结束后回收，禁止依赖库里现成记录。</li>
+          <li><strong>确定性优先</strong>：字段查找、schema 校验、参数替换交给程序，模型只做语义映射——这也是字节 NL2Test 的核心原则。</li>
+          <li><strong>限制修改范围</strong>：让模型只改指定文件，避免一次“顺手重构”把整个仓库带进 PR。</li>
+        </ol>
+
+        <div class="callout warn">
+          <p>别把“生成速度”当成唯一指标。更有意义的指标是：生成用例进入 CI 的比例、脚本三个月后的存活率、以及因脚本本身问题导致的误报率。</p>
+        </div>
+
+        <h2>适合先从哪里开始</h2>
+        <p>优先选同时满足三个条件的模块：接口契约完整、业务规则明确、历史缺陷较多。这类模块生成质量高、收益可量化，也最容易拿到团队信任。</p>
+        <p>反过来，强依赖第三方、规则天天变、文档缺失的模块先放一放——那不是模型的问题，是输入不成立。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://developer.aliyun.com/article/1717812" target="_blank" rel="noopener">接口文档一丢，AI 自动生成测试用例和自动化脚本？ — 霍格沃兹测试开发学社</a></li>
+            <li><a href="http://m.toutiao.com/group/7683095807990317577/" target="_blank" rel="noopener">让 QA 真正用起来：测试用例生成 Agent 落地，我们做对了什么 — 字节跳动技术团队</a></li>
+            <li><a href="https://cloud.tencent.com/developer/article/2771754" target="_blank" rel="noopener">什么是 AI 测试？AI 如何赋能自动化测试？TestOne 如何落地 AI 自动化测试体系 — 腾讯云开发者社区</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#api-testing</span>
+          <span class="tag">#mcp</span>
+          <span class="tag">#automation</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

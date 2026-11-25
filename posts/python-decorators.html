@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 装饰器：给测试方法「加功能」不修改代码 · 软件测试资料集</title>
+<meta name="description" content="从函数是一等对象到带参装饰器、wraps 与叠加顺序，给出重试、计时、截图取证与条件跳过四个测试实现。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-decorators.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Python 装饰器：给测试方法「加功能」不修改代码">
+<meta property="og:description" content="从函数是一等对象到带参装饰器、wraps 与叠加顺序，给出重试、计时、截图取证与条件跳过四个测试实现。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-decorators.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Python 装饰器：给测试方法「加功能」不修改代码">
+<meta name="twitter:description" content="从函数是一等对象到带参装饰器、wraps 与叠加顺序，给出重试、计时、截图取证与条件跳过四个测试实现。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Python 装饰器：给测试方法「加功能」不修改代码","description":"从函数是一等对象到带参装饰器、wraps 与叠加顺序，给出重试、计时、截图取证与条件跳过四个测试实现。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-decorators.html","articleSection":"Python 编程入门","keywords":"python, decorators, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>23 min read</span>
+        </div>
+        <h1>Python 装饰器：给测试方法「加功能」不修改代码</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-decorators">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>三个真实场景，说明为什么需要装饰器</h2>
+        <p>只有一两条用例的时候，计时、重试、失败截图都是直接写在函数体里的：开头记时间，结尾打印，偶发超时就套一层 for 循环。用例涨到二十条，同一段重试逻辑被复制了二十次，团队一调整重试策略，就要改二十个文件，还得保证每处都改对。</p>
+        <p>装饰器解决的正是这类横切逻辑：它不属于任何一条用例的业务，但每条用例都需要。把重试、计时、取证从用例里抽出来之后，用例本体只剩业务步骤，读起来像操作手册，而不是被 try/except 和 print 包住的脚本。</p>
+        <p>但装饰器不是免费的。它给调用栈加了一层 wrapper，traceback 会多一段；断点调试会先进 wrapper；写得不好还会吞掉异常、改掉函数签名。下面先把机制拆开，再给四个在测试里真正用得上的实现，最后讲清楚什么时候应该换成 fixture。</p>
+
+        <h2>拆开看：函数是一等对象，闭包负责记住</h2>
+        <p>理解装饰器只需要三个前提，缺一个都会觉得它像魔法。函数是一等对象：可以赋给变量、作为参数、作为返回值。闭包：内层函数能记住外层函数的局部变量，即使外层已经返回。返回新函数：装饰器不修改原函数，而是造一个新的，替换掉名字绑定。</p>
+        <div class="code-head"><span>python — 不用 @，手动包一层</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import time
+
+
+def test_login_api(client):
+    start = time.perf_counter()
+    resp = client.post("/api/login", json={"user": "qa_001", "pwd": "Test@123"})
+    elapsed = time.perf_counter() - start
+    assert resp.status_code == 200
+    print(f"耗时 {elapsed:.3f}s")
+
+
+def with_timing(func):
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        result = func(*args, **kwargs)      # 闭包记住了 func
+        print(f"[{func.__name__}] {time.perf_counter() - start:.3f}s")
+        return result
+    return wrapper
+
+
+test_login_api = with_timing(test_login_api)   # 名字被重新绑定
+test_login_api(client)</code></pre>
+        <p>最后一行是关键：<code>test_login_api</code> 这个名字现在指向 <code>wrapper</code>，原函数对象还在，只是没人引用了。所以装饰器能「加功能」，代价是原函数被藏起来，除非你在 wrapper 里保留引用——<code>functools.wraps</code> 做的正是这件事。</p>
+        <p>也正因为是替换名字绑定，装饰在模块导入时就完成了，而不是第一次调用时。很多「在装饰器里读配置」的写法会踩这个坑：配置还没加载，装饰器已经执行完了，读到的是空值。</p>
+
+        <h2>@ 语法糖：不带参装饰器的标准结构</h2>
+        <p><code>@</code> 只是语法糖。把 <code>@timed</code> 放在 def 上面，等价于在 def 结束后立刻执行 <code>test_case = timed(test_case)</code>。它没有任何运行时魔法，pytest 收集用例时看到的就是一个普通函数对象。</p>
+        <div class="code-head"><span>python — 不带参装饰器的骨架</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import functools
+import time
+
+
+def timed(func):
+    @functools.wraps(func)              # ① 保留元数据
+    def wrapper(*args, **kwargs):       # ② 原样透传参数
+        start = time.perf_counter()
+        try:
+            return func(*args, **kwargs)    # ③ 返回原函数结果
+        finally:
+            cost = time.perf_counter() - start
+            print(f"[{func.__name__}] {cost * 1000:.1f} ms")   # ④ 收尾
+    return wrapper
+
+
+@timed
+def test_create_order(order_api, seeded_user):
+    resp = order_api.create(seeded_user, sku="SKU-1001", qty=2)
+    assert resp.status_code == 201</code></pre>
+        <p>骨架里有四个位置要记住：外层收函数；内层用 <code>*args, **kwargs</code> 原样透传，否则带 fixture 参数的用例会直接报 TypeError；try 里调用原函数并保存返回值；收尾放在 finally 或 except 里，异常必须原样抛出。漏掉任何一个，都会在真实用例上出问题。</p>
+        <p>失败模式：把初始化写在 wrapper 外层。比如在装饰器函数体里打开日志文件、建数据库连接，这段代码在导入模块时就执行。pytest 收集阶段一旦抛错，整个文件的所有用例都变成 error，而报错位置在 import 处，看起来和用例毫无关系，新人往往查半天。</p>
+
+        <h2>带参装饰器：多一层是为了先收配置</h2>
+        <p>需要传配置时，装饰器要多套一层。不带参的结构是 <code>decorator(func)</code> 直接返回 wrapper；带参的结构是 <code>decorator(**config)</code> 先返回一个 decorator，再由它接收 func。原因是 <code>@retry(times=3)</code> 会先求值 <code>retry(times=3)</code>，这个表达式的结果必须是一个能接收函数的可调用对象。</p>
+        <div class="code-head"><span>python — 带配置的重试装饰器</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import functools
+import time
+
+import requests
+
+RETRYABLE = (requests.ConnectionError, requests.Timeout)
+
+
+def retry(times=3, delay=0.5, backoff=2.0):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            wait = delay
+            for attempt in range(1, times + 1):
+                try:
+                    return func(*args, **kwargs)
+                except RETRYABLE as exc:
+                    if attempt == times:
+                        raise
+                    print(f"{func.__name__} 第 {attempt} 次失败：{exc!r}，{wait:.1f}s 后重试")
+                    time.sleep(wait)
+                    wait *= backoff
+        return wrapper
+    return decorator
+
+
+@retry(times=3, delay=0.5)
+def fetch_price(sku):
+    resp = requests.get(f"https://api.example.com/prices/{sku}", timeout=2)
+    resp.raise_for_status()
+    return resp.json()["price"]</code></pre>
+        <p>这个实现有三处刻意的约束：只重试白名单里的异常，断言失败和业务校验错误不重试；最后一次直接 raise 原异常而不是包一层，报告里的堆栈才指向真实位置；退避按指数增长并设上限，避免把偶发超时放大成整轮超时。</p>
+        <p>最常见的报错是 <code>TypeError: 'NoneType' object is not callable</code>，原因几乎都是忘了在最外层 <code>return decorator</code>。第二常见的是把 <code>@retry</code> 写成不带括号，Python 会把函数当成配置传进去，报错信息同样晦涩。</p>
+
+        <h2>functools.wraps：丢的不只是名字</h2>
+        <p>不加 <code>functools.wraps</code>，wrapper 会用自己的元数据覆盖原函数：<code>__name__</code> 变成 wrapper，<code>__doc__</code> 变成 None，<code>__module__</code>、<code>__qualname__</code> 一起丢。这些字段平时没人看，但在 pytest 里会直接变成可见的故障。</p>
+        <div class="code-head"><span>python — 加与不加的差别</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import functools
+
+
+def bare(func):
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return wrapper
+
+
+def proper(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+    return wrapper
+
+
+@bare
+def test_login_success():
+    """正常账号可以登录"""
+
+
+@proper
+def test_login_locked():
+    """锁定账号返回 423"""
+
+
+print(test_login_success.__name__)   # wrapper
+print(test_login_success.__doc__)    # None
+print(test_login_locked.__name__)    # test_login_locked
+# pytest 报告里前者是 test_x.py::wrapper，几十条同名，无法定位</code></pre>
+        <p>pytest 用函数名生成 nodeid，报告、<code>-k</code> 过滤、参数化 ID 都依赖它。一个文件里五个被裸装饰器包过的用例，报告里会出现五行 <code>test_x.py::wrapper</code>，点进去分不清是哪个；allure 的用例名、JUnit XML 的 classname 也会跟着退化。排查时只能靠行号猜，这是最典型的「装饰器把测试工具弄坏」的方式。</p>
+        <p>wraps 还会写入 <code>__wrapped__</code> 属性，<code>inspect.signature</code> 能沿着它找回原始签名。这对 pytest 判断 fixture 参数很关键：某些插件靠签名推断依赖，签名丢了就会报 fixture not found。所以写装饰器的第一条纪律，就是第一行加 <code>@functools.wraps(func)</code>。</p>
+
+        <h2>重试与计时：两个最容易被滥用的装饰器</h2>
+        <p>重试只对幂等请求有意义：查询、GET、幂等 PUT 可以重试；下单、支付、发消息重试会造成重复副作用，测试里重试通过反而掩盖了真实缺陷。异常也必须白名单，只重试连接超时、连接重置这类瞬时错误；断言失败重试三次仍然是失败，只是把用例时长拉长。</p>
+        <p>计时的争议更大。<code>pytest --durations=10</code> 已经能列出最慢的用例，为什么还要装饰器？两者回答的问题不同：--durations 回答「哪条慢」，装饰器回答「这次调用是否超过预算」。需要把耗时做成断言、写进报告附件、或者按接口维度汇总时，装饰器更合适。</p>
+        <div class="code-head"><span>python — 把耗时做成断言</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import functools
+import time
+
+
+def time_budget(limit_ms):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            start = time.perf_counter()
+            result = func(*args, **kwargs)
+            cost_ms = (time.perf_counter() - start) * 1000
+            if cost_ms &gt; limit_ms:
+                raise AssertionError(
+                    f"{func.__name__} 耗时 {cost_ms:.0f}ms，超过预算 {limit_ms}ms"
+                )
+            return result
+        return wrapper
+    return decorator
+
+
+@time_budget(limit_ms=800)
+def test_order_list(order_api):
+    for _ in range(20):
+        resp = order_api.list(limit=10)
+        assert resp.status_code == 200</code></pre>
+        <p>取舍要写在明处：重试次数和退避上限必须设，否则一个挂死的接口会把整轮回归拖到超时；计时不要包住整个用例，只包被测的那一次调用，否则 fixture 的准备时间会混进结果，不同环境之间的数字没有可比性。也别把预算做成精确到毫秒的硬阈值，CI 机器负载波动会带来假失败，留出余量更实际。</p>
+
+        <h2>截图取证与条件跳过</h2>
+        <p>截图取证装饰器看起来简单，实际上有两个坑。第一是 driver 从哪来：闭包里捕获全局 driver，并行执行时会截到别的设备的屏幕；正确做法是从参数里取，约定第一个参数是 driver，或者通过 <code>request.node</code> 拿 fixture 上的实例。</p>
+        <p>第二是截一张还是每步都截。装饰器只能包住整个用例，失败时拿到的是最后一帧；要过程证据，还是得在用例内部按步骤截图，装饰器只做兜底。两者的成本差别很大，报告体积和运行耗时都会翻倍，先想清楚要回答什么问题再决定。</p>
+        <div class="code-head"><span>python — 失败截图与条件跳过</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import functools
+import os
+import pathlib
+
+import pytest
+
+SHOT_DIR = pathlib.Path("artifacts/screenshots")
+
+
+def screenshot_on_failure(func):
+    @functools.wraps(func)
+    def wrapper(driver, *args, **kwargs):
+        try:
+            return func(driver, *args, **kwargs)
+        except Exception:
+            SHOT_DIR.mkdir(parents=True, exist_ok=True)
+            path = SHOT_DIR / f"{func.__name__}.png"
+            try:
+                driver.save_screenshot(str(path))
+            except Exception:
+                pass        # 取证失败不能覆盖原始异常
+            raise           # 原始失败必须继续抛出
+    return wrapper
+
+
+def require_env(*names):
+    missing = [name for name in names if not os.environ.get(name)]
+    return pytest.mark.skipif(
+        bool(missing),
+        reason=f"缺少环境变量：{', '.join(missing)}",
+    )</code></pre>
+        <p>条件跳过优先用 <code>pytest.mark.skipif</code>，它在收集期求值，报告里标记为 skipped 而不是 failed，语义正确。自写装饰器只适合跳过条件要读运行时配置的情况，比如设备型号、灰度开关，收集期拿不到。此时 wrapper 里必须调用 <code>pytest.skip()</code>，直接 return 会被当成通过——这是把「根本没测」伪装成「通过」的经典事故。</p>
+
+        <h2>装饰器与 fixture：什么时候该换工具</h2>
+        <p>两者的能力边界不一样。fixture 有明确的作用域，支持 yield 做清理，支持参数化，pytest 还保证 teardown 一定执行；装饰器没有作用域概念，清理只能靠 try/finally，也拿不到 pytest 的 fixture 生命周期。</p>
+        <table>
+          <thead>
+            <tr><th>方面</th><th>fixture</th><th>装饰器</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>作用域</td><td>function / class / module / session</td><td>无，随函数绑定</td></tr>
+            <tr><td>清理</td><td>yield 之后保证执行</td><td>手动 try/finally</td></tr>
+            <tr><td>参数化</td><td>params 原生支持</td><td>不支持</td></tr>
+            <tr><td>被其他用例依赖</td><td>可以</td><td>不能</td></tr>
+            <tr><td>适合做什么</td><td>资源准备与回收</td><td>包裹调用、异常处理</td></tr>
+          </tbody>
+        </table>
+        <p>判断规则很实用：需要准备和回收资源，用 fixture；需要包裹一次调用、在异常时做事，用装饰器；两者都要，就让 fixture 提供资源、装饰器负责包裹，把资源作为参数传进去，不要在装饰器里自己建连接。</p>
+        <p>反过来的错误也很常见：用装饰器做登录、建库、起服务。这些操作失败时，装饰器里的清理路径不一定走得到，而且资源无法被其他 fixture 依赖，最后只能靠全局变量传递，测试之间互相污染，执行顺序一变就挂。</p>
+
+        <h2>叠加顺序：谁包谁，决定失败时看到什么</h2>
+        <p>叠加顺序是唯一一个「改了顺序报告就变样」的细节。<code>@A</code> 在上、<code>@B</code> 在下，等价于 <code>A(B(func))</code>：调用时 A 的 wrapper 先执行，B 的 wrapper 在内层先被包上。</p>
+        <div class="code-head"><span>python — 叠加顺序的最小验证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import functools
+
+
+def trace(name):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            print(f"进入 {name}")
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+
+@trace("A")
+@trace("B")
+def test_case():
+    print("用例本体")
+
+
+test_case()
+# 进入 A
+# 进入 B
+# 用例本体</code></pre>
+        <p>结合测试场景看：retry 在外层、screenshot 在内层，每次重试失败都会截图，报告里有三张图，能看到每次失败时的界面；反过来 screenshot 在外层、retry 在内层，只在三次都失败后截一张，报告干净但丢掉了过程。选哪个取决于你要回答的问题，没有绝对的优劣。</p>
+        <p>这条差异经常被误判成 bug：同一条用例，两个人跑出来的附件数量不一样，其实只是装饰器顺序不同。建议在装饰器栈上方写一行注释，说明为什么这样排，评审时能少一轮争论，半年后接手的人也看得懂。</p>
+
+        <h2>类装饰器与 __call__：需要跨调用保存状态时</h2>
+        <p>如果要保存状态，比如调用次数、累计耗时、最近一次错误，函数闭包也能做到，但类更清楚：状态放在实例属性上，<code>__call__</code> 负责包装逻辑，读代码的人一眼能看出哪些数据被保留了。</p>
+        <div class="code-head"><span>python — 带计数的类装饰器</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import functools
+import time
+
+
+class CallCounter:
+    def __init__(self, func):
+        functools.update_wrapper(self, func)   # 实例也要有 __name__
+        self.func = func
+        self.calls = 0
+        self.total_ms = 0.0
+
+    def __call__(self, *args, **kwargs):
+        start = time.perf_counter()
+        try:
+            return self.func(*args, **kwargs)
+        finally:
+            self.calls += 1
+            self.total_ms += (time.perf_counter() - start) * 1000
+
+
+@CallCounter
+def query_order(order_api, order_no):
+    return order_api.get(order_no)</code></pre>
+        <p>这里有一个真实的坑：类装饰器返回的是实例，不是函数，pytest 收集时会把它当成普通对象。不加 <code>functools.update_wrapper</code>，实例没有 <code>__name__</code>，收集阶段直接报错；即使加了，实例也没有实现描述符协议，作为方法使用时的行为会和函数不一致。</p>
+        <p>结论是复杂度应该和需求匹配：类装饰器适合装饰明确的模块级函数并保留元数据；只是想在多次调用间累计一个计数，用模块级字典加闭包更简单，不必引入类。为了一个计数器写出一个类，维护成本往往高于收益。</p>
+
+        <h2>常见坑与排查</h2>
+        <p><strong>现象</strong>：加了装饰器的用例永远通过，哪怕断言里的值明显不对。<strong>原因</strong>：wrapper 忘了 <code>return func(...)</code>，用例返回 None，pytest 只关心有没有抛异常。<strong>处理</strong>：wrapper 最后一行必须返回原函数结果；用 <code>assert test_x() is not None</code> 这类自检用例兜住装饰器本身的错误。</p>
+        <p><strong>现象</strong>：用例失败后报告里没有堆栈，只有一句装饰器打印的日志。<strong>原因</strong>：<code>except Exception</code> 里只记了日志没 <code>raise</code>，异常被吞掉，pytest 认为用例正常结束。<strong>处理</strong>：捕获后必须原样抛出；取证代码自身也要包 try，避免取证失败把原始异常替换掉。</p>
+        <p><strong>现象</strong>：批量生成的重试用例，所有用例都用了最后一组参数。<strong>原因</strong>：在循环里创建装饰器，闭包捕获的是变量本身而不是当时的值，循环结束后所有 wrapper 看到的都是最后一个。<strong>处理</strong>：用默认参数在定义时绑定当前值，例如 <code>def decorator(func, case=case)</code>，或者改用工厂函数每次生成新的闭包。</p>
+        <p><strong>现象</strong>：报告里出现大量同名用例，<code>-k</code> 过滤失效。<strong>原因</strong>：装饰器没加 <code>functools.wraps</code>，<code>__name__</code> 全部变成 wrapper。<strong>处理</strong>：第一行补上 wraps；已经写了很多的地方，可以先用脚本扫一遍缺少 wraps 的装饰器定义，再统一补。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>装饰器会进入团队的公共代码，写完之后按这张表过一遍，能省掉后面很多解释成本。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>合格标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>元数据</td><td>第一行是 functools.wraps，或类装饰器调用 update_wrapper</td></tr>
+            <tr><td>返回值</td><td>wrapper 返回原函数结果，不漏 return</td></tr>
+            <tr><td>异常</td><td>记录后原样 raise，不吞、不替换</td></tr>
+            <tr><td>重试</td><td>仅幂等请求，异常白名单，次数与退避有上限</td></tr>
+            <tr><td>顺序</td><td>栈顶有注释说明为什么这样排</td></tr>
+            <tr><td>资源</td><td>不在装饰器里建连接或开文件</td></tr>
+            <tr><td>可测性</td><td>装饰器本身有单测，覆盖正常与异常路径</td></tr>
+          </tbody>
+        </table>
+        <p>最后一句判断标准：如果一条用例失败后，你需要读装饰器的源码才能知道它到底执行了几次、为什么没截图、耗时算的是哪一段，那这个装饰器的抽象就是失败的。好的装饰器应该让用例更短、报告更清楚，而不是把复杂度藏进另一个文件里。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://peps.python.org/pep-0318/" target="_blank" rel="noopener">PEP 318：Decorators for Functions and Methods</a></li>
+            <li><a href="https://docs.python.org/3/library/functools.html#functools.wraps" target="_blank" rel="noopener">functools.wraps 与 update_wrapper — Python 官方文档</a></li>
+            <li><a href="https://docs.python.org/3/reference/compound_stmts.html#function-definitions" target="_blank" rel="noopener">函数定义与装饰器求值顺序 — Python 语言参考</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/skipping.html" target="_blank" rel="noopener">skip 与 skipif 的求值时机 — pytest 文档</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/fixtures.html" target="_blank" rel="noopener">fixture 作用域与 teardown — pytest 文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#python</span>
+          <span class="tag">#decorators</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

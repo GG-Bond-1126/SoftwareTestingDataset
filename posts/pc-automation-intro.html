@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PC 自动化测试入门：用 Python 操控你的电脑 · 软件测试资料集</title>
+<meta name="description" content="PC 自动化能做什么、pyautogui / pynput / uiautomation 三大库对比…">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-intro.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="PC 自动化测试入门：用 Python 操控你的电脑">
+<meta property="og:description" content="PC 自动化能做什么、pyautogui / pynput / uiautomation 三大库对比…">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-intro.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="PC 自动化测试入门：用 Python 操控你的电脑">
+<meta name="twitter:description" content="PC 自动化能做什么、pyautogui / pynput / uiautomation 三大库对比…">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"PC 自动化测试入门：用 Python 操控你的电脑","description":"PC 自动化能做什么、pyautogui / pynput / uiautomation 三大库对比…","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-intro.html","articleSection":"PC 自动化","keywords":"pc-automation, pyautogui, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>PC 自动化测试入门：用 Python 操控你的电脑</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="pc-automation-intro">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 PC 自动化工具
+pip install pyautogui pynput uiautomation pywinauto opencv-python
+# 验证
+python -c "import pyautogui; print(pyautogui.size())"</code></pre>
+<div class="code-head"><span>python — 验证环境</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui
+# 获取屏幕尺寸（验证）
+print(f"屏幕尺寸：{pyautogui.size()}")
+print("PC 自动化环境就绪 ✓")</code></pre>
+
+<h2>基础应用：自动操作桌面应用</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui, subprocess, time
+
+# 启动记事本
+subprocess.Popen(["notepad.exe"])
+time.sleep(1)
+
+# 输入 + 保存
+pyautogui.write("Hello, PC Automation!")
+time.sleep(0.3)
+pyautogui.hotkey("ctrl", "s")
+time.sleep(0.5)
+
+# 截图
+pyautogui.screenshot("result.png")
+print("基础操作完成 ✓")</code></pre>
+
+<h2>项目进阶：pytest + 多场景 + CI</h2>
+<div class="code-head"><span>python — pytest fixture</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># conftest.py
+import pytest, subprocess, time
+import uiautomation as auto
+
+@pytest.fixture
+def notepad():
+    subprocess.Popen(["notepad.exe"])
+    time.sleep(1)
+    win = auto.WindowControl(searchDepth=1, subTitle="无标题 - 记事本")
+    assert win.Exists(5)
+    yield win
+    auto.press_keys("alt+f4")
+
+# test_notepad.py
+def test_type(notepad):
+    import pyautogui
+    pyautogui.write("测试内容")
+    pyautogui.hotkey("ctrl", "s")
+    time.sleep(0.5)</code></pre>
+
+        <h2>PC 自动化能做什么</h2>
+        <p>PC 自动化测试的目标：<strong>模拟「人在电脑前操作」</strong>——点击、输入、截图、读窗口状态。适合这类应用：</p>
+        <ul>
+          <li><strong>Electron 应用</strong>（VS Code、Slack、Discord）：底层是 Web，可以当 Web 测；</li>
+          <li><strong>原生 Win32/WPF 应用</strong>（Office、IDE）：UI 元素不是 HTML，需要 Win32 API；</li>
+          <li><strong>macOS 应用</strong>（Swift/Qt）：底层是 Cocoa，需要 macOS API；</li>
+          <li><strong>游戏 / 图形化应用</strong>：没有「控件」，只能靠图像识别。</li>
+        </ul>
+        <div class="callout">
+          <p>PC 自动化的最大难点：<strong>没有「稳定的定位方式」</strong>。Web 有 CSS 选择器、APP 有 View 层级，PC 原生应用只能靠「窗口标题 + 控件类型 + 位置」组合定位，改动一点就失效。所以 PC 自动化比 Web/APP 更脆弱、更依赖图像识别。</p>
+        </div>
+
+        <h2>三大工具对比</h2>
+        <div class="code-head"><span>工具对比</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 工具 | 平台 | 能力 | 适用场景
+pyautogui   | 全平台 | 鼠标/键盘/截图/图像识别 | 通用桌面自动化（最简单）
+pynput      | 全平台 | 监听/控制鼠标键盘     | 输入模拟（比 pyautogui 灵活）
+uiautomation | Windows | Win32 控件树遍历       | 原生 Win32/WPF 应用
+PyAutoGUI + OCR | 全平台 | 图像 + 文字识别      | 游戏 / 无控件的图形化应用</code></pre>
+
+        <h3>pyautogui：最简单（鼠标/键盘/截图）</h3>
+        <div class="code-head"><span>terminal — 安装</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>pip install pyautogui</code></pre>
+        <div class="code-head"><span>python — pyautogui 基本操作</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import time
+
+# 鼠标操作
+pyautogui.moveTo(500, 300)       # 移动到屏幕坐标 (500, 300)
+pyautogui.click()                # 在当前位置点击
+pyautogui.click(200, 400)        # 移到 (200, 400) 并点击
+pyautogui.doubleClick(200, 400)  # 双击
+pyautogui.rightClick()           # 右键
+pyautogui.dragTo(800, 400, duration=1)   # 拖拽（1 秒内完成）
+
+# 键盘操作
+pyautogui.write("hello")        # 打字（不支持中文）
+pyautogui.typewrite("hello", interval=0.1)  # 每次间隔 0.1s
+pyautogui.press("enter")        # 按一个键
+pyautogui.hotkey("ctrl", "c")   # 组合键（复制）
+pyautogui.hotkey("cmd", "s")    # Mac 保存
+
+# 截图
+screenshot = pyautogui.screenshot()       # 截全屏幕
+pyautogui.screenshot("screenshot.png")    # 保存文件
+
+# 图像识别（找图 + 点击）
+# 先截一个"按钮图片"保存为 button.png
+button_location = pyautogui.locateOnScreen("button.png", confidence=0.9)
+if button_location:
+    center = pyautogui.center(button_location)
+    pyautogui.click(center)
+    print(f"找到按钮：{center}")
+else:
+    print("没找到按钮")
+
+# 安全机制（紧急停止）
+pyautogui.FAILSAFE = True   # 鼠标移到屏幕左上角立即停止（防脚本失控）
+pyautogui.PAUSE = 0.5       # 每次操作后等 0.5s</code></pre>
+
+        <h3>pynput：监听 + 控制（比 pyautogui 灵活）</h3>
+        <div class="code-head"><span>python — pynput 监听</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># pip install pynput
+from pynput import mouse, keyboard
+import time
+
+# 监听鼠标（记录点击位置）
+clicks = []
+
+def on_click(x, y, button, pressed):
+    if pressed:
+        clicks.append((x, y, str(button)))
+        print(f"点击：{x}, {y}（{button}）")
+
+listener = mouse.Listener(on_click=on_click)
+listener.start()
+time.sleep(5)   # 监听 5 秒
+listener.stop()
+
+print(f"共 {len(clicks)} 次点击")
+
+# 监听键盘（记录按键）
+pressed_keys = []
+
+def on_press(key):
+    try:
+        pressed_keys.append(key.char)   # 字符键
+    except AttributeError:
+        pressed_keys.append(str(key))   # 特殊键（F1、Enter）
+
+key_listener = keyboard.Listener(on_press=on_press)
+key_listener.start()
+time.sleep(3)
+key_listener.stop()
+
+print(f"按键序列：{pressed_keys}")
+
+# 控制（模拟输入）
+with mouse.Controller() as controller:
+    controller.position = (500, 300)
+    controller.click()
+
+with keyboard.Controller() as kb:
+    kb.type("hello")
+    kb.press("enter")</code></pre>
+
+        <h3>uiautomation：Windows 控件树遍历（最精准）</h3>
+        <div class="code-head"><span>python — uiautomation</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># pip install uiautomation（Windows only）
+import uiautomation as auto
+
+# 找窗口（按标题）
+notepad = auto.WindowControl(searchDepth=1, subTitle="记事本")
+if notepad.Exists(3):
+    print(f"找到窗口：{notepad.Name}")
+
+    # 遍历控件树（按钮、文本框等）
+    for child in notepad.GetChildren(searchDepth=1):
+        print(f"  控件：{child.ControlType} {child.Name}")
+
+    # 按类型找控件
+    save_btn = notepad.ButtonControl(Name="保存", searchDepth=2)
+    if save_btn.Exists(3):
+        save_btn.Click()
+        print("保存按钮已点击")
+
+    # 找文本框 + 输入
+    text_box = notepad.EditControl(Name="编辑", searchDepth=2)
+    if text_box.Exists(3):
+        text_box.Click()
+        text_box.SetFocus()
+        text_box.SendKeys("Hello, uiautomation!")</code></pre>
+        <div class="callout">
+          <p>uiautomation 的优势：<strong>直接遍历 Win32 控件树</strong>（不用坐标/图像识别），定位精准。劣势：只能用于 Windows、只能遍历「标准控件」（自定义绘制的 UI 不行）。</p>
+        </div>
+
+        <h2>Windows 和 Mac 的差异</h2>
+        <div class="code-head"><span>平台差异</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># Windows
+# - uiautomation（控件树遍历，最精准）
+# - AutoIt（脚本语言，最老牌）
+# - pywinauto（Python 封装 Win32 API）
+# - 权限：一般不需要管理员（UAC 弹窗时需要）
+
+# Mac
+# - pyautogui（鼠标/键盘/截图，跨平台）
+# - Accessibility API（控件树，类似 uiautomation）
+# - AppleScript（系统级脚本，最强大但复杂）
+# - 权限：需要"辅助功能"权限（系统设置 → 隐私 → 辅助功能）
+
+# 通用
+# - pyautogui（鼠标/键盘/截图/图像识别）
+# - pynput（监听/控制）
+# - OpenCV（图像识别）</code></pre>
+
+        <h2>案例：自动操作记事本 + 截图</h2>
+        <p>把 pyautogui + uiautomation 串起来，写一个「打开记事本 → 输入文本 → 保存 → 截图」的完整案例：</p>
+        <div class="code-head"><span>python — 完整案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pyautogui
+import uiautomation as auto
+import time
+import os
+from datetime import datetime
+
+# 1. 打开记事本（用系统命令）
+import subprocess
+subprocess.Popen(["notepad.exe"])
+time.sleep(1)   # 等记事本启动
+
+# 2. 用 uiautomation 找到记事本窗口
+notepad = auto.WindowControl(searchDepth=1, subTitle="无标题 - 记事本")
+if not notepad.Exists(5):
+    print("记事本窗口没找到")
+    exit(1)
+
+print(f"找到记事本：{notepad.Name}")
+
+# 3. 用 pyautogui 输入文本（键盘模拟）
+pyautogui.hotkey("ctrl", "a")   # 全选（清空原有内容）
+time.sleep(0.2)
+pyautogui.write("Hello, PC automation!")
+time.sleep(0.2)
+
+# 4. 保存（Ctrl+S）
+pyautogui.hotkey("ctrl", "s")
+time.sleep(0.5)
+
+# 5. 截图（验证）
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+screenshot_path = f"pc_test_{timestamp}.png"
+pyautogui.screenshot(screenshot_path)
+print(f"截图已保存：{screenshot_path}")
+
+# 6. 验证文件是否存在
+# （假设记事本默认保存到桌面）
+desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+saved_files = [f for f in os.listdir(desktop) if f.startswith("untitled")]
+if saved_files:
+    print(f"保存成功：{saved_files[0]}")
+else:
+    print("⚠️ 没找到保存的文件（可能路径不同）")
+
+# 7. 关闭记事本
+pyautogui.hotkey("alt", "f4")
+time.sleep(0.5)
+print("记事本已关闭")</code></pre>
+        <div class="callout">
+          <p>PC 自动化「三大武器」：<strong>pyautogui</strong>（鼠标/键盘/截图，最简单）、<strong>pynput</strong>（监听输入，灵活）、<strong>uiautomation</strong>（Windows 控件树，最精准）。没有「万能方案」，按应用类型选：Electron 当 Web 测、原生 Win32 用 uiautomation、游戏/图形化用图像识别。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://pyautogui.readthedocs.io/" target="_blank" rel="noopener">pyautogui 官方文档</a></li>
+            <li><a href="https://pynput.readthedocs.io/" target="_blank" rel="noopener">pynput 官方文档</a></li>
+            <li><a href="https://github.com/yinkaisheng/Python-UIAutomation" target="_blank" rel="noopener">uiautomation 官方仓库</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#pc-automation</span>
+          <span class="tag">#pyautogui</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

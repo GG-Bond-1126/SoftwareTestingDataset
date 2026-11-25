@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Windows UI 自动化：pywinauto 操控桌面应用 · 软件测试资料集</title>
+<meta name="description" content="pywinauto 的 Win32/UIA 两种后端、窗口/控件定位、点击/输入/断言，配自动操作记事本 + 验证案例。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pywinauto-windows-ui.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Windows UI 自动化：pywinauto 操控桌面应用">
+<meta property="og:description" content="pywinauto 的 Win32/UIA 两种后端、窗口/控件定位、点击/输入/断言，配自动操作记事本 + 验证案例。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pywinauto-windows-ui.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Windows UI 自动化：pywinauto 操控桌面应用">
+<meta name="twitter:description" content="pywinauto 的 Win32/UIA 两种后端、窗口/控件定位、点击/输入/断言，配自动操作记事本 + 验证案例。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Windows UI 自动化：pywinauto 操控桌面应用","description":"pywinauto 的 Win32/UIA 两种后端、窗口/控件定位、点击/输入/断言，配自动操作记事本 + 验证案例。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/pywinauto-windows-ui.html","articleSection":"PC 自动化","keywords":"pc-automation, pywinauto, windows","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">PC 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>10 min read</span>
+        </div>
+        <h1>Windows UI 自动化：pywinauto 操控桌面应用</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="pywinauto-windows-ui">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 PC 自动化工具
+pip install pyautogui pynput uiautomation pywinauto opencv-python
+# 验证
+python -c "import pyautogui; print(pyautogui.size())"</code></pre>
+<div class="code-head"><span>python — 验证环境</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui
+# 获取屏幕尺寸（验证）
+print(f"屏幕尺寸：{pyautogui.size()}")
+print("PC 自动化环境就绪 ✓")</code></pre>
+
+<h2>基础应用：自动操作桌面应用</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pyautogui, subprocess, time
+
+# 启动记事本
+subprocess.Popen(["notepad.exe"])
+time.sleep(1)
+
+# 输入 + 保存
+pyautogui.write("Hello, PC Automation!")
+time.sleep(0.3)
+pyautogui.hotkey("ctrl", "s")
+time.sleep(0.5)
+
+# 截图
+pyautogui.screenshot("result.png")
+print("基础操作完成 ✓")</code></pre>
+
+<h2>项目进阶：pytest + 多场景 + CI</h2>
+<div class="code-head"><span>python — pytest fixture</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># conftest.py
+import pytest, subprocess, time
+import uiautomation as auto
+
+@pytest.fixture
+def notepad():
+    subprocess.Popen(["notepad.exe"])
+    time.sleep(1)
+    win = auto.WindowControl(searchDepth=1, subTitle="无标题 - 记事本")
+    assert win.Exists(5)
+    yield win
+    auto.press_keys("alt+f4")
+
+# test_notepad.py
+def test_type(notepad):
+    import pyautogui
+    pyautogui.write("测试内容")
+    pyautogui.hotkey("ctrl", "s")
+    time.sleep(0.5)</code></pre>
+
+        <h2>pywinauto 的两种后端</h2>
+        <p>Windows 有两套「控件访问」API，pywinauto 都封装了：</p>
+        <div class="code-head"><span>两种后端对比</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># backend="win32"（默认）
+# - 速度快
+# - 只能访问标准 Win32 控件（按钮、文本框、列表框）
+# - 不能访问 UIA 控件（WPF、WinUI）
+# - 适合老应用（记事本、计算器）
+
+# backend="uia"
+# - 慢一点
+# - 能访问所有控件（包括 UIA、WPF、WinUI）
+# - 适合现代应用（Office、VS Code、Electron）
+
+# 选择策略：
+# - 老 Win32 应用 → win32（快）
+# - 现代应用（WPF/WinUI）→ uia（全）
+# - 不确定 → 两个都试</code></pre>
+
+        <h3>安装</h3>
+        <div class="code-head"><span>terminal — 安装</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>pip install pywinauto
+# 需要额外依赖
+pip install pywin32   # win32 后端
+pip install comtypes   # uia 后端</code></pre>
+
+        <h2>窗口定位：找到目标应用</h2>
+        <div class="code-head"><span>python — 窗口定位</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from pywinauto import Application, Desktop
+import subprocess
+import time
+
+# 1. 启动应用（从脚本里启动，最稳）
+app = Application(backend="uia").start("notepad.exe")
+notepad_window = app.window(title="无标题 - 记事本")
+notepad_window.wait("visible", timeout=5)   # 等窗口可见
+print(f"找到记事本：{notepad_window.window_text()}")
+
+# 2. 找已打开的窗口（不启动）
+desktop = Desktop(backend="uia")
+notepad = desktop.window(title="无标题 - 记事本")
+if notepad.exists(timeout=3):
+    print(f"记事本已打开：{notepad.window_text()}")
+
+# 3. 按类名找窗口（更精准）
+notepad = app.window(title_re=".*记事本", class_name="Notepad")
+# title_re：正则匹配标题
+# class_name：Windows 窗口类名
+
+# 4. 列出所有顶层窗口（调试用）
+for window in Desktop(backend="uia").windows():
+    print(f"  {window.window_text()}（{window.class_name()}）")</code></pre>
+
+        <h2>控件定位：找按钮、文本框</h2>
+        <div class="code-head"><span>python — 控件定位</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from pywinauto import Application
+
+app = Application(backend="uia").start("notepad.exe")
+notepad = app.window(title_re=".*记事本")
+
+# 按类型找控件（最常用）
+# .child_window(...) 找直接子控件
+# .descendants(...) 找所有后代控件（深度搜索）
+
+# 找按钮（按名字）
+save_btn = notepad.child_window(control_type="Button", title="保存")
+if save_btn.exists(timeout=3):
+    save_btn.click()
+    print("保存按钮已点击")
+
+# 找编辑框
+edit_box = notepad.child_window(control_type="Edit")
+edit_box.set_edit_text("Hello, pywinauto!")
+print(f"编辑框内容：{edit_box.window_text()}")
+
+# 找菜单项
+menu = notepad.child_window(control_type="MenuItem", title="文件")
+menu.select_item("新建")
+
+# 按 auto_id 找（WPF/WinUI 应用常用）
+# auto_id 是控件的"程序化 ID"（比 title 稳定）
+# 用 Inspect.exe 工具查看 auto_id
+btn = notepad.child_window(auto_id="SaveButton")
+btn.click()
+
+# 遍历所有控件（调试）
+for child in notepad.descendants():
+    print(f"  控件：{child.control_type} 名字：{child.window_text()}")</code></pre>
+        <div class="callout">
+          <p>控件定位「三件套」：<strong>control_type</strong>（按钮/文本框/菜单）、<strong>title</strong>（显示文字）、<strong>auto_id</strong>（程序化 ID，最稳定）。WPF/WinUI 应用优先用 auto_id，老 Win32 应用用 title。用 <code>Inspect.exe</code>（Windows SDK 自带）查看控件属性。</p>
+        </div>
+
+        <h2>常用操作：点击、输入、断言</h2>
+        <div class="code-head"><span>python — 控件操作</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from pywinauto import Application
+import time
+
+app = Application(backend="uia").start("notepad.exe")
+notepad = app.window(title_re=".*记事本")
+
+# 1. 点击
+save_btn = notepad.child_window(control_type="Button", title="保存")
+save_btn.click()                 # 左键
+save_btn.click(button="right")  # 右键
+save_btn.click(double=True)     # 双击
+save_btn.set_focus()            # 获取焦点
+
+# 2. 输入（Edit 控件）
+edit_box = notepad.child_window(control_type="Edit")
+edit_box.set_edit_text("Hello, world!")          # 设置整个内容
+edit_box.type_keys("new line")                   # 追加输入
+edit_box.type_keys("ctrl+a")                     # 组合键
+
+# 3. 断言
+# 控件存在
+assert notepad.exists(timeout=5), "记事本没打开"
+
+# 控件属性
+assert save_btn.is_enabled(), "保存按钮被禁用"
+assert save_btn.is_visible(), "保存按钮不可见"
+
+# 文本值
+assert edit_box.window_text() == "Hello, world!"
+
+# 等待条件（最常用）
+notepad.wait("visible", timeout=10)
+save_btn.wait("enabled", timeout=5)
+edit_box.wait("exists", timeout=3)
+
+# 4. 选择（ComboBox / ListBox）
+combo = notepad.child_window(control_type="ComboBox", title_re=".*字体.*")
+combo.select_item("等线")
+
+list_box = notepad.child_window(control_type="ListBox")
+list_box.select_item("第三项")
+
+# 5. 拖动（拖拽文件/滑块）
+# 先定位两个控件的位置
+from pywinauto import mouse
+source_rect = notepad.rectangle()
+target_x = source_rect.left + 100
+target_y = source_rect.top + 50
+mouse.click(button="left")
+mouse.move(target_x, target_y, drag=True)
+mouse.click(button="right")</code></pre>
+
+        <h2>两种后端的差异</h2>
+        <div class="code-head"><span>python — 后端差异</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># win32 后端（老应用，快）
+app_win32 = Application(backend="win32").start("notepad.exe")
+notepad_win32 = app_win32.top_window()
+# win32 用 .title 找控件（不是 .child_window）
+save_btn_win32 = notepad_win32.window(title="保存")
+save_btn_win32.click()
+
+# uia 后端（现代应用，全）
+app_uia = Application(backend="uia").start("notepad.exe")
+notepad_uia = app_uia.window(title_re=".*记事本")
+save_btn_uia = notepad_uia.child_window(control_type="Button", title="保存")
+save_btn_uia.click()
+
+# 调试：dump 控件树
+notepad_uia.print_control_identifiers()
+# 输出每个控件的 auto_id、control_type、title、enable 状态
+# 帮你"找控件"时确定参数</code></pre>
+        <div class="callout">
+          <p>pywinauto 「找控件」三步走：① <strong>dump 控件树</strong>（<code>print_control_identifiers()</code>）；② 确定 <strong>control_type + title/auto_id</strong>；③ 用 <strong>child_window(...)</strong> 定位。dump 是「调试神器」，不知道控件叫什么名字时全用它。</p>
+        </div>
+
+        <h2>案例：自动操作记事本 + 验证</h2>
+        <p>把上面学到的串起来，写一个「打开记事本 → 输入文本 → 保存 → 验证」的完整测试：</p>
+        <div class="code-head"><span>python — 完整案例</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from pywinauto import Application
+import pytest
+
+class NotepadTest:
+    """记事本自动化测试（pywinauto）"""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        """启动记事本 + 清理"""
+        self.app = Application(backend="uia").start("notepad.exe")
+        self.notepad = self.app.window(title_re=".*记事本")
+        self.notepad.wait("visible", timeout=5)
+        yield
+        self.notepad.close()
+
+    def test_input_text(self):
+        """输入文本 + 验证"""
+        edit_box = self.notepad.child_window(control_type="Edit")
+        edit_box.set_edit_text("Hello, pywinauto!")
+
+        # 验证内容
+        assert edit_box.window_text() == "Hello, pywinauto!"
+
+    def test_save_file(self):
+        """保存文件 + 验证"""
+        import os
+
+        # 输入文本
+        edit_box = self.notepad.child_window(control_type="Edit")
+        edit_box.set_edit_text("测试保存内容")
+
+        # 保存（Ctrl+S）
+        file_path = os.path.join(os.path.expanduser("~"), "Desktop", "test_notepad.txt")
+        # 用菜单"文件 → 另存为"（更可控）
+        menu = self.notepad.child_window(control_type="MenuItem", title="文件")
+        menu.select_item("另存为")
+
+        # 保存对话框里输入路径
+        time.sleep(1)
+        save_dialog = self.app.window(title_re=".*保存.*")
+        save_dialog.wait("visible", timeout=5)
+        edit_filename = save_dialog.child_window(control_type="Edit", auto_id="1001")
+        edit_filename.set_edit_text(file_path)
+
+        # 点击"保存"
+        save_btn = save_dialog.child_window(control_type="Button", title="保存(S)")
+        save_btn.click()
+
+        # 验证文件存在
+        time.sleep(1)
+        assert os.path.exists(file_path), "保存文件不存在"
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        assert content == "测试保存内容", "文件内容不对"
+
+# 运行
+# pytest test_notepad.py -v -s</code></pre>
+        <div class="callout">
+          <p>pywinauto 比 pyautogui「稳」在哪：<strong>找控件树里的控件，不靠坐标/截图</strong>。界面「位置变了」不影响（控件还在），「改名了」才影响（title 变了）。WPF/WinUI 应用用 auto_id（程序化 ID，最稳定），老 Win32 应用用 title。配合 pytest fixture 自动启动/关闭应用，一条用例一个「干净环境」。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://pywinauto.readthedocs.io/" target="_blank" rel="noopener">pywinauto 官方文档</a></li>
+            <li><a href="https://pywinauto.readthedocs.io/en/latest/quickstart.html" target="_blank" rel="noopener">pywinauto Quickstart</a></li>
+            <li><a href="https://learn.microsoft.com/en-us/windows/win32/mswsock/about-socket-apis" target="_blank" rel="noopener">Windows API 官方文档（UI Automation）</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#pc-automation</span>
+          <span class="tag">#pywinauto</span>
+          <span class="tag">#windows</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

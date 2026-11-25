@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 列表、字典与 JSON：测试数据的三种形态 · 软件测试资料集</title>
+<meta name="description" content="列表管顺序、字典管查询、JSON 管传输，讲透三者分工、嵌套取值、编码、拷贝与类型映射。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-list-dict-and-json.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Python 列表、字典与 JSON：测试数据的三种形态">
+<meta property="og:description" content="列表管顺序、字典管查询、JSON 管传输，讲透三者分工、嵌套取值、编码、拷贝与类型映射。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-list-dict-and-json.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Python 列表、字典与 JSON：测试数据的三种形态">
+<meta name="twitter:description" content="列表管顺序、字典管查询、JSON 管传输，讲透三者分工、嵌套取值、编码、拷贝与类型映射。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Python 列表、字典与 JSON：测试数据的三种形态","description":"列表管顺序、字典管查询、JSON 管传输，讲透三者分工、嵌套取值、编码、拷贝与类型映射。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-list-dict-and-json.html","articleSection":"Python 编程入门","keywords":"python, data-structures, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>20 min read</span>
+        </div>
+        <h1>Python 列表、字典与 JSON：测试数据的三种形态</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-list-dict-and-json">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>先分清三种形态，再谈写法</h2>
+        <p>有一类问题几乎每个测试团队都遇到过：用例里写死了三份订单数据，改一个字段要改三个地方；接口返回的嵌套 JSON 一层层下标取下来，某天上游删了一个可选字段，两百条用例同时报 <code>KeyError</code>；把响应存成基线文件做对比，第二天 diff 出几百行，仔细看只是 key 顺序变了、中文变成了 <code>\u</code> 转义。这些都不是语法问题，而是没分清列表、字典、JSON 各自该负责什么。</p>
+        <p>这篇写给已经能写 pytest 用例、但数据一复杂就靠复制粘贴的一线测试工程师。读完应该能判断：手上这份数据该用列表还是字典承载；跨进程传递时该序列化成什么；断言失败时该怀疑数据构造还是怀疑被测代码。</p>
+        <p>一句话概括：列表管顺序与批量，字典管按键查询，JSON 管跨语言传输与落盘。三者随时可以互转，但每一次转换都有代价，代价的大小决定了你该在哪一层停手。</p>
+
+        <h2>三段旅程：内存结构、查询索引、传输落盘</h2>
+        <p>同一条订单，在测试代码的不同阶段会以三种面貌出现。刚从接口拿到时是一段字符串，属于传输形态；<code>json.loads</code> 之后变成字典和列表的组合，属于内存形态；你把它按业务主键重建成字典，它才成为查询索引。分清这三种形态的价值在于：你随时知道自己手上是什么，也就知道下一步哪些操作便宜、哪些操作昂贵。</p>
+        <p>字典的按键取值是哈希查找，平均 O(1)，一千条数据里找一条和十条里找一条几乎没有差别；列表按值查找是线性扫描，<code>in</code> 会随规模变慢，一万条以上放进循环就能明显感觉到。所以凡是「按 ID 找记录」的断言，都应该先把列表转成以 ID 为键的字典，再做查询，而不是在循环里反复判断存在性。</p>
+        <p>传输形态不关心查询效率，只关心体积与兼容性。JSON 的键必须是字符串，值只能落在有限的几种类型里，因此 Python 的 <code>set</code>、<code>datetime</code>、<code>Decimal</code> 都要先降级成列表、字符串、浮点数才能序列化。很多人第一次写 <code>json.dumps</code> 报 <code>TypeError: Object of type datetime is not JSON serializable</code>，<a class="ilink" href="ai-defect-rootcause.html">根因</a>就是把内存形态直接扔给了传输层。</p>
+        <table>
+          <thead>
+            <tr><th>形态</th><th>典型载体</th><th>强项</th><th>代价</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>内存结构</td><td>list / dict</td><td>可迭代、可修改、可直接断言</td><td>占内存，跨进程必须序列化</td></tr>
+            <tr><td>查询索引</td><td>以业务主键为键的 dict</td><td>按键取 O(1)</td><td>键必须唯一，重复会被静默覆盖</td></tr>
+            <tr><td>传输落盘</td><td>JSON 字符串或文件</td><td>跨语言、可 diff、可归档</td><td>类型受限，需要处理编码与转义</td></tr>
+          </tbody>
+        </table>
+
+        <div class="code-head"><span>python — 同一条数据的三种形态</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+from decimal import Decimal
+
+raw = '{"order_id": "ORD-001", "amount": 99.99, "status": "paid"}'
+
+# 传输形态：还没解析的字符串
+print(type(raw))                    # &lt;class 'str'&gt;
+
+# 内存形态：字典
+order = json.loads(raw)
+print(type(order))                  # &lt;class 'dict'&gt;
+
+# 查询索引：以业务主键为键重建
+by_id = {item["order_id"]: item for item in [order]}
+print(by_id["ORD-001"]["amount"])   # 99.99
+
+# 回到传输形态：Decimal 不能直接序列化
+order["amount"] = Decimal("99.99")
+try:
+    json.dumps(order)
+except TypeError as exc:
+    print(exc)   # Object of type Decimal is not JSON serializable</code></pre>
+
+        <h2>列表与推导式：用例参数化的骨架</h2>
+        <p>场景很具体：一个下单接口要覆盖 5 种商品、3 种优惠券、2 种支付方式，手写三十条用例不现实，但全排列的三十种组合里有一半业务上不成立，比如 C20 券只能用于指定品类。这时列表推导式不是炫技，而是唯一能把「组合规则」和「用例数据」写在同一个地方的手段。</p>
+        <p>写法上建议把数据构造和执行彻底分开：先算出用例列表，再交给 <code>parametrize</code>。这样组合规则写错时，你可以在几十毫秒内打印出这份列表核对，而不用等 pytest 收集完、跑起来才逐条看用例 ID 反推。</p>
+        <p>代价要说清：推导式里塞三层 <code>for</code> 加两个 <code>if</code>，可读性会迅速下降到没人敢改。我的经验线是超过两层循环、或者超过六十行，就该改成显式循环加 <code>append</code>，或者抽成 <code>build_cases()</code> 函数并给它补两三条断言。测试代码同样要被维护，可读性比省三行更重要。</p>
+
+        <div class="code-head"><span>python — 组合规则与参数化</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+
+SKUS = ["SKU-A", "SKU-B", "SKU-C"]
+COUPONS = [None, "C10", "C20"]
+PAY_METHODS = ["balance", "card"]
+
+# 组合规则集中在一处：C20 只适用于 SKU-A
+CASES = [
+    (sku, coupon, pay)
+    for sku in SKUS
+    for coupon in COUPONS
+    for pay in PAY_METHODS
+    if coupon != "C20" or sku == "SKU-A"
+]
+
+@pytest.mark.parametrize(
+    "sku,coupon,pay",
+    CASES,
+    ids=[f"{sku}-{coupon}-{pay}" for sku, coupon, pay in CASES],
+)
+def test_create_order(api, sku, coupon, pay):
+    body = {"sku": sku, "coupon": coupon, "pay_method": pay}
+    resp = api.post("/api/orders", json=body)
+    assert resp.status_code == 201</code></pre>
+
+        <p>不要省略 <code>ids</code>。默认的用例 ID 是 <code>sku0-coupon0-pay0</code>，跑失败时你根本不知道是哪组参数；显式给 ID 之后，<code>-k</code> 能按商品或券直接筛，报告里也能一眼看出失败的是哪一类组合。</p>
+
+        <h2>字典：把响应变成可查询的索引</h2>
+        <p>断言列表型响应时，最常见的写法是 <code>assert len(resp['items']) == 3</code>，这个断言几乎不携带信息，它只能说明数量对。真正要验证的是这三条记录分别是哪三条、关键字段值对不对。做法是先建索引，再比对投影出来的字段。</p>
+        <p>字典推导在这里干两件事：把列表转成以业务主键为键的字典，让后续取值变成 O(1)；把关注字段投影出来，让断言只比较业务关心的部分。第二点常被忽略，接口多返回一个 <code>updated_at</code> 就让整份断言失败，这种脆弱断言是回归阶段最大的噪音来源。</p>
+        <p>但字典有个硬限制：键必须唯一。列表里出现两条同 ID 记录时，无论是分页边界重复还是上游 join 放大，字典推导都会静默地只保留后一条，长度从三变成二。如果你的断言正好没检查数量，一个数据重复的缺陷就被放过去了。所以建索引之后必须补一句数量断言。</p>
+
+        <div class="code-head"><span>python — 建索引并校验主键唯一</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>def index_by(rows, key):
+    """把列表建成字典，同时校验主键唯一。"""
+    index = {}
+    for row in rows:
+        value = row[key]
+        if value in index:
+            raise AssertionError(f"主键重复：{key}={value}")
+        index[value] = row
+    return index
+
+
+resp = api.get("/api/orders?page=1&size=50").json()
+rows = resp["data"]["list"]
+by_id = index_by(rows, "order_id")
+assert len(by_id) == len(rows)
+
+# 只投影业务关心的字段，避免 updated_at 之类的噪音
+actual = {oid: (r["status"], r["amount"]) for oid, r in by_id.items()}
+expected = {"ORD-001": ("paid", 99.99), "ORD-002": ("pending", 199.98)}
+assert actual == expected</code></pre>
+
+        <h2>嵌套取值：链式 get 的安全写法与代价</h2>
+        <p>线上最典型的失败长这样：<code>KeyError: 'address'</code>，堆栈指向 <code>data['user']['address']['city']</code>。这不是代码写错，而是上游把一个可选字段从响应里摘掉了，而断言的写法假定它一定存在。</p>
+        <p>链式 <code>get</code> 能解决报错，但解决不了信息量问题：某一层缺失时它返回默认值，随后的断言只告诉你 <code>None != 上海</code>，看不出是第几层缺的。我的做法是写一个几行的取值助手，缺哪层就把完整路径和当前层的键打出来，排查时不用再回去读代码。</p>
+        <p>反过来说，不是所有取值都该用 <code>get</code>。对协议约定必须存在的字段，比如 <code>code</code>、<code>data</code>、业务主键，就该用下标，让它 <code>KeyError</code>，因为缺了就是接口违约，早崩比晚崩好。判断标准只有一条：这个字段缺失时，是上游 bug 还是合法状态。前者用下标，后者用 <code>get</code> 加默认值。</p>
+
+        <div class="code-head"><span>python — 带路径信息的取值助手</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>MISSING = object()
+
+def pick(payload, path, default=MISSING):
+    """按 a.b.c 逐层取值，缺失时抛出带路径的错误或返回默认值。"""
+    current = payload
+    for key in path.split("."):
+        if not isinstance(current, dict) or key not in current:
+            if default is not MISSING:
+                return default
+            here = list(current) if isinstance(current, dict) else type(current).__name__
+            raise KeyError(f"响应缺少字段 {path}，断在 {key}，当前层：{here}")
+        current = current[key]
+    return current
+
+
+assert pick(resp, "code") == 200
+city = pick(resp, "data.user.address.city", default=None)</code></pre>
+
+        <h2>json.load 与 json.loads：字符串与文件的岔路口</h2>
+        <p>两个函数的区别只有一处，但用错一次就要排查一阵：<code>loads</code> 收字符串，s 代表 string；<code>load</code> 收文件对象。反过来用，报错分别是 <code>AttributeError: 'str' object has no attribute 'read'</code> 和 <code>TypeError: the JSON object must be str, bytes or bytearray, not TextIOWrapper</code>，看到哪个就知道方向反了。</p>
+        <p>除了入口不同，两者的参数完全一致，都支持 <code>object_hook</code>、<code>parse_float</code> 这类钩子。真正需要区分的是另一组：<code>dump</code> 写文件，<code>dumps</code> 返回字符串。序列化到磁盘时如果想让人读得懂，一定加 <code>ensure_ascii=False</code>，否则文件里全是转义序列，基线 diff 完全没法看。</p>
+        <p>还有一个容易踩的点：<code>resp.json()</code> 内部就是解析响应体，但它会先看 <code>Content-Type</code> 猜编码。如果服务端返回 <code>text/html</code> 而内容是 JSON，会抛 <code>JSONDecodeError: Expecting value: line 1 column 1</code>。这时候自己按 UTF-8 解码再解析，反而更可靠，代价是要多写一行。</p>
+
+        <div class="code-head"><span>python — 四个入口别用反</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+import pathlib
+
+BASELINE = pathlib.Path("baselines/order.json")
+
+# 文件 → 对象（load，不是 loads）
+with BASELINE.open(encoding="utf-8") as fp:
+    expected = json.load(fp)
+
+# 对象 → 文件（dump，不是 dumps）
+BASELINE.parent.mkdir(parents=True, exist_ok=True)
+with BASELINE.open("w", encoding="utf-8") as fp:
+    json.dump(expected, fp, ensure_ascii=False, indent=2, sort_keys=True)
+
+# 字符串 → 对象 / 对象 → 字符串
+text = '{"code": 200, "msg": "成功"}'
+data = json.loads(text)
+print(json.dumps(data, ensure_ascii=False))
+
+# 服务端 Content-Type 不可信时，自己解码再解析
+payload = json.loads(resp.content.decode("utf-8"))</code></pre>
+
+        <h2>编码与中文：ensure_ascii 改的到底是什么</h2>
+        <p>很多人以为中文被转义成 <code>\u6210\u529f</code> 是编码问题，其实不是。JSON 规范里转义写法和直接写中文都合法，Python 只是默认选了 ASCII 安全的那种，好处是任何老编辑器、任何终端都不会乱码。设成 <code>ensure_ascii=False</code> 才会输出真正的中文，代价是文件必须以 UTF-8 保存，读的时候也必须按 UTF-8 打开。</p>
+        <p>在 Windows 上这是最常见的翻车点。<code>open</code> 不带参数时按系统默认编码处理，中文环境里往往不是 UTF-8，写进去的中文在别人机器上打开就是乱码，报错是 <code>UnicodeDecodeError: 'utf-8' codec can't decode byte 0xb3 in position 0</code>。所有涉及文件的读写都应该显式写 <code>encoding='utf-8'</code>，这是唯一跨平台稳定的写法。</p>
+        <p>取舍在于用途：给人看的基线文件用可读中文加 UTF-8，diff 时能看清哪个中文字段变了；要经过老旧系统、或者只给机器比的中间文件，保持默认转义更保险，代价是人眼几乎没法读。两边成本都不高，关键是团队内统一，而不是一半人一种写法。</p>
+
+        <h2>去重、分组与排序：断言比对的三件工具</h2>
+        <p>列表型响应的比对，八成麻烦来自三件事：顺序不稳定、有重复、需要按分组核对。顺序不稳定最常见，数据库没写 <code>order by</code>，两次查询返回顺序不同，<code>assert actual == expected</code> 就随机失败。这时不是数据错，是断言写法错。</p>
+        <p>去重用 <code>set</code>，但要记住它会丢掉顺序和重复次数：两条完全相同的记录会合成一条，于是「重复插入」这种缺陷反而被测试自己掩盖了。要保留重复就先用 <code>Counter</code> 统计次数，或者用 <code>dict.fromkeys</code> 做保序去重。分组用 <code>defaultdict(list)</code>，比手写判断加初始化少三行，也不容易写错。</p>
+        <p>排序方面，<code>sorted</code> 的 key 可以返回元组，实现先按第一个字段、相同再按第二个字段。两个坑必须记住：字段可能为 None 时，混合类型比较会抛 <code>TypeError: '&lt;' not supported between instances of 'NoneType' and 'str'</code>，要给它一个哨兵值；字符串排序是字典序，<code>10</code> 会排在 <code>9</code> 前面，数字型 ID 要先转成整数再排。</p>
+
+        <div class="code-head"><span>python — 去重、分组与多字段排序</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from collections import Counter, defaultdict
+
+rows = [
+    {"sku": "SKU-A", "status": "paid", "amount": 10},
+    {"sku": "SKU-B", "status": "paid", "amount": 20},
+    {"sku": "SKU-A", "status": "refund", "amount": 10},
+    {"sku": "SKU-A", "status": "paid", "amount": 10},
+]
+
+# 保序去重：保留首次出现顺序
+unique = list(dict.fromkeys(r["sku"] for r in rows))
+print(unique)                       # ['SKU-A', 'SKU-B']
+
+# 统计次数，防止重复记录被 set 吞掉
+counts = Counter(r["sku"] for r in rows)
+assert counts["SKU-A"] == 3, counts
+
+# 分组
+by_sku = defaultdict(list)
+for row in rows:
+    by_sku[row["sku"]].append(row["status"])
+
+# 多字段排序：金额降序，金额相同按 sku 升序
+ordered = sorted(rows, key=lambda r: (-r["amount"], r["sku"]))</code></pre>
+
+        <h2>深浅拷贝：改断言数据顺手改了源数据</h2>
+        <p>这个坑的经典形态：conftest 里有一个基础订单 fixture，用例里想试一下金额改成零会怎样，于是直接赋值再修改，断言通过了，但下一条用例拿到的基单金额已经是零。排查时看到的现象是「单独跑通过、一起跑失败」，而且失败顺序不固定，非常费时间。</p>
+        <p>根因是赋值只绑定名字，不复制对象。要隔离有三档：<code>list()</code>、<code>dict()</code>、<code>copy.copy()</code> 只复制最外层，嵌套的列表和字典仍然共享；<code>copy.deepcopy()</code> 递归复制全部，慢但安全。测试数据一般只有几 KB，深拷贝的开销可以忽略，别为省这点时间埋雷。</p>
+        <p>但深拷贝也不是万能：文件句柄、数据库连接、线程锁这些对象不可深拷贝，典型报错是 <code>TypeError: cannot pickle '_thread.lock' object</code>。所以 fixture 交给用例的应该是纯数据结构，而不是带着连接的会话对象；两类东西不要塞进同一个字典里。</p>
+
+        <div class="code-head"><span>python — 赋值、浅拷贝与深拷贝</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import copy
+
+base_order = {"order_id": "ORD-001", "amount": 99.99,
+              "items": [{"sku": "SKU-A", "qty": 2}]}
+
+# 错误：两个名字指向同一对象
+alias = base_order
+alias["amount"] = 0
+print(base_order["amount"])          # 0，源数据被改了
+
+# 浅拷贝：外层独立，嵌套仍共享
+shallow = copy.copy(base_order)
+shallow["amount"] = 1
+shallow["items"].append({"sku": "SKU-B", "qty": 1})
+print(len(base_order["items"]))      # 2，嵌套被改了
+
+# 深拷贝：完全隔离
+safe = copy.deepcopy(base_order)
+safe["items"].clear()
+print(len(base_order["items"]))      # 2，源数据不变</code></pre>
+
+        <h2>类型映射：null、true、false 与 None、True、False</h2>
+        <p>JSON 只有三个字面量：<code>null</code>、<code>true</code>、<code>false</code>，对应 Python 的 <code>None</code>、<code>True</code>、<code>False</code>。映射本身很直接，但断言里最常见的错是拿字符串去比，结果是 <code>'true' != True</code>，看起来像差一对引号，实际是类型错。</p>
+        <p>反向的问题更隐蔽：Python 的 <code>True</code> 序列化成 <code>true</code>，整数 <code>1</code> 序列化成 <code>1</code>，而在弱类型语言里两者常常相等。于是接口把布尔字段写成 0 或 1，前端不报错、后端不报错，只有做了严格类型断言的测试能发现。这类字段除值断言外，应该补一条类型断言。</p>
+        <p>还有一个坑是空值与缺失的区别：字段存在但值为 <code>null</code>，和字段根本不存在，业务含义经常不同，比如清空备注与不改备注。区分方法是用 <code>is None</code> 判断值、用 <code>in</code> 判断存在，不要都用 <code>get</code> 一把梭，否则两种情况会被抹平成同一个结果。</p>
+
+        <div class="code-head"><span>python — 字面量映射与类型断言</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+
+raw = '{"is_vip": true, "balance": null, "tags": []}'
+data = json.loads(raw)
+
+assert data["is_vip"] is True       # 不要写成等于字符串 true
+assert data["balance"] is None      # 字段存在但为空
+assert "balance" in data
+assert data["tags"] == []
+
+# 反向：Python → JSON
+print(json.dumps({"ok": True, "none": None, "n": 1}))
+# {"ok": true, "none": null, "n": 1}
+
+# 防止 0/1 混进布尔字段
+assert isinstance(data["is_vip"], bool), f"is_vip 类型错误：{type(data['is_vip'])}"</code></pre>
+
+        <h2>大 JSON：增量处理与内存上限</h2>
+        <p>全量响应几百 MB 时，<code>json.load</code> 会把整个文档读进内存再构造对象，峰值内存通常是文件大小的五到十倍（示例值，取决于嵌套深度和字符串平均长度）。在 8 GB 的构建机上解析一份 300 MB 的导出文件很容易被系统杀掉，现象是进程直接消失，日志里没有任何 Python 异常。</p>
+        <p>处理思路分两层。如果文件是每行一个对象的 JSONL，逐行解析即可，内存只跟单行大小相关，改动成本最低；如果是标准的大数组，就要用流式解析器按事件遍历，只把需要的字段投影出来、其余丢弃。代价是代码复杂度和速度都会变差，流式解析比内置模块慢一个数量级属于正常（示例值）。</p>
+        <p>还有一条更省事的路线：先问清楚这份数据是不是必须在测试进程里解析。如果只是核对统计结果，交给数据库或命令行工具更合适；只有必须写断言、必须留痕的场景，才值得为它写流式解析。判断标准是数据规模和复用次数，一次性的临时文件不值得配上百行代码。</p>
+
+        <div class="code-head"><span>python — 逐行处理大文件</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+
+matched = 0
+with open("orders.jsonl", encoding="utf-8") as fp:
+    for lineno, line in enumerate(fp, start=1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise AssertionError(f"第 {lineno} 行不是合法 JSON：{exc}") from exc
+        if row.get("status") == "paid" and row.get("amount") &gt; 100:
+            matched += 1
+print(f"命中 {matched} 条")</code></pre>
+
+        <h2>常见坑、取舍与上线前检查清单</h2>
+        <p>坑一：金额用 <code>==</code> 比较。<code>99.99</code> 这类浮点数跨语言、跨数据库都会在最后一位上有差异，正确做法是判断差值小于一分钱，或者统一转成整数分再比。坑二：把响应对象直接当基线缓存，对象里带连接和编码状态，序列化必然失败，正确做法是先取 JSON 再落盘。</p>
+        <p>坑三：参数化时用字典当 ID，pytest 会把整个字典拼进用例名，方括号和逗号让 <code>-k</code> 筛选几乎不可用，正确做法是显式给 <code>ids</code>。坑四：JSON 数字解析后整数是整数、带小数点的是浮点，<code>1 == 1.0</code> 在 Python 里成立，看起来没问题，但落盘后一个带小数点一个不带，基线 diff 会长期抖动。</p>
+        <p>取舍总结：能用纯字典和列表表达的就别引入 DataFrame，后者适合批量数值计算，不适合逐条断言；能用内置 <code>json</code> 就别上第三方加速库，后者快但返回字节串，团队里第一次见要愣几秒；跨进程传数据用 JSON 不用 pickle，pickle 又快又省事，但反序列化即执行代码，拿外部文件在 CI 上解开是明确的安全风险。</p>
+        <table>
+          <thead>
+            <tr><th>检查项</th><th>通过标准</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>建索引后是否校验数量</td><td>有 <code>len(index) == len(rows)</code> 一类断言</td></tr>
+            <tr><td>文件读写是否指定编码</td><td>所有 <code>open</code> 都带 <code>encoding='utf-8'</code></td></tr>
+            <tr><td>可选字段取值是否安全</td><td>缺失时给默认值，且报错带字段路径</td></tr>
+            <tr><td>修改测试数据是否隔离</td><td>共享 fixture 出参前做深拷贝</td></tr>
+            <tr><td>顺序敏感断言是否排序</td><td>比对前统一 <code>sorted</code>，key 明确</td></tr>
+            <tr><td>布尔字段是否断言类型</td><td>补 <code>isinstance(x, bool)</code></td></tr>
+          </tbody>
+        </table>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/library/json.html" target="_blank" rel="noopener">json — JSON 编码与解码器 — Python 官方文档</a></li>
+            <li><a href="https://docs.python.org/3/tutorial/datastructures.html" target="_blank" rel="noopener">Python 教程：数据结构（列表、推导式、字典）— Python 官方文档</a></li>
+            <li><a href="https://docs.python.org/3/library/copy.html" target="_blank" rel="noopener">copy — 浅拷贝与深拷贝操作 — Python 官方文档</a></li>
+            <li><a href="https://docs.python.org/3/library/collections.html" target="_blank" rel="noopener">collections — Counter、defaultdict 等容器类型 — Python 官方文档</a></li>
+            <li><a href="https://ijson.readthedocs.io/en/latest/" target="_blank" rel="noopener">ijson 文档：流式迭代解析大型 JSON</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#python</span>
+          <span class="tag">#data-structures</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

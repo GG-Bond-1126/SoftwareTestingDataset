@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAG 测试：召回、排序与答案落地 · 软件测试资料集</title>
+<meta name="description" content="RAG 四层测试：召回率、重排、拒答与页码可追溯，附评测脚本。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-rag-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="RAG 测试：召回、排序与答案落地">
+<meta property="og:description" content="RAG 四层测试：召回率、重排、拒答与页码可追溯，附评测脚本。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-rag-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="RAG 测试：召回、排序与答案落地">
+<meta name="twitter:description" content="RAG 四层测试：召回率、重排、拒答与页码可追溯，附评测脚本。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"RAG 测试：召回、排序与答案落地","description":"RAG 四层测试：召回率、重排、拒答与页码可追溯，附评测脚本。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-rag-testing.html","articleSection":"AI 测试","keywords":"rag, retrieval-eval, citation","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>13 min read</span>
+        </div>
+        <h1>RAG 测试：召回、排序与答案落地</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="ai-rag-testing">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <p>RAG 系统出问题，八成不在大模型，在检索。用户问「住院津贴怎么算」，模型答得头头是道，引用的却是另一款产品的条款，页码还标错了。这类回答在肉眼看来几乎无懈可击，因为语言层面它是通的。</p>
+        <p>所以 RAG 测试必须分层：每一层单独出指标，不能只看最终答案像不像。这篇文章按「文档切片 → 向量召回 → 重排 → 生成」四层拆开讲，每层给可跑脚本和判定标准，最后用 Ragas 做语义兜底。</p>
+
+        <figure class="article-figure">
+          <svg viewBox="0 0 720 340" width="100%" role="img" aria-labelledby="fig-rag-1-title" xmlns="http://www.w3.org/2000/svg" font-family="inherit">
+            <title id="fig-rag-1-title">RAG 链路示意图：文档依次经过切片、向量化、召回 Top-K、重排、组装上下文到生成答案；每个环节标注一个可测的失败模式和对应指标</title>
+            <defs>
+              <marker id="fig-rag-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+                <path d="M0 0 L10 5 L0 10 Z" fill="var(--text-faint)"/>
+              </marker>
+            </defs>
+            <text x="28" y="26" font-size="12.5" fill="var(--text-dim)">RAG 出错八成在检索，每层单独出指标</text>
+            <text x="692" y="26" font-size="11.5" fill="var(--text-faint)" text-anchor="end">成本从左到右递增</text>
+
+            <rect x="28" y="72" width="108" height="78" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="82" y="98" font-size="15" fill="var(--text)" text-anchor="middle">文档</text>
+            <text x="82" y="122" font-size="12.5" fill="var(--amber)" text-anchor="middle">页码差 2 页</text>
+            <text x="82" y="142" font-size="11.5" fill="var(--text-faint)" text-anchor="middle">测 页码准确率</text>
+
+            <rect x="164" y="72" width="100" height="78" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="214" y="98" font-size="15" fill="var(--text)" text-anchor="middle">切片</text>
+            <text x="214" y="122" font-size="12.5" fill="var(--amber)" text-anchor="middle">表格被切断</text>
+            <text x="214" y="142" font-size="11.5" fill="var(--text-faint)" text-anchor="middle">测 完整率</text>
+
+            <rect x="292" y="72" width="110" height="78" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.4"/>
+            <text x="347" y="98" font-size="15" fill="var(--text)" text-anchor="middle">向量化</text>
+            <text x="347" y="122" font-size="12.5" fill="var(--amber)" text-anchor="middle">改写后召不回</text>
+            <text x="347" y="142" font-size="11.5" fill="var(--text-faint)" text-anchor="middle">测 覆盖率</text>
+
+            <rect x="430" y="72" width="120" height="78" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.4"/>
+            <text x="490" y="98" font-size="15" fill="var(--text)" text-anchor="middle">召回 Top-K</text>
+            <text x="490" y="122" font-size="12.5" fill="var(--amber)" text-anchor="middle">该命中没进来</text>
+            <text x="490" y="142" font-size="11.5" fill="var(--text-faint)" text-anchor="middle">测 Recall@5</text>
+
+            <rect x="578" y="72" width="110" height="78" rx="10" fill="var(--panel-2)" stroke="var(--border-strong)" stroke-width="1.4"/>
+            <text x="633" y="98" font-size="15" fill="var(--text)" text-anchor="middle">重排</text>
+            <text x="633" y="122" font-size="12.5" fill="var(--amber)" text-anchor="middle">相关却排第 8</text>
+            <text x="633" y="142" font-size="11.5" fill="var(--text-faint)" text-anchor="middle">测 NDCG@5</text>
+
+            <line x1="136" y1="111" x2="160" y2="111" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-rag-arrow)"/>
+            <line x1="264" y1="111" x2="288" y2="111" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-rag-arrow)"/>
+            <line x1="402" y1="111" x2="426" y2="111" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-rag-arrow)"/>
+            <line x1="550" y1="111" x2="574" y2="111" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-rag-arrow)"/>
+
+            <path d="M633 150 V194 H476 V232" fill="none" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-rag-arrow)"/>
+            <text x="554" y="186" font-size="11.5" fill="var(--text-faint)" text-anchor="middle">Top20 进 · Top5 出</text>
+
+            <rect x="392" y="236" width="168" height="78" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="476" y="262" font-size="15" fill="var(--text)" text-anchor="middle">组装上下文</text>
+            <text x="476" y="286" font-size="12.5" fill="var(--amber)" text-anchor="middle">无关内容挤占</text>
+            <text x="476" y="306" font-size="11.5" fill="var(--text-faint)" text-anchor="middle">测 上下文精度</text>
+
+            <rect x="588" y="236" width="104" height="78" rx="10" fill="var(--panel-2)" stroke="var(--border)" stroke-width="1.4"/>
+            <text x="640" y="262" font-size="15" fill="var(--text)" text-anchor="middle">生成</text>
+            <text x="640" y="286" font-size="12.5" fill="var(--amber)" text-anchor="middle">编造条款</text>
+            <text x="640" y="306" font-size="11.5" fill="var(--text-faint)" text-anchor="middle">测 忠实度</text>
+
+            <line x1="560" y1="275" x2="584" y2="275" stroke="var(--text-faint)" stroke-width="1.4" marker-end="url(#fig-rag-arrow)"/>
+          </svg>
+          <figcaption>图 1 · RAG 按链路分层排查：每层都有自己的失败信号和指标，别让最终答案的相似度掩盖检索问题。</figcaption>
+        </figure>
+
+        <h2>一次「答对了但引错页」的事故</h2>
+        <p>我们的场景是产品条款问答，知识库 6800 篇 PDF，平均每篇 14 页。上线第两周，客服转来一个问题：用户按回答里的页码去查条款，翻了半天没找到，投诉我们「伪造材料」。查下来答案内容其实是对的，但引用的页码是 PDF 的物理页码，而文档里印的是印刷页码，两者差了 2 页。</p>
+        <p>这件事教育很深：RAG 的正确性不只体现在文字，还体现在<strong>证据链能不能被别人复核</strong>。之后我们把测试拆成四层，任何一层指标掉了都不许发版。切片从 1024 token 降到 512 token 加 64 重叠后，召回率@5 从 62% 提到 91%，最终答案的正确率也跟着从 74% 涨到 89%。</p>
+
+        <h2>测试分层：每层有独立的失败信号</h2>
+        <p>把 RAG 当一个黑盒测，失败时你不知道该怪切片、怪向量库还是怪 Prompt。分层之后，每一层都有独立的输入输出和指标，定位时间从半天缩到十分钟。</p>
+        <table>
+          <thead>
+            <tr><th>层</th><th>被测对象</th><th>核心指标</th><th>失败典型症状</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>切片</td><td>切分策略、元数据</td><td>切片完整率、页码准确率</td><td>表格被切断、页码错位</td></tr>
+            <tr><td>召回</td><td>向量化 + 检索</td><td>Recall@k、MRR</td><td>该命中的文档没进来</td></tr>
+            <tr><td>重排</td><td>reranker</td><td>Top1 准确率、NDCG@5</td><td>相关文档在但排到第 8 位</td></tr>
+            <tr><td>生成</td><td>Prompt + 模型</td><td>忠实度、拒答率、引用校验</td><td>答非所问、编造条款</td></tr>
+          </tbody>
+        </table>
+        <p>这四层的测试成本递增、稳定性递减。切片和召回是确定性的，可以每次提交都跑；重排和生成带模型调用，按天跑。把便宜的先跑完，能省掉大量无效的模型调用费用。</p>
+
+        <h2>环境搭建</h2>
+        <p>召回评测需要一个基线检索器做对照，我们用 BM25 加字符二元组分词，不依赖分词词典，中文效果够用。真正的向量检索通过项目里的 <code>retriever</code> 接口接入，测试脚本对实现无感。</p>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>python -m venv .venv
+.venv\Scripts\activate
+pip install "rank-bm25==0.2.2" "pandas==2.2.3" "pytest==8.3.3"
+pip install "ragas==0.2.6" "datasets==3.0.1" "openai==1.54.4"
+
+set LLM_BASE_URL=https://api.deepseek.com/v1
+set LLM_API_KEY=sk-xxxx
+set RAG_API=http://127.0.0.1:8000/answer</code></pre>
+
+        <h2>召回率怎么测：先构造 query-文档对</h2>
+        <p>召回评测的前提是有一份标注好的查询集，每条查询写明「应该命中哪几个切片」。我们从三个渠道攒了 240 条：客服真实提问 130 条、按文档反推生成的问题 70 条、线上答错回流 40 条。标注只标到切片级别，标到文档级别太粗，会掩盖切片切坏的问题。</p>
+        <p>这份查询集每季度补 20 条新问题、下线 5 条已失效问题，保证它跟着业务一起长，而不是冻结在上线那一天。冻结的<a class="ilink" href="ai-llm-evaluation.html">评测集</a>会慢慢变成一份自我安慰的报表。</p>
+        <p>指标用 Recall@k 和 MRR 一起看。Recall 告诉你「答案在不在候选里」，MRR 告诉你「排得够不够前」。两个都低是检索问题，Recall 高 MRR 低是排序问题，处理方式完全不同。</p>
+        <div class="code-head"><span>python · eval/recall_eval.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+import pandas as pd
+from rank_bm25 import BM25Okapi
+
+def tokenize(text: str) -&gt; list[str]:
+    """字符二元组，避开中文分词词典依赖。"""
+    return [text[i:i + 2] for i in range(len(text) - 1)]
+
+def recall_at_k(ranked: list[str], relevant: set[str], k: int) -&gt; float:
+    return len(set(ranked[:k]) &amp; relevant) / len(relevant)
+
+def mrr(ranked: list[str], relevant: set[str]) -&gt; float:
+    for i, doc_id in enumerate(ranked, start=1):
+        if doc_id in relevant:
+            return 1 / i
+    return 0.0
+
+def eval_retriever(search, queries_path: str, k: int = 5) -&gt; pd.DataFrame:
+    rows = []
+    for line in open(queries_path, encoding="utf-8"):
+        case = json.loads(line)
+        ranked = search(case["query"], k)
+        rows.append({
+            "id": case["id"],
+            "scene": case["scene"],
+            "recall": recall_at_k(ranked, set(case["relevant"]), k),
+            "mrr": mrr(ranked, set(case["relevant"])),
+            "top1": ranked[0] if ranked else None,
+        })
+    return pd.DataFrame(rows)
+
+if __name__ == "__main__":
+    chunks = json.load(open("index/chunks.json", encoding="utf-8"))
+    ids = [c["id"] for c in chunks]
+    bm25 = BM25Okapi([tokenize(c["text"]) for c in chunks])
+
+    def search(q: str, k: int) -&gt; list[str]:
+        scores = bm25.get_scores(tokenize(q))
+        return [ids[i] for i in scores.argsort()[::-1][:k]]
+
+    df = eval_retriever(search, "cases/recall_queries.jsonl")
+    summary = df.groupby("scene")[["recall", "mrr"]].mean().round(3)
+    print(summary)
+    print(f"overall recall@5={df.recall.mean():.3f} mrr={df.mrr.mean():.3f}")</code></pre>
+        <p>输出会直接告诉你哪类场景拖后腿。我们是「产品对比」场景 recall@5 只有 0.58，其他场景都在 0.9 以上，一眼就能定位到对比类文档的切片问题。</p>
+
+        <h2>切片粒度：最容易忽略却影响最大的参数</h2>
+        <p>切片不是越细越好，也不是越粗越好。太细会把一个条款拆成两半，召回时只命中前半句；太粗会把多个条款混在一起，重排时噪声变大。我们做了四组对照实验，同一份 6800 篇文档、同一套 240 条查询：</p>
+        <table>
+          <thead>
+            <tr><th>切片大小</th><th>重叠</th><th>Recall@5</th><th>MRR</th><th>切片数</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>256 token</td><td>32</td><td>0.79</td><td>0.61</td><td>41.2 万</td></tr>
+            <tr><td>512 token</td><td>64</td><td>0.91</td><td>0.77</td><td>21.6 万</td></tr>
+            <tr><td>1024 token</td><td>128</td><td>0.85</td><td>0.70</td><td>11.1 万</td></tr>
+            <tr><td>整页</td><td>0</td><td>0.68</td><td>0.52</td><td>9.5 万</td></tr>
+          </tbody>
+        </table>
+        <p>512 加 64 是拐点。256 太细，条款被切碎；1024 太粗，一个切片里塞了三条不相干内容，向量被平均掉。这个结论只适用于我们的文档结构，你做的时候必须自己扫一遍，参数不能照抄。</p>
+        <p>另外两个切片层面的断言必须写进测试：表格不能被切断（表格切片要整表保留），每个切片必须带 <code>doc_id</code>、<code>page</code>、<code>section</code> 三个元数据。少一个，后面的页码追溯就直接失效。</p>
+
+        <h2>重排：相关文档进来了，但排在第 8 位</h2>
+        <p>召回 Top20 里明明有正确切片，最终却没用上，问题出在重排。我们的做法是召回取 Top20，交给 reranker 打相关性分，取 Top5 进上下文。测试指标是 Top1 准确率和 NDCG@5，样本用同一批 240 条查询。</p>
+        <p>加入 bge-reranker 之后，Top1 准确率从 0.54 提到 0.81，NDCG@5 从 0.62 到 0.79，上下文里无关内容的平均条数从 2.4 降到 0.9。这个变化直接体现在生成端：回答中「张冠李戴」的比例下降了一半。</p>
+        <p>重排评测还有一个必做项：负样本要够硬。我们从同一产品的相邻条款里挑切片当干扰项，模型必须把它排到正确条款后面。软负样本（完全不相关的文档）谁都能分开，测不出真实的排序能力。</p>
+        <div class="callout">
+          <p>重排的测试不需要每次都跑大模型。reranker 是确定性模型，同一输入同一分数，可以像普通单测一样进 CI，单条 40 毫秒，240 条不到 10 秒。</p>
+        </div>
+
+        <h2>无答案场景必须拒答</h2>
+        <p>RAG 最危险的<a class="ilink" href="ai-hallucination-testing.html">幻觉</a>来源是「检索到了相似但不相关的内容」，模型硬着头皮答。我们的做法是在生成 Prompt 里写死规则：只有当上下文能直接支撑答案时才作答，否则返回固定的拒答结构。测试要专门构造这类查询。</p>
+        <div class="code-head"><span>python · tests/test_rag_refusal.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+import requests
+
+RAG_API = "http://127.0.0.1:8000/answer"
+NO_ANSWER_CASES = [
+    ("na-01", "2028 年新产品的等待期是多久？"),
+    ("na-02", "能报雅思考试培训费吗？"),
+    ("na-03", "你们公司上季度营收多少？"),
+]
+
+@pytest.mark.parametrize("cid,question", NO_ANSWER_CASES, ids=[c[0] for c in NO_ANSWER_CASES])
+def test_refuse_when_no_context(cid, question):
+    r = requests.post(RAG_API, json={"question": question}, timeout=30)
+    body = r.json()
+    assert r.status_code == 200, f"[{cid}] HTTP {r.status_code}"
+    assert body["refused"] is True, f"[{cid}] 应拒答，实际: {body['answer'][:80]}"
+    assert not body["citations"], f"[{cid}] 拒答时不应带引用"
+    # 拒答文案不允许出现数字承诺
+    assert not any(ch.isdigit() for ch in body["answer"]), f"[{cid}] 拒答含数字"</code></pre>
+        <p>这条断言的口径要和产品对齐：拒答不等于体验差。我们的原则是「没查到的绝不编」，转人工率上升 5 个百分点可以接受，客诉下降带来的收益远大于此。</p>
+
+        <h2>引用页码必须可追溯</h2>
+        <p>用户点开引用要能看到原文，这要求答案里的每一个引用都能定位到切片、文档和页码，而且页码要和印刷页码一致。我们的测试分三步校验：引用 id 存在、页码与切片元数据一致、引用原句确实出现在切片文本里。</p>
+        <div class="code-head"><span>python · tests/test_citation_trace.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+import pytest
+
+CHUNKS = {c["id"]: c for c in json.load(open("index/chunks.json", encoding="utf-8"))}
+
+def load_answer(question: str) -&gt; dict:
+    import requests
+    return requests.post("http://127.0.0.1:8000/answer",
+                         json={"question": question}, timeout=30).json()
+
+@pytest.mark.parametrize("question", [
+    "住院津贴的免赔天数是多少？",
+    "意外医疗的报销比例和限额？",
+])
+def test_citation_page_traceable(question):
+    body = load_answer(question)
+    assert body["citations"], "有答案却没有引用"
+    for cite in body["citations"]:
+        chunk = CHUNKS.get(cite["chunk_id"])
+        assert chunk is not None, f"引用了不存在的切片 {cite['chunk_id']}"
+        assert chunk["doc_id"] == cite["doc_id"], "文档 id 与切片不一致"
+        # 印刷页码必须与切片元数据一致（物理页码需经过偏移映射）
+        assert chunk["page"] == cite["page"], (
+            f"页码不一致: 切片 {chunk['page']} vs 引用 {cite['page']}")
+        assert cite["quote"][:24] in chunk["text"], "引用原句在切片中找不到"</code></pre>
+        <p>页码那个偏移映射就是第一个事故的修复：索引时把物理页和印刷页都存进元数据，展示用印刷页，校验用两个都查一遍。上线后再也没出现过翻不到页的投诉。</p>
+
+        <h2>用 Ragas 检查忠实度与上下文精度</h2>
+        <p>规则能测结构和引用，测不了「答案有没有超出上下文」。这部分用 Ragas 的三个指标：faithfulness 看答案是否忠于上下文，context_precision 看上下文里有多少是真正相关的，context_recall 看该召回的有没有召回。</p>
+        <div class="code-head"><span>python · eval/ragas_check.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from datasets import Dataset
+from ragas import evaluate
+from ragas.metrics import faithfulness, context_precision, context_recall
+
+def ragas_report(rows: list[dict]) -&gt; dict:
+    """rows: question / answer / contexts / ground_truth"""
+    ds = Dataset.from_list([{
+        "question": r["question"],
+        "answer": r["answer"],
+        "contexts": r["contexts"],
+        "ground_truth": r["ground_truth"],
+    } for r in rows])
+    result = evaluate(
+        ds,
+        metrics=[faithfulness, context_precision, context_recall],
+    )
+    return {k: round(float(v), 3) for k, v in result.items()}
+
+if __name__ == "__main__":
+    import json
+    rows = [json.loads(l) for l in open("cases/rag_samples.jsonl", encoding="utf-8")]
+    print(ragas_report(rows))  # {'faithfulness': 0.89, 'context_precision': 0.76, ...}</code></pre>
+        <p>三个指标要合起来看：faithfulness 高但 context_precision 低，说明模型没瞎编，但塞了一堆无关内容，浪费 token 还容易干扰；faithfulness 低则说明上下文里没有答案，模型在编。我们设的红线是 faithfulness 不低于 0.85、context_precision 不低于 0.7。</p>
+
+        <h2>接到 CI 与日常巡检</h2>
+        <p>四层测试的触发频率不一样。切片和召回是确定性的，每次索引变更都跑，耗时 40 秒；重排每天跑一次；生成层和 Ragas 因为要调模型，每晚跑 120 条抽样，约 7 分钟、花费 4 元。索引重建必须跑全量，这是唯一不能省的一步——切片参数一改，所有下游指标都得重算。</p>
+        <p>日常巡检还有一个轻量信号：线上随机抽 200 条回答，只跑引用校验和拒答校验，不调大模型，纯规则 6 秒出结果。一旦引用校验失败率超过 2%，立刻告警，通常意味着索引或元数据出了问题。</p>
+        <p>索引版本号也必须进报告。同一批用例跑在不同索引上结果不可比，我们每次重建索引都会生成一个 build id，指标表里带这一列，否则跨周对比会得出完全错误的结论。</p>
+
+        <h2>踩坑与边界</h2>
+        <p><strong>坑一：只用文档级标注测召回。</strong>文档命中不代表切片命中。我们早期按文档标，recall 显示 0.95，实际切片命中只有 0.72，因为正确内容被切到了相邻切片里。标注必须落到切片 id。</p>
+        <p><strong>坑二：忽略 query 改写环节。</strong>系统里有一层查询改写，把「住院一天补多少」改写成书面语。测试如果绕过改写直接打检索接口，测出来的指标会比线上高 8 到 10 个百分点。评测链路必须和线上链路一致，包括改写。</p>
+        <p><strong>坑三：Ragas 的裁判模型换了没重测。</strong>faithfulness 依赖裁判模型，换裁判等于换尺子。我们固定裁判模型版本，并在评测报告里记下模型名，避免跨月比较时出现莫名其妙的分数跳变。</p>
+        <p><strong>坑四：Top-k 调大掩盖召回问题。</strong>把 k 从 5 调到 20，recall 自然好看，但上下文塞满噪声，生成质量反而下降。指标要和上下文长度一起看，我们的约束是进入生成环节的切片不超过 5 条、总 token 不超过 2400。</p>
+
+        <h2>效果度量</h2>
+        <table>
+          <thead>
+            <tr><th>指标</th><th>改造前</th><th>改造后</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Recall@5</td><td>0.62</td><td>0.91</td></tr>
+            <tr><td>MRR</td><td>0.48</td><td>0.77</td></tr>
+            <tr><td>Top1 准确率（重排后）</td><td>0.54</td><td>0.81</td></tr>
+            <tr><td>最终答案正确率</td><td>74%</td><td>89%</td></tr>
+            <tr><td>引用页码错误</td><td>9 条/千次</td><td>0 条</td></tr>
+            <tr><td>无答案场景拒答率</td><td>61%</td><td>100%</td></tr>
+          </tbody>
+        </table>
+        <p>判断 RAG 测试做没做对，看一个现象就够：问题出现时，你能不能在十分钟内说清是切片、召回、重排还是生成的问题。说得清，说明分层有效；说不清，说明还在拿最终答案当唯一信号。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://arxiv.org/abs/2309.15217" target="_blank" rel="noopener">RAGAS: Automated Evaluation of Retrieval Augmented Generation — arXiv</a></li>
+            <li><a href="https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/" target="_blank" rel="noopener">Available Metrics: Faithfulness / Context Precision — Ragas 文档</a></li>
+            <li><a href="https://arxiv.org/abs/2307.03172" target="_blank" rel="noopener">Lost in the Middle: How Language Models Use Long Contexts — arXiv</a></li>
+            <li><a href="https://github.com/explodinggradients/ragas" target="_blank" rel="noopener">explodinggradients/ragas — GitHub</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#rag</span>
+          <span class="tag">#retrieval-eval</span>
+          <span class="tag">#citation</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

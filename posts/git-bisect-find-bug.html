@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git Bisect：用二分法找到引入 Bug 的提交 · 软件测试资料集</title>
+<meta name="description" content="git bisect 的工作原理、测试工程师怎么用自动化脚本配合 bisect、手动跑测试的场景…">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-bisect-find-bug.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Git Bisect：用二分法找到引入 Bug 的提交">
+<meta property="og:description" content="git bisect 的工作原理、测试工程师怎么用自动化脚本配合 bisect、手动跑测试的场景…">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-bisect-find-bug.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Git Bisect：用二分法找到引入 Bug 的提交">
+<meta name="twitter:description" content="git bisect 的工作原理、测试工程师怎么用自动化脚本配合 bisect、手动跑测试的场景…">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Git Bisect：用二分法找到引入 Bug 的提交","description":"git bisect 的工作原理、测试工程师怎么用自动化脚本配合 bisect、手动跑测试的场景…","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/git-bisect-find-bug.html","articleSection":"Git 版本控制","keywords":"git, bisect, debugging","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Git 版本控制</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>9 min read</span>
+        </div>
+        <h1>Git Bisect：用二分法找到引入 Bug 的提交</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="git-bisect-find-bug">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Git
+# 配置用户
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+# 验证
+git --version</code></pre>
+<div class="code-head"><span>terminal — 初始化仓库</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>mkdir my-project && cd my-project
+git init
+echo "hello" > test.py
+git add .
+git commit -m "初始提交"</code></pre>
+
+<h2>基础应用：分支操作</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 创建 + 切换分支
+git checkout -b dev
+git commit -m "dev 修改" --allow-empty
+git checkout main
+git merge dev
+
+# 查看日志
+git log --oneline --graph</code></pre>
+
+<h2>项目进阶：Feature 分支 + MR 流程</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># Feature 分支
+git checkout -b feature/login
+git commit -m "feat: 用户登录" --allow-empty
+
+# 提 MR（在 GitHub/GitLab 上）
+# 评审通过后合并
+git checkout main
+git pull origin main
+git merge --squash feature/login
+git commit -m "feat: 用户登录"
+git push origin main
+git branch -d feature/login</code></pre>
+
+        <h2>bisect 的基本原理</h2>
+        <p>bisect 就是<strong>二分查找</strong>：你知道「最新是坏的」、「某条旧的提交是好的」，Git 自动取中间那一条让你测，你告诉它「好」还是「坏」，它再取下一个中间点。每次减半，log(N) 次就能定位。</p>
+        <div class="callout">
+          <p>前提：你有一个「好」的提交（确认功能正常的版本）和一个「坏」的提交（确认功能异常的版本）。中间有多少条提交都无所谓。</p>
+        </div>
+
+        <h2>手动 bisect：逐步走一遍</h2>
+        <p>假设你确认 <code>v1.2.0</code> 是好的（上周的 tag），<code>main</code> 是坏的（今天）：</p>
+        <div class="code-head"><span>terminal — 手动 bisect 完整流程</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 开始 bisect
+git bisect start
+
+# 2. 标记"坏"的提交（当前 main）
+git bisect bad HEAD
+
+# 3. 标记"好"的提交（上周的 tag）
+git bisect good v1.2.0
+
+# Git 提示：Bisecting: 12 revisions left to test after this（约 4 步）
+# 自动切到中间某个提交（比如 8f3a2c1）
+
+# 4. 你在当前提交上跑测试（手动）
+python -m pytest tests/test_login.py -v
+# 结果：失败 → 这条提交是"坏"的
+git bisect bad
+
+# Git 又切到另一个中间提交（比如 a5b6c7d）
+python -m pytest tests/test_login.py -v
+# 结果：通过 → 这条提交是"好"的
+git bisect good
+
+# 继续... 大约 4~7 次后，Git 会告诉你答案：
+# 提示：8f3a2c123... is the first bad commit
+# 提示：commit 8f3a2c123...（标题：refactor: 重构登录接口）
+
+# 5. 结束 bisect，回到原来的分支
+git bisect reset</code></pre>
+        <p>找到「引入 Bug 的第一条提交」后，用 <code>git show 8f3a2c123</code> 看它具体改了什么，再找对应开发确认。</p>
+
+        <h2>自动化 bisect：让脚本替你判断</h2>
+        <p>如果测试是自动化的（比如一条 pytest 命令就能跑），可以让 bisect 自动判断「好/坏」，全程不用你手动操作：</p>
+        <div class="code-head"><span>terminal — 自动 bisect</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 一条命令搞定：Git 自动切提交、跑测试、判断好/坏
+git bisect start
+git bisect bad HEAD
+git bisect good v1.2.0
+git bisect run python -m pytest tests/test_login.py -x --tb=line
+
+# 自动跑完所有需要测的提交，直接给出结果：
+# 提示：8f3a2c123... is the first bad commit</code></pre>
+        <div class="callout">
+          <p><code>-x</code> 是 pytest 的「遇到第一个失败就停」参数，配合 bisect 能省时间（不用等整条用例跑完）。</p>
+        </div>
+
+        <h2>测试工程师的三个实用场景</h2>
+
+        <h3>场景一：定位「某条用例何时开始失败」</h3>
+        <p>CI 上 <code>test_checkout</code> 突然挂了，不确定是哪次改动引入的。用 bisect 定位后，直接告诉开发「你的 8f3a2c1 改了什么导致这个」，定位时间从「天级」降到「分钟级」。</p>
+
+        <h3>场景二：定位「数据库慢查询是哪次 SQL 改动引入」</h3>
+        <p>性能测试发现某接口从 200ms 变到 2s。用 bisect 找到引入慢查询的提交，配合 <code>git show</code> 看 SQL 改动，快速定位。</p>
+
+        <h3>场景三：定位「配置变更后某功能异常」</h3>
+        <p>运维改了一条配置，某个功能挂了。如果配置变更有 Git 记录（比如 <code>config.yaml</code> 在仓库里），用 bisect 找到「第一次改坏配置」的那条提交。</p>
+
+        <h2>bisect 的进阶技巧</h2>
+
+        <h3>限定范围</h3>
+        <p>如果确定 Bug 在最近的 50 条提交里，限定范围能加速：</p>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git bisect start
+git bisect bad HEAD
+git bisect good HEAD~50   # 只查最近 50 条</code></pre>
+
+        <h3>跳过无关提交</h3>
+        <p>如果某些提交你确定和 Bug 无关（比如只改了文档），可以跳过：</p>
+        <div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>git bisect skip abc123   # 跳过某条提交</code></pre>
+
+        <h3>用 git log 缩小范围后再 bisect</h3>
+        <div class="code-head"><span>terminal — 先 log 后 bisect</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 先看最近 20 条，缩小范围
+git log --oneline -20
+
+# 找到可疑的时间点，用 commit ID 限定
+git bisect start
+git bisect bad HEAD
+git bisect good 8f3a2c1   # 某条确定的好提交</code></pre>
+
+        <h2>常见错误</h2>
+        <ul>
+          <li><strong>没跑完 bisect 就 reset：</strong>白干了。bisect 过程中不要急着 reset，等 Git 给出结果。</li>
+          <li><strong>测试脚本不稳定（偶发失败）：</strong>bisect 依赖「确定性判断」，如果测试本身 flaky，bisect 结果不可信。先用稳定的测试。</li>
+          <li><strong>没标记 good 提交：</strong>bisect 不知道「好」在哪，会往无穷远处查。必须给一个确认正常的提交。</li>
+        </ul>
+        <div class="callout warn">
+          <p>一条铁律：bisect 找的是「第一个坏的提交」，但<strong>不一定是唯一原因</strong>。可能是两个提交合在一起才触发 Bug（交互效应）。如果 bisect 指向的提交看起来没问题，扩大范围再查。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://git-scm.com/book/zh-cn/v2" target="_blank" rel="noopener">Pro Git 中文版 - Bisecting 章节</a></li>
+            <li><a href="https://git-scm.com/docs/git-bisect" target="_blank" rel="noopener">Git Bisect 官方文档</a></li>
+            <li><a href="https://www.kernel.org/pub/software/scm/git/docs/git-bisect.html" target="_blank" rel="noopener">Git Bisect 详细文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#git</span>
+          <span class="tag">#bisect</span>
+          <span class="tag">#debugging</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

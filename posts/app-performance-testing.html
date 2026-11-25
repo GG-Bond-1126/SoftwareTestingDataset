@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APP 性能测试：启动时间 / 内存 / 耗电 · 软件测试资料集</title>
+<meta name="description" content="从冷热启动口径、关键路径拆解，到内存泄漏回归、耗电读取、卡顿归因与 CI 性能门禁。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-performance-testing.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="APP 性能测试：启动时间 / 内存 / 耗电">
+<meta property="og:description" content="从冷热启动口径、关键路径拆解，到内存泄漏回归、耗电读取、卡顿归因与 CI 性能门禁。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-performance-testing.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="APP 性能测试：启动时间 / 内存 / 耗电">
+<meta name="twitter:description" content="从冷热启动口径、关键路径拆解，到内存泄漏回归、耗电读取、卡顿归因与 CI 性能门禁。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"APP 性能测试：启动时间 / 内存 / 耗电","description":"从冷热启动口径、关键路径拆解，到内存泄漏回归、耗电读取、卡顿归因与 CI 性能门禁。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-performance-testing.html","articleSection":"APP 自动化","keywords":"app-performance, cold-start, memory-leak, batterystats","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>22 min read</span>
+        </div>
+        <h1>APP 性能测试：启动时间 / 内存 / 耗电</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="app-performance-testing">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+        <h2>写给谁：性能测试真正难的不是跑命令</h2>
+        <p>这篇是写给一线测试的：手上有两三台真机，装了 adb，能跑 Appium，但被产品经理问一句「启动时间多少」的时候心里没底。网上能搜到的命令都会敲，难的是敲完之后那个数字到底算不算问题、要不要提单、提了之后研发反问「你怎么量的」时怎么答。</p>
+        <p>功能缺陷是二值的：点了没反应就是 bug，谁都认。性能不是。同一台机器、同一个包，你测出 1.2 秒，研发在自己电脑上复现出 1.8 秒，两个人争的其实不是事实，而是测量口径——进程状态不同、计时起点不同、样本量不同、机器温度不同。所以性能测试的第一件事不是跑脚本，而是把口径写进文档，让所有人用同一把尺子。</p>
+        <p>下面按三条主线展开：口径（冷热温启动怎么判定、内存哪个指标算数）、路径（时间花在 Application 还是首帧还是接口）、门禁（基线怎么建、波动多大算退化、CI 怎么拦）。文中出现的所有数值都是示例值，只用来演示量级和判据，真实阈值必须在你自己的机型上跑出来。</p>
+
+        <h2>先把口径定死：冷启动、温启动、热启动</h2>
+        <p>三者的区别在进程和 Activity 的存活状态，而不是你按了几次图标。冷启动是进程根本不存在，系统要新建进程、加载 Application、初始化所有 ContentProvider；温启动是进程还在，但 Activity 已经被系统回收，需要重建界面；热启动是进程和 Activity 都在后台，只是切回前台。同一款 App，冷启动 1.1 秒、热启动 200 毫秒是常态，把这两个数字混在一起报，等于没报。</p>
+        <p>系统自带的计时工具是 <code>am start -W</code>，输出里三个字段必须分清。<code>TotalTime</code> 是从系统准备启动到 Activity 首帧绘制完成的时长，包含进程创建；<code>WaitTime</code> 额外包含系统调度和 ActivityManager 的服务开销；<code>ThisTime</code> 只算最后一个 Activity 的启动，不含进程创建。做冷启动回归用 TotalTime，做「页面打开快不快」看 ThisTime，两个数字不能互相替代。</p>
+        <p>还有一层容易被忽略的差别：首帧不等于可交互。系统日志里的 <code>Displayed</code> 只代表第一帧画出来了，此时列表可能还是骨架屏、按钮还点不动。真正代表用户能用的时刻要靠 App 主动调用 <code>reportFullyDrawn</code>，它会在日志里打出第二行 <code>Fully drawn</code>。对外汇报启动时间时，建议同时给出首帧和完全可交互两个数字，并注明取的是哪一个。</p>
+        <p>样本量比工具更重要。只跑一次就下结论，等于把 dex2oat 的编译开销、系统页缓存、后台同步全算进去。我们固定跑 20 次，丢掉第 1 次，取中位数当主指标、P90 当兜底指标。中位数抗尖刺，P90 反映真实体感——用户不会只遇到最快的那一次。</p>
+
+        <div class="code-head"><span>powershell — 三种启动的手工测量</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 冷启动：先确认进程不在，再让系统替你计时
+adb shell am force-stop com.demo.app
+adb shell am start -W -n com.demo.app/.MainActivity
+
+# 输出片段（示例值，机型与包体差异极大）
+# Status: ok
+# LaunchState: COLD
+# TotalTime: 1187        ← 进程创建 + 首帧，冷启动回归看这个
+# WaitTime: 1240
+# ThisTime: 806          ← 最后一个 Activity 自身耗时
+
+# 温启动：进程在，但 Activity 已销毁
+adb shell am start -W -n com.demo.app/.MainActivity
+adb shell input keyevent KEYCODE_BACK
+adb shell am start -W -n com.demo.app/.MainActivity
+
+# 热启动：进程与 Activity 都留在后台
+adb shell input keyevent KEYCODE_HOME
+adb shell am start -W -n com.demo.app/.MainActivity
+
+# 交叉验证首帧时间：ActivityTaskManager 会打一行 Displayed
+adb logcat -c
+adb shell am start -W -n com.demo.app/.MainActivity
+adb logcat -d -s ActivityTaskManager:I | Select-String "Displayed"</code></pre>
+
+        <p>把这套流程脚本化时，最容易犯的错是用 Appium 建会话的耗时当启动时间。Appium 建立一次 UiAutomator2 会话本身就要一到三秒，这个开销和 App 毫无关系。正确做法是脚本只负责用 adb 强制停止和拉起，计时窗口只包住 <code>am start</code>，要等界面元素则用轮询接口日志或截图比对，而不是把建会话塞进计时区间。</p>
+
+        <div class="code-head"><span>python — 冷启动采样与分位数统计</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import re
+import statistics
+import subprocess
+
+PKG = "com.demo.app"
+ACT = f"{PKG}/.MainActivity"
+TOTAL_RE = re.compile(r"TotalTime:\s*(\d+)")
+
+
+def one_cold_start() -&gt; float:
+    subprocess.run(["adb", "shell", "am", "force-stop", PKG], check=True)
+    out = subprocess.run(
+        ["adb", "shell", "am", "start", "-W", "-n", ACT],
+        capture_output=True, text=True, encoding="utf-8",
+    ).stdout
+    match = TOTAL_RE.search(out)
+    if match is None:
+        raise RuntimeError(f"没拿到 TotalTime，原始输出：{out!r}")
+    return int(match.group(1)) / 1000.0
+
+
+def cold_start_stats(runs: int = 20) -&gt; dict:
+    samples = [one_cold_start() for _ in range(runs)]
+    samples = sorted(samples[1:])          # 丢掉第一次，避开编译与缓存冷态
+    return {
+        "runs": len(samples),
+        "median": round(statistics.median(samples), 3),
+        "p90": round(samples[int(len(samples) * 0.9) - 1], 3),
+        "max": round(samples[-1], 3),
+    }</code></pre>
+
+        <h2>启动的关键路径：从 Application 到首帧再到可交互</h2>
+        <p>拿到一个总时长之后，下一个问题永远是「慢在哪」。启动可以切成四段：Application 初始化、Activity 创建与布局、首帧绘制、首屏数据填充。四段的归属人完全不同——第一段通常是基础架构组，第二段是业务研发，第三段是 UI 与资源，第四段往往要拉后端一起看。如果只报总数，这个链条上的每个人都可以认为不是自己的问题。</p>
+        <p>Application 初始化的时间黑洞远比想象的多。ContentProvider 会在 Application.onCreate 之前被系统实例化，很多 SDK 通过注册 ContentProvider 偷偷提前启动，代码里一行都看不到；第三方 SDK 串行 init 也很典型，日志、推送、埋点、支付各占一百毫秒，串起来就接近半秒；首次读取 SharedPreferences 要解析整个 XML，放在主线程上就是明显的卡顿尖刺。低端机上 MultiDex 的解压与校验更是一次性的大开销。</p>
+        <p>Activity 创建阶段的成本主要来自布局。层级越深、inflate 的 View 越多、主题里引用的资源越复杂，measure 和 layout 的两遍遍历就越慢。一个常见信号是首帧时间正常但紧接着掉帧，说明首帧画的是占位骨架，真正的复杂列表在下一帧才进来。</p>
+        <p>最后一段最容易被漏掉：接口返回后的数据渲染。首帧 800 毫秒、接口 1.5 秒，用户看到的仍然是空白页，但你的启动指标很漂亮。所以性能测试要区分「系统指标达标」和「用户感知达标」，前者交给 <code>am start -W</code> 与 <code>Displayed</code>，后者要靠 App 自己埋点打 <code>reportFullyDrawn</code>，或者用自动化脚本记录「某个业务元素出现」的时刻。</p>
+
+        <div class="code-head"><span>powershell — 抓一次冷启动的 Perfetto Trace</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 开启数据源后立刻冷启动，抓 10 秒足够覆盖一次启动（示例值）
+adb shell perfetto -o /data/misc/perfetto-traces/startup.pftrace -t 10s \
+  sched freq idle am wm gfx view binder_driver dalvik input res memory
+
+adb shell am force-stop com.demo.app
+adb shell am start -n com.demo.app/.MainActivity
+adb pull /data/misc/perfetto-traces/startup.pftrace ./startup.pftrace
+
+# 在 ui.perfetto.dev 打开，依次看这几个 slice：
+#   bindApplication      → Application.onCreate 及其内部 init
+#   activityStart        → Activity 创建
+#   Choreographer#doFrame → 首帧的 measure / layout / draw
+#   binder transaction   → 是否在主线程等 IPC</code></pre>
+
+        <p>读 Trace 的顺序建议从大到小：先在总览里找主线程最长的那条空档，再放大到具体 slice，最后看这一帧里有没有 <code>monitor contention</code>、<code>GC</code>、<code>binder</code> 这类阻塞标记。Google 官方的 Macrobenchmark 库把这件事标准化了，<code>StartupTimingMetric</code> 直接输出 timeToInitialDisplay 与 timeToFullDisplay，如果团队已经有 instrumentation 测试基础，比自己解析 Trace 更省事；没有的话，Perfetto 加人工读图也足够定位到八成问题。</p>
+
+        <h2>内存：PSS、USS、Java heap、Native heap 各管什么</h2>
+        <p>内存是最容易被糊弄过去的指标。很多人报一个「峰值 300MB」就结束了，但 300MB 里到底是多少图片、多少缓存、多少没释放的页面，一概不知。判断内存问题，先要分清四个视角：PSS 是系统眼里的分摊占用，把共享库按比例摊到各进程，是横向比较最常用的口径；USS 是进程独占的部分，杀掉这个进程能真正还给系统的量；Java heap 是 ART 托管的对象堆；Native heap 是 malloc 与 Bitmap 像素占用的那部分。</p>
+        <p>采集口径要固定三件事：什么时刻采、采之前有没有触发 GC、采的是哪个字段。刚滑动完列表立刻采，PSS 里包含大量待回收对象，数字虚高；静置几秒并主动触发一次 GC 之后再采，才接近稳态。Android 的 PSS 统计本身有延迟，系统是按页表逐步汇总的，所以同一次停留采样两次可能差几 MB，这也是为什么单点数值不能直接当结论。</p>
+        <p>读 <code>dumpsys meminfo</code> 的 App Summary 段时，重点看四项。Java Heap 持续上涨通常指向静态集合、监听器未注销；Native Heap 上涨要怀疑 Bitmap、WebView、音视频解码器；Graphics 异常大说明纹理或绘制缓存堆积；Code 段在正常范围内波动则不必管，它主要是 dex 与 so 的映射。各厂商 ROM 的字段顺序和命名会有细微差异，脚本里最好按关键字取值，不要按行号切。</p>
+
+        <div class="code-head"><span>powershell — 读取内存汇总（示例输出）</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>adb shell dumpsys meminfo com.demo.app
+
+# App Summary 段（示例值，单位 KB）
+#            Java Heap:    48212
+#          Native Heap:    31980
+#                 Code:    18764
+#                Stack:      840
+#             Graphics:    26400
+#        Private Other:     9120
+#               System:     6300
+#            TOTAL PSS:   142616      TOTAL RSS:   198432
+
+# 只要总分时，用一行正则取 TOTAL PSS，别整段解析
+adb shell dumpsys meminfo com.demo.app | Select-String "TOTAL PSS"</code></pre>
+
+        <p>这里要做一个明确的取舍：用 PSS 还是用 Java heap 做回归判据。PSS 贴近系统真实压力，但受共享库和统计延迟影响，噪声大；Java heap 噪声小、能直接对应到代码对象，但会漏掉 Native 侧泄漏。我们的做法是双指标并行——PSS 卡总量上限，Java heap 卡增长斜率，两者任一超标才进入人工确认，避免单一指标误报。</p>
+
+        <h2>泄漏回归：用循环进出页面把偶发变成必然</h2>
+        <p>内存泄漏的判定从来不是看某一个数值，而是看「基线有没有被抬高」。用户用一天才暴露的泄漏，测试不可能真的跑一天，办法是把一次泄漏放大成二十次：反复进入同一个页面再退出，如果每次退出后内存都回不到进入前的水平，斜率就会露出来。这就是循环进出法，比长时间挂机更容易在半小时内拿到结论。</p>
+        <p>具体做法是先预热三轮丢弃，再记录一次基线，然后循环二十轮，每轮执行进入页面、停留几秒、退出、主动触发 GC、静置三秒，再采样。判据用双条件：结束后比基线高出超过示例值 8MB，且连续三轮运行都能复现同样的抬升，才认定为疑似泄漏并提单。单轮偶然抬高很常见，图片缓存、WebView 内核池、ART 堆的延迟回收都会造成这种现象。</p>
+        <p>误判的三大来源要提前排除。第一是图片框架的 LRU 缓存，它有意保留最近用过的图，退出页面不释放是设计而不是 bug，判断时要看缓存上限是否被突破；第二是 WebView 首次加载后的内核常驻，第一轮必然抬高，所以预热必须做；第三是采样时机，退出后立刻取样会把尚未回收的对象算进去，必须等 GC 与静置。确认阶段再上 LeakCanary 或 MAT 抓引用链，测试侧只负责把「哪个页面、进出多少次、涨多少」说清楚。</p>
+
+        <div class="code-head"><span>python — 循环进出页面的泄漏回归</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import re
+import statistics
+import subprocess
+import time
+
+PKG = "com.demo.app"
+TOTAL_RE = re.compile(r"TOTAL PSS:\s*(\d+)")
+
+
+def pid() -&gt; str:
+    return subprocess.run(
+        ["adb", "shell", "pidof", PKG],
+        capture_output=True, text=True,
+    ).stdout.strip()
+
+
+def pss_mb() -&gt; float:
+    out = subprocess.run(
+        ["adb", "shell", "dumpsys", "meminfo", PKG],
+        capture_output=True, text=True, encoding="utf-8",
+    ).stdout
+    return int(TOTAL_RE.search(out).group(1)) / 1024
+
+
+def gc_and_settle(seconds: float = 3.0) -&gt; None:
+    subprocess.run(["adb", "shell", "am", "send-trim-memory", pid(), "RUNNING_CRITICAL"])
+    time.sleep(seconds)
+
+
+def leak_probe(enter_page, leave_page, rounds: int = 20, warmup: int = 3) -&gt; dict:
+    for _ in range(warmup):
+        enter_page()
+        leave_page()
+        gc_and_settle()
+
+    baseline = pss_mb()
+    samples = []
+    for _ in range(rounds):
+        enter_page()
+        leave_page()
+        gc_and_settle()
+        samples.append(pss_mb())
+
+    # 用后半段均值减基线，比首尾相减更抗单点噪声
+    tail = statistics.mean(samples[-5:])
+    return {
+        "baseline_mb": round(baseline, 1),
+        "tail_mb": round(tail, 1),
+        "delta_mb": round(tail - baseline, 1),
+        "samples": [round(value, 1) for value in samples],
+    }</code></pre>
+
+        <p>这个函数故意不返回布尔值，而是返回采样序列。原因是泄漏判断需要人看曲线：单调抬升是泄漏，前几轮抬升后趋平是缓存，来回锯齿是正常回收。直接把阈值写死在函数里，下一次换机型就要改代码，不如把原始数据留给报告。</p>
+
+        <h2>CPU 与电量：batterystats 里到底看什么</h2>
+        <p>电量问题要分成两类，测法完全不同。前台耗电是用户能摸到的：连续刷视频半小时、机身发烫、电量掉十几个点；后台耗电是用户第二天早上发现的：睡前 60%，醒来 38%，中间没怎么用。前者的排查重点是渲染与网络，后者几乎全部落在唤醒锁、定时任务和推送长连接上。</p>
+        <p>标准流程是重置统计、跑固定场景、导出报告三步。<code>dumpsys batterystats --reset</code> 清空历史，跑完场景后用 <code>--charged</code> 导出，把文本丢进 Battery Historian 就能看到时间轴。没有条件搭 Battery Historian 时，直接读文本里的 Estimated power use 段也能看出 uid 级别的排名，只是没有可视化那么直观。</p>
+        <p>读报告时优先看四个东西：Estimated power use 里占大头的 uid 是不是被测应用；Wake lock 列表里有没有长时间持有的锁；JobScheduler 与 alarm 的触发频率是否异常；Mobile radio active 时间是否远超实际网络传输时间。最后一项特别隐蔽，长连接心跳间隔太短会让基带一直处于高功耗状态，流量却几乎为零。</p>
+        <p>必须承认这套方法的局限：batterystats 用的是各厂商写在 power profile 里的估算模型，不同 ROM 的系数不一样，绝对值不能跨机型比较。它适合做同一台设备、同一场景、两个版本之间的前后对比，不适合给出「本 App 每小时耗电 3.2%」这种看似精确的结论。</p>
+
+        <div class="code-head"><span>powershell — 前后台耗电采集</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 重置统计，把电量充到同一水平再开始（示例值：80% 以上）
+adb shell dumpsys batterystats --reset
+
+# 2. 跑固定场景：前台连续滑动 30 分钟，随后按 Home 挂后台 60 分钟
+#    （场景必须固定，否则两次数据不可比）
+
+# 3. 导出并筛选关键段
+adb shell dumpsys batterystats --charged &gt; batterystats.txt
+Select-String -Path batterystats.txt -Pattern "Estimated power use|Wake lock|JobScheduler" |
+  Select-Object -First 40
+
+# 4. 有环境的话上传 Battery Historian 看时间轴
+#    python historian.py batterystats.txt &gt; report.html</code></pre>
+
+        <p>CPU 侧的分析更直接：<code>dumpsys cpuinfo</code> 看进程占比，<code>top -H</code> 看线程，Perfetto 看调度与大小核分布。一个常见的坑是测试机本身在跑别的东西——系统更新、相册索引、另一条流水线的用例，这些都会让 CPU 数据整体偏移，所以性能采集必须独占设备，测前清后台并在设置里关掉自动同步。</p>
+
+        <h2>卡顿：帧率、掉帧与 Jank，别只看平均值</h2>
+        <p>卡顿指标最容易骗人。平均 55 帧听起来不错，但如果这一秒里有 200 毫秒完全卡死，用户体验就是「顿了一下」，平均值完全体现不出来。正确做法是回到帧预算：60Hz 屏幕每帧 16.7 毫秒，90Hz 是 11.1 毫秒，120Hz 只有 8.3 毫秒，超过预算的帧就是 Jank 帧，统计 Jank 比例和 P90、P99 帧耗时，比看平均值有意义得多。</p>
+        <p>系统提供了两条采集路径。<code>dumpsys gfxinfo</code> 给出应用侧每帧各阶段的耗时，字段是逐帧的 framestats，能精确算出绘图时长；<code>dumpsys SurfaceFlinger --latency</code> 给出合成侧的呈现时间，更贴近用户看到的画面。两者结合可以区分「应用画得慢」和「系统合成慢」，前者改代码，后者往往要看 GPU 与图层数量。</p>
+        <p>归因时按这个顺序排查：主线程有没有做 IO 或等锁；布局层级是否过深导致 measure 超预算；列表是否复用了 ViewHolder；是否有透明重叠造成过度绘制；动画期间是否触发了 GC。这五条能覆盖大部分卡顿，剩下的再进 Trace 看具体 slice。注意刷新率不是越高越好，120Hz 设备上同样的代码更容易 Jank，门禁阈值要按刷新率分别设。</p>
+
+        <div class="code-head"><span>powershell — 采集逐帧数据</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 清空历史帧，跑固定场景（示例值：列表连续滑动 60 秒），再导出
+adb shell dumpsys gfxinfo com.demo.app reset
+# ... 执行滑动场景 ...
+adb shell dumpsys gfxinfo com.demo.app framestats &gt; gfx.txt
+
+# 输出里有一段 CSV：第一行是列名，之后每行一帧
+# Flags,IntendedVsync,Vsync,OldestInputEvent,...,FrameCompleted
+# 用列名定位，不要写死下标，不同版本列数会变</code></pre>
+
+        <div class="code-head"><span>python — 从 framestats 算 Jank 比例与分位数</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pathlib
+
+
+def framestats(path: str = "gfx.txt", refresh_hz: int = 60) -&gt; dict:
+    lines = pathlib.Path(path).read_text(encoding="utf-8", errors="replace").splitlines()
+    head = next(i for i, line in enumerate(lines) if "IntendedVsync" in line)
+    names = [col.strip() for col in lines[head].split(",")]
+    i_vsync = names.index("IntendedVsync")
+    i_done = names.index("FrameCompleted")
+
+    durations = []
+    for line in lines[head + 1:]:
+        if line.startswith("---"):
+            break
+        cols = line.split(",")
+        if len(cols) != len(names):
+            continue
+        durations.append((int(cols[i_done]) - int(cols[i_vsync])) / 1e6)
+
+    if not durations:
+        raise RuntimeError("framestats 为空，确认场景期间页面确实在刷新")
+
+    durations.sort()
+    budget = 1000.0 / refresh_hz
+    janky = sum(1 for value in durations if value &gt; budget)
+    last = len(durations) - 1
+    return {
+        "frames": len(durations),
+        "janky_ratio": round(janky / len(durations) * 100, 1),
+        "p50_ms": round(durations[last // 2], 2),
+        "p90_ms": round(durations[int(last * 0.9)], 2),
+        "p99_ms": round(durations[int(last * 0.99)], 2),
+    }</code></pre>
+
+        <h2>基线、波动与 CI 门禁：让数字可以被相信</h2>
+        <p>没有基线的性能数据只能当故事听。基线不是「上次跑出来的那个数」，而是一组受控条件下的统计结果：固定机型、固定系统版本、固定构建产物、固定场景脚本，测前充电到 50% 以上、开飞行模式、亮度固定、关闭自动同步、清空后台，连续跑 20 次取中位数与 P90，并把这一整套环境写进报告。换一台机器，基线就作废，不能沿用。</p>
+        <p>波动判据要用相对阈值加绝对下限两个条件，缺一不可。只看相对值，低端机上 50 毫秒的抖动就是 10% 的退化，告警会天天响；只看绝对值，高端机上 100 毫秒的变化被忽略，而它可能已经超过团队容忍度。我们目前的设置是示例值：P90 比基线差 20% 以上，并且绝对差值超过 150 毫秒，才判为退化。两个条件同时满足才报警，误报率能压到可以接受的水平。</p>
+        <p>门禁要分级，否则团队会直接把门禁关掉。启动退化超过阈值判阻塞，必须说明原因才能合入；内存基线抬升判警告，允许合入但要在下个迭代处理；帧率波动判提示，只记录趋势。分级之后，性能问题才不会和功能失败混在同一个红叉里。</p>
+        <p>CI 环境本身是最大的噪声源。共享的设备池、同时跑的其它流水线、没锁住的构建版本，任何一项都会让数据失去可比性。做性能门禁的设备必须是专用的，同一时刻只跑一个任务，构建号写进报告，基线文件随代码一起版本管理，更新基线必须走评审而不是脚本自动覆盖。</p>
+
+        <div class="code-head"><span>python — 双阈值的回归判定</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+import pathlib
+
+BASELINE = pathlib.Path("perf/baseline.json")
+
+
+def judge(current: dict, baseline: dict,
+          rel: float = 0.20, floor_ms: float = 150) -&gt; list:
+    issues = []
+    for metric, value in current.items():
+        old = baseline.get(metric)
+        if old is None:
+            continue
+        diff = value - old
+        if diff &gt; old * rel and diff &gt; floor_ms:
+            issues.append(f"{metric}: {old}ms → {value}ms（+{diff:.0f}ms）")
+    return issues
+
+
+def main(current_path: str = "perf/current.json") -&gt; int:
+    current = json.loads(pathlib.Path(current_path).read_text(encoding="utf-8"))
+    baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
+    issues = judge(current, baseline)
+    for issue in issues:
+        print("性能退化：", issue)
+    return 1 if issues else 0</code></pre>
+
+        <div class="code-head"><span>yaml — CI 中的性能冒烟任务</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>perf-smoke:
+  runs-on: [self-hosted, android-perf, pixel-7]
+  steps:
+    - uses: actions/checkout@v4
+    - run: adb shell dumpsys battery set level 80
+    - run: python perf/startup.py --runs 20 --out perf/current.json
+      continue-on-error: true
+    - run: python perf/gate.py --current perf/current.json --baseline perf/baseline.json
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: perf-report-${{ github.run_number }}
+        path: perf/</code></pre>
+
+        <h2>常见坑与排查</h2>
+        <p><strong>症状</strong>：启动时间忽高忽低，同一版本能差出 600 毫秒。<strong>原因</strong>：设备被别的流水线占用，或者测试前没清后台，系统在同时跑相册索引。<strong>处理</strong>：性能设备独占、任务串行，采集前执行一次清后台并等待系统空闲；数据里带上 CPU 占用，异常样本直接剔除。</p>
+        <p><strong>症状</strong>：内存曲线一路涨，但 LeakCanary 抓不到任何泄漏。<strong>原因</strong>：涨的是 Native 侧，多半是 Bitmap 或 WebView，Java 堆分析工具看不到。<strong>处理</strong>：对比 Java Heap 与 Native Heap 两条曲线，若只有 Native 涨，转用 Native 分配追踪或在怀疑的页面做图片加载开关对照。</p>
+        <p><strong>症状</strong>：gfxinfo 里 Jank 比例 30%，但测试同学说肉眼不卡。<strong>原因</strong>：统计里混入了页面切换动画与首帧构建，那些帧本来就不在稳态。<strong>处理</strong>：场景脚本先静置再开始统计，只截取滑动过程中的帧；必要时用 SurfaceFlinger 的呈现数据交叉验证。</p>
+        <p><strong>症状</strong>：耗电测试两个版本差异 15%，复测又反过来了。<strong>原因</strong>：起始电量不同，系统在高电量区间的充电策略与低电量区间的省电策略不一样。<strong>处理</strong>：固定起始电量、固定屏幕亮度、关闭省电模式，同一场景重复两轮取均值再比较。</p>
+
+        <h2>上线前检查清单</h2>
+        <p>清单的作用不是形式化签字，而是防止某一项被忘掉。性能测试很容易出现「启动测了、内存忘了」的情况，尤其是在赶版本的周末。下面这张表按指标列出通过标准与取证方式，每一项都能追溯到具体的命令或报告，评审时逐项打勾即可。</p>
+        <table>
+          <thead>
+            <tr><th>项目</th><th>通过标准（示例值）</th><th>取证方式</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>冷启动 P90</td><td>不超过基线 20%，且绝对差 ≤150ms</td><td>am start -W 跑 20 次</td></tr>
+            <tr><td>热启动 P90</td><td>不超过 1s，且不劣于上版本</td><td>Home 后切回，跑 20 次</td></tr>
+            <tr><td>首屏可交互</td><td>reportFullyDrawn 打点已上报</td><td>logcat 中 Fully drawn</td></tr>
+            <tr><td>内存总量</td><td>稳态 PSS 不超过机型阈值</td><td>dumpsys meminfo</td></tr>
+            <tr><td>泄漏回归</td><td>20 轮进出后抬升 ≤8MB</td><td>循环进出采样</td></tr>
+            <tr><td>Jank 比例</td><td>滑动场景 ≤5%</td><td>gfxinfo framestats</td></tr>
+            <tr><td>后台耗电</td><td>1 小时挂后台掉电 ≤2%</td><td>batterystats 前后对比</td></tr>
+            <tr><td>环境可追溯</td><td>机型、系统、构建号、场景版本齐全</td><td>报告头部</td></tr>
+          </tbody>
+        </table>
+        <p>最后给一个判断标准：如果一份性能报告里的数字，换一个人用同样的设备、同样的脚本跑不出来，那它就不是基线，只是一次观测。能被复现、能被追溯、能被门禁使用的数字，才算真正完成了性能测试。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://developer.android.com/topic/performance/appstartup/vitals" target="_blank" rel="noopener">应用启动时间指标与测量方式 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/topic/performance/memory-overview" target="_blank" rel="noopener">Android 内存管理概览：PSS、USS 与堆划分 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/topic/performance/tracing" target="_blank" rel="noopener">使用 Perfetto 与系统跟踪分析性能 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/topic/performance/vitals/render" target="_blank" rel="noopener">渲染速度与 Jank 指标定义 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/topic/performance/power/setup-battery-historian" target="_blank" rel="noopener">Battery Historian 环境搭建与 batterystats 采集 — Android Developers</a></li>
+            <li><a href="https://developer.android.com/studio/command-line/dumpsys" target="_blank" rel="noopener">dumpsys 命令参考 — Android Developers</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#app-performance</span>
+          <span class="tag">#cold-start</span>
+          <span class="tag">#memory-leak</span>
+          <span class="tag">#batterystats</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

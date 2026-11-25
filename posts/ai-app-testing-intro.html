@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 应用测试入门：LLM 应用和传统软件哪里不同 · 软件测试资料集</title>
+<meta name="description" content="从不确定输出、三层断言、评测集、Prompt 交付物到上下文与成本预算，给出一张 AI 应用测试全景图。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-app-testing-intro.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="AI 应用测试入门：LLM 应用和传统软件哪里不同">
+<meta property="og:description" content="从不确定输出、三层断言、评测集、Prompt 交付物到上下文与成本预算，给出一张 AI 应用测试全景图。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-app-testing-intro.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="AI 应用测试入门：LLM 应用和传统软件哪里不同">
+<meta name="twitter:description" content="从不确定输出、三层断言、评测集、Prompt 交付物到上下文与成本预算，给出一张 AI 应用测试全景图。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"AI 应用测试入门：LLM 应用和传统软件哪里不同","description":"从不确定输出、三层断言、评测集、Prompt 交付物到上下文与成本预算，给出一张 AI 应用测试全景图。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-app-testing-intro.html","articleSection":"AI 测试","keywords":"ai-testing, llm-eval, test-strategy","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">AI 测试</span> <span class="post-fw">AI 框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>13 min read</span>
+        </div>
+        <h1>AI 应用测试入门：LLM 应用和传统软件哪里不同</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="ai-app-testing-intro">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <p>从功能测试转过来的人，第一次给大模型应用写用例，通常会在两个地方卡住：一是写不出 <code>assert output == 期望值</code>，因为模型每次说的都不一样；二是不知道该测到哪一层，测 Prompt、测检索、还是测整个对话。这篇把整个图景铺开，后面几篇再分别深入。</p>
+
+        <h2>一、先建立全景：三层视角</h2>
+        <p>AI 应用的测试对象可以拆成三层，每层的被测物、手段和失败模式都不同。把它们混在一起，就会出现「用测模型的方法测业务逻辑」这种错位。</p>
+        <table>
+          <thead>
+            <tr><th>层</th><th>被测物</th><th>主要手段</th><th>典型失败</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>模型层</td><td>Prompt、模型版本、参数</td><td>评测集、规则断言、裁判模型</td><td>答非所问、格式崩坏、幻觉</td></tr>
+            <tr><td>数据层</td><td>知识库、向量索引、检索策略</td><td>召回率、引用校验、污染样本</td><td>检索不到、引用了错文档</td></tr>
+            <tr><td>应用层</td><td>编排、工具、会话状态、前端</td><td>轨迹断言、状态机、E2E</td><td>工具越权、状态错乱、超时</td></tr>
+          </tbody>
+        </table>
+        <p>一个新项目最合理的顺序是：先把模型层的<a class="ilink" href="ai-llm-evaluation.html">评测集</a>搭起来，因为它决定了你能否判断任何改动的好坏；再补数据层的召回与引用校验；最后做应用层的编排与工具测试。反过来做，往往会写出一堆依赖真实模型、跑一次十分钟、且结果无法解释的<a class="ilink" href="web-e2e-testing.html">端到端</a>用例。</p>
+        <p>还有一层是很多人忽略的：<strong>交付物本身</strong>。Prompt 文本、工具描述、检索配置、few-shot 示例，这些都是需要评审和版本化的资产，不是随手改的配置项。</p>
+        <p>不同阶段的重点也不一样。原型期只需要验证「能不能完成任务」，用二十条手工样例就够；准备接入真实流量时，重点转向拒答边界、格式稳定和成本；上线之后，重点变成回归与监控。很多团队把原型期的做法一直用到上线，结果就是每次改动都靠感觉。</p>
+
+        <h2>二、输出不确定：断言方式必须换</h2>
+        <p>我们做过一个统计：同一个客服 Prompt，温度 0.7，同一批 200 条输入连跑两次。逐字完全一致的比例只有 12%，但人工判断语义等价的比例是 96%。这个数字说明一件事——<strong>字面比较在 AI 应用里几乎无效，但语义层面其实相当稳定</strong>。测试要做的，是把可稳定的部分用规则锁住，把不稳定的部分用抽样和统计兜住。</p>
+        <p>我们最终固定为三层断言，比例大致是 70 : 25 : 5。</p>
+        <table>
+          <thead>
+            <tr><th>层级</th><th>做法</th><th>成本</th><th>适用</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>确定性断言</td><td>JSON Schema、字段必填、枚举值、正则、引用 ID 存在性</td><td>几乎为零</td><td>结构化输出、工具参数</td></tr>
+            <tr><td>规则 / 相似度断言</td><td>关键词命中、禁用词、长度区间、句向量相似度阈值</td><td>低</td><td>摘要、分类、拒答</td></tr>
+            <tr><td>语义断言</td><td>LLM 裁判、人工抽检</td><td>高且有波动</td><td>语气、帮助性、事实一致性</td></tr>
+          </tbody>
+        </table>
+        <p>顺序不能反。能用 Schema 解决的绝不上裁判模型，因为裁判本身也会漂移，还会把成本和延迟抬高一个量级。我们有个项目最初 60% 的用例走裁判，单次回归 22 分钟、成本 1.7 元；把可结构化的部分全部下沉到规则后，降到 6 分钟、0.2 元，而且失败原因清楚得多。</p>
+        <p>对于确实只能靠语义判断的部分，也不要每次都人工。做法是先人工标 200 条做校准集，再用它验证裁判模型与人工的一致率，达到 85% 以上才允许把裁判结论用于门禁。低于这个数，裁判的输出只能当参考，不能当阻断依据。</p>
+
+        <h2>三、评测集就是测试用例集</h2>
+        <p>传统测试写完用例放在测试管理平台，AI 应用要把用例放进代码仓库，因为它需要和 Prompt 一起被 diff、被回滚。格式推荐 JSONL，一行一条，字段固定，方便脚本读、方便 PR 评审。</p>
+        <div class="code-head"><span>evals/cases.jsonl</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>{"id": "SUM-001", "layer": "model", "severity": "P0", "input": "总结这段售后政策，不超过 60 字", "fixture": "return_policy.txt", "schema": {"summary": "str"}, "must_include": ["七天"], "max_len": 60}
+{"id": "CLS-014", "layer": "model", "severity": "P1", "input": "我要投诉快递太慢", "expect_intent": "complaint", "must_not_include": ["退款成功"]}
+{"id": "RAG-032", "layer": "data", "severity": "P0", "input": "保修期多久", "must_cite": true, "gold_doc": "warranty_v3.md"}
+{"id": "E2E-007", "layer": "app", "severity": "P1", "input": "帮我查订单 12345 并改地址", "expect_tools": ["get_order", "update_address"], "max_steps": 6}</code></pre>
+        <div class="code-head"><span>conftest.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import json
+from pathlib import Path
+import pytest
+
+def load_cases(layer=None, severity=None):
+    cases = [json.loads(l) for l in Path("evals/cases.jsonl").read_text(encoding="utf-8").splitlines()
+             if l.strip()]
+    if layer:
+        cases = [c for c in cases if c["layer"] == layer]
+    if severity:
+        cases = [c for c in cases if c["severity"] == severity]
+    return cases
+
+@pytest.fixture(scope="session")
+def p0_cases():
+    return load_cases(severity="P0")
+
+def pytest_generate_tests(metafunc):
+    if "case" in metafunc.fixturenames:
+        cases = load_cases()
+        metafunc.parametrize("case", cases, ids=[c["id"] for c in cases])</code></pre>
+        <p>评测集的质量取决于来源配比。我们要求至少三成来自真实用户问题、三成来自边界构造、两成来自历史线上失败，剩下两成留给合规与安全。全是自己编的用例，通常只能证明「模型会说话」。</p>
+        <p>每条用例必须能独立判定，不能依赖上下文里的其他用例。也不能写「回答得比较好」这种没有验收标准的话，否则三个月后没人知道它当初为什么通过。建议在仓库里放一份简短的用例编写说明，新同学照着填字段就行。</p>
+
+        <h2>四、Prompt 也是被交付物</h2>
+        <p>把 Prompt 放在数据库里、后台可编辑，看起来很灵活，实际是测试灾难：你不知道线上跑的是哪一版，也无法复现昨天的结果。我们的做法是 Prompt 进 Git，文件名带版本，发布时由流水线写入配置中心，后台只读。</p>
+        <div class="code-head"><span>test_prompt_snapshot.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from pathlib import Path
+import hashlib
+import pytest
+
+PROMPT_DIR = Path("prompts")
+PINNED = {
+    "support": "support_v13.md",
+    "summary": "summary_v05.md",
+}
+
+def sha256(text: str) -&gt; str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+
+@pytest.mark.parametrize("name, filename", PINNED.items())
+def test_prompt_is_pinned(name, filename):
+    path = PROMPT_DIR / filename
+    assert path.exists(), f"{name} 的 Prompt 文件缺失"
+    text = path.read_text(encoding="utf-8")
+    # 生产配置里记录的哈希必须与仓库一致
+    deployed = Path(f"deploy/{name}.sha256").read_text().strip()
+    assert sha256(text) == deployed, \
+        f"{name} 线上版本与仓库不一致：{sha256(text)} vs {deployed}"
+
+def test_prompt_has_required_sections():
+    text = (PROMPT_DIR / PINNED["support"]).read_text(encoding="utf-8")
+    for section in ["角色", "输出格式", "禁止事项"]:
+        assert section in text, f"Prompt 缺少必要段落：{section}"</code></pre>
+        <p>快照测试的价值在于「不可见变更变可见」。有人只改了一个标点、删了一句约束，diff 里一眼能看到，评审时就会问一句为什么。我们靠这条拦下过一次把「不确定时请拒答」误删的提交。</p>
+
+        <h2>五、上下文窗口、token 计费与限流</h2>
+        <p>这三件事在传统测试里没有对应物，但会直接改变用例设计。</p>
+        <table>
+          <thead>
+            <tr><th>约束</th><th>对测试的影响</th><th>要补的用例</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>上下文窗口</td><td>超长输入会被截断，截断位置决定答案质量</td><td>临界长度、超长文档、截断后仍能回答</td></tr>
+            <tr><td>token 计费</td><td>每次回归都是真金白银，全量跑不起</td><td>成本预算、缓存命中、长上下文专项</td></tr>
+            <tr><td>限流</td><td>并发跑批会触发 429，结果出现假失败</td><td>退避重试、并发上限、超时处理</td></tr>
+          </tbody>
+        </table>
+        <p>上下文截断最容易被忽略。我们有个文档问答，输入 3000 字时答案完整，输入 12000 字时答案开始丢后半段——因为系统只保留最后 8000 token，而关键条款在开头。这类问题只能通过临界值用例发现，靠随机点几个长文档碰不到。</p>
+        <p>限流带来的假失败尤其坑人。第一次把 300 条用例并发 20 路跑，结果 47 条失败，看着像模型退化，实际全是 429。后来改成并发 5 路、指数退避、失败重试两次，假失败降到 0。判断方法很简单：把同一批用例串行重跑一遍，如果全过，问题就在并发而不是模型。</p>
+        <div class="code-head"><span>test_limits.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import time
+import pytest
+
+def test_long_context_keeps_head_and_tail(rag_app):
+    doc = "开头结论：保修两年。\n" + ("无关说明。" * 3000) + "\n结尾：不支持人为损坏。"
+    answer = rag_app.ask_with_doc("保修多久", doc).text
+    assert "两年" in answer, "长文档截断导致开头结论丢失"
+    assert "人为损坏" in answer, "长文档截断导致结尾条款丢失"
+
+def test_rate_limit_backoff(client):
+    hits = 0
+    for _ in range(30):
+        try:
+            client.chat("你好")
+            hits += 1
+        except Exception as e:
+            if "429" in str(e):
+                time.sleep(2)
+                client.chat("你好")
+                hits += 1
+    assert hits == 30, "限流退避后仍有请求失败"
+
+@pytest.mark.slow
+def test_token_budget_single_request(client):
+    result = client.chat("用三句话介绍退货政策")
+    assert result.usage.total_tokens &lt; 1200, f"单请求 token 超预算：{result.usage.total_tokens}"</code></pre>
+
+        <h2>六、测试分层怎么切</h2>
+        <p>推荐四层，比例参考 60 : 25 : 10 : 5。数字不是教条，但层级越往下越快越便宜，这是确定的。</p>
+        <table>
+          <thead>
+            <tr><th>层级</th><th>被测内容</th><th>是否调真模型</th><th>规模与耗时</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>单元级 Prompt 测试</td><td>单条 Prompt 的输入输出契约</td><td>可选，Mock 优先</td><td>300+ 条，2 分钟内</td></tr>
+            <tr><td>集成级 RAG</td><td>检索 + 生成 + 引用</td><td>是</td><td>80 条，5 分钟</td></tr>
+            <tr><td>编排级</td><td>多步链路、工具调用</td><td>是，工具 Mock</td><td>40 条，8 分钟</td></tr>
+            <tr><td>E2E 对话流</td><td>完整会话与前端交互</td><td>是</td><td>15 条，12 分钟</td></tr>
+          </tbody>
+        </table>
+        <div class="code-head"><span>pytest.ini + 目录</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>tests/
+├── unit_prompt/      # 不调真模型，用录制的响应
+├── integration_rag/  # 真检索 + 真生成
+├── orchestration/    # 工具 Mock，断言轨迹
+└── e2e/              # 起服务，走真实对话
+
+# pytest.ini
+[pytest]
+markers =
+    unit: 不调用外部模型
+    rag: 需要向量库
+    slow: 超过 10 秒
+addopts = -q --strict-markers</code></pre>
+        <p>单元层用录制回放，把真实响应存成 fixture，这样改断言逻辑时不需要反复烧钱。集成层必须打真模型，因为检索质量、引用格式这些都依赖真实输出。E2E 只保留最关键的业务路径，跑得慢但能发现「各层都对、拼起来错」的问题。</p>
+
+        <h2>七、成本与耗时预算</h2>
+        <p>回归预算要提前算，不要等财务来问。以 <code>gpt-4o-mini</code> 为例，输入 0.15 美元每百万 token、输出 0.60 美元每百万 token。一条用例平均输入 900 token、输出 250 token，300 条全量一次约 0.075 美元，折合人民币五毛多。听起来很便宜，但如果接的是大模型、上下文又长，成本会翻二十倍。</p>
+        <div class="code-head"><span>budget.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>PRICE = {"in": 0.15 / 1_000_000, "out": 0.60 / 1_000_000}  # 美元/token
+
+def estimate(cases, avg_in=900, avg_out=250, runs_per_day=3):
+    per_run = len(cases) * (avg_in * PRICE["in"] + avg_out * PRICE["out"])
+    return {
+        "per_run_usd": round(per_run, 4),
+        "per_day_usd": round(per_run * runs_per_day, 4),
+        "per_month_usd": round(per_run * runs_per_day * 22, 2),
+    }
+
+if __name__ == "__main__":
+    print(estimate(cases=300))
+    # {'per_run_usd': 0.0855, 'per_day_usd': 0.2565, 'per_month_usd': 5.64}</code></pre>
+        <p>耗时预算同样要写进流水线：单元层 2 分钟、集成层 5 分钟、E2E 12 分钟，超过阈值就拆并发或降规模。人的耐心是有限资源，门禁超过 15 分钟，开发就会开始找绕过的方法。</p>
+
+        <h2>八、五个常见误区</h2>
+        <ol>
+          <li><strong>用固定字符串断言模型输出。</strong>第一次跑通过，第二次就红，最后整组用例被加进忽略列表。正确做法是断言结构与属性。</li>
+          <li><strong>把评测全交给裁判模型。</strong>裁判慢、贵、会漂移，而且它自己也需要被校准。能用规则就不用裁判。</li>
+          <li><strong>只测正常路径。</strong>拒答、空检索、超长输入、工具报错，这些才是线上投诉的主要来源。</li>
+          <li><strong>在后台直接改线上 Prompt。</strong>改完没有记录，出了问题无法回滚，也无法判断是哪次改动引起的。</li>
+          <li><strong>用一次运行结果下结论。</strong>温度、并发、上游抖动都会影响结果，关键用例至少跑三次看稳定性。</li>
+        </ol>
+
+        <p>这五条里有三条是流程问题，不是技术问题。也就是说，换一个更强的模型并不会让它们消失，只有把评测集、版本化和分层跑起来才能解决。</p>
+
+        <h2>九、四周落地路线</h2>
+        <p>第一周，收集 100 条真实问题，按意图聚类，定严重级别，跑通一个脚本能出通过率。第二周，把评测集接进 CI，只跑 P0，先让流程转起来。第三周，补 <a class="ilink" href="ai-rag-testing.html">RAG</a> 的引用校验和拒答用例，加上成本与耗时统计。第四周，做编排层的轨迹断言，把线上失败样本回流入库。四周之后，你拥有的不是一个完美框架，而是一条能自我生长的测试链路。</p>
+        <div class="callout">
+          <p>判断做对了的标准很简单：随便给你一次 Prompt 改动，你能在十分钟内说出它让哪些用例从通过变成失败、影响了哪个业务场景、成本涨了多少。做不到，说明资产还没建好。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://www.anthropic.com/engineering/building-effective-agents" target="_blank" rel="noopener">Building Effective Agents — Anthropic</a></li>
+            <li><a href="https://github.com/openai/evals" target="_blank" rel="noopener">OpenAI Evals: Framework for Evaluating LLMs — GitHub</a></li>
+            <li><a href="https://crfm.stanford.edu/helm/" target="_blank" rel="noopener">HELM: Holistic Evaluation of Language Models — Stanford CRFM</a></li>
+            <li><a href="https://arxiv.org/abs/2306.05685" target="_blank" rel="noopener">Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena — arXiv</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#ai-testing</span>
+          <span class="tag">#llm-eval</span>
+          <span class="tag">#test-strategy</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

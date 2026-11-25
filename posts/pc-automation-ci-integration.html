@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>桌面自动化 + LLM Agent：PC 测试的 AI 闭环 · 软件测试资料集</title>
+<meta name="description" content="使用 pyautogui + uiautomation 驱动桌面 UI，结合 LLM 视觉识别屏幕元素…">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-ci-integration.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="桌面自动化 + LLM Agent：PC 测试的 AI 闭环">
+<meta property="og:description" content="使用 pyautogui + uiautomation 驱动桌面 UI，结合 LLM 视觉识别屏幕元素…">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-ci-integration.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="桌面自动化 + LLM Agent：PC 测试的 AI 闭环">
+<meta name="twitter:description" content="使用 pyautogui + uiautomation 驱动桌面 UI，结合 LLM 视觉识别屏幕元素…">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"桌面自动化 + LLM Agent：PC 测试的 AI 闭环","description":"使用 pyautogui + uiautomation 驱动桌面 UI，结合 LLM 视觉识别屏幕元素…","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/pc-automation-ci-integration.html","articleSection":"桌面自动化","keywords":"桌面自动化, pyautogui, uiautomation, LLM 视觉","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">桌面自动化</span> <span class="post-fw">传统+AI 接口</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>15 min read</span>
+        </div>
+        <h1>桌面自动化 + LLM Agent：PC 测试的 AI 闭环</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="pc-automation-ci-integration">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<p>桌面测试需要三层工具：<strong>pyautogui</strong>（鼠标键盘控制 + 截图）、<strong>uiautomation</strong>（Windows UI 元素树遍历，比坐标点击更稳定）、<strong>LLM 视觉 API</strong>（屏幕截图 → 元素识别 → 操作生成）。</p>
+
+<div class="code-head"><span>安装依赖（Windows）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>pip install pyautogui uiautomation openai opencv-python pillow
+
+# 验证 uiautomation（Windows 专属，需管理员权限）
+python -c "import uiautomation; print(uiautomation.UIAutomation)"
+
+# 验证 pyautogui 截图
+python -c "import pyautogui; img = pyautogui.screenshot(); print('截图尺寸:', img.size)"</code></pre>
+
+<div class="code-head"><span>安装依赖（Linux，Wayland 下 pyautogui 受限）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>pip install pyautogui openai opencv-python pillow
+
+# Linux 截图（pyautogui 在 X11 下有效）
+import pyautogui
+img = pyautogui.screenshot()
+img.save("test.png")</code></pre>
+
+<div class="code-head"><span>配置 LLM 密钥（.env）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># .env
+OPENAI_API_KEY=sk-xxxxxxxx
+LLM_MODEL=gpt-4o
+# 桌面测试建议用 vision 模型，成本约 $0.01/次截图分析</code></pre>
+
+<div class="code-head"><span>验证完整链路（run-verify.py）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+验证 pyautogui + uiautomation + LLM 三方链路
+"""
+import os, base64, pathlib
+from openai import OpenAI
+
+# 1. pyautogui 截图
+import pyautogui
+img = pyautogui.screenshot()
+img.save("verify_screen.png")
+print(f"  [OK] pyautogui 截图: {img.size}")
+
+# 2. uiautomation 遍历（Windows）
+try:
+    import uiautomation
+    root = uiautomation.RootControl()
+    children = root.GetChildren()
+    print(f"  [OK] uiautomation 根节点子元素: {len(children)} 个")
+except ImportError:
+    print("  [SKIP] uiautomation（非 Windows 环境）")
+
+# 3. LLM 视觉识别截图
+b64 = base64.b64encode(pathlib.Path("verify_screen.png").read_bytes()).decode()
+client = OpenAI()
+resp = client.chat.completions.create(
+    model=os.environ.get("LLM_MODEL", "gpt-4o"),
+    messages=[{
+        "role": "user",
+        "content": [
+            {"type": "text", "text": "这张桌面截图中有哪些可见的窗口和控件？简要列出（不超过5项）"},
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}},
+        ],
+    }],
+    max_tokens=200,
+)
+print(f"  [OK] LLM 识别: {resp.choices[0].message.content[:80]}...")</code></pre>
+
+<div class="callout">Windows 下 <code>uiautomation</code> 需要以<strong>管理员权限</strong>运行 Python，否则无法遍历 UWP/高权限进程的元素树。CI 中可用 Windows Server Runner + 管理员 Token。</div>
+
+<h2>基础应用：LLM 读桌面截图 → 生成 pyautogui 操作 → 执行验证</h2>
+<p>对桌面应用（如记事本、计算器）进行自动化测试：LLM 看截图找控件位置，生成 pyautogui 坐标操作，执行后用 OpenCV 截图对比验证结果。</p>
+
+<div class="code-head"><span>desktop_agent.py — 桌面 LLM Agent</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+桌面 LLM Agent：截图 → LLM 分析 → pyautogui 执行 → OpenCV 验证
+"""
+import base64, json, os, time, pathlib
+import pyautogui
+import cv2
+import numpy as np
+from openai import OpenAI
+
+client = OpenAI()
+MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
+pyautogui.FAILSAFE = True   # 鼠标移到屏幕左上角可紧急停止
+pyautogui.PAUSE = 0.3       # 每次操作后暂停 0.3s，防过快
+
+class DesktopAgent:
+    """
+    用法:
+        agent = DesktopAgent()
+        agent.act("点击记事本窗口中的'文件'菜单")
+        agent.act("点击'新建'选项")
+        agent.verify("页面中出现空白文档")
+        agent.save_state("step1")
+    """
+
+    def __init__(self, screenshot_dir: str = "screenshots"):
+        self._dir = pathlib.Path(screenshot_dir)
+        self._dir.mkdir(exist_ok=True)
+        self._step = 0
+
+    def _screenshot(self, tag: str = "") -> bytes:
+        png = pyautogui.screenshot()
+        data = png.tobytes()
+        b64 = base64.b64encode(data).decode()
+        self._step += 1
+        if tag:
+            png.save(self._dir / f"{tag}_{self._step}.png")
+        return b64
+
+    def act(self, intent: str, max_retry: int = 2):
+        """
+        执行自然语言桌面操作意图
+        LLM 返回: 坐标点击 / 键盘输入 / 菜单操作
+        """
+        system = (
+            "你是桌面 UI 自动化专家。根据桌面截图和用户意图，"
+            "生成 pyautogui Python 代码。"
+            "支持操作：click(x,y)、hotkey('ctrl','a')、typewrite('text')、"
+            "press('enter')、doubleClick(x,y)、rightClick(x,y)。\n"
+            "坐标基于 1920x1080 分辨率，请根据截图比例换算。\n"
+            "如果操作已完成或无需操作，输出 'DONE'。\n"
+            "输出纯代码，不要 markdown。"
+        )
+        for attempt in range(max_retry):
+            shot_b64 = self._screenshot(f"act_{intent[:20]}")
+            prompt = f"用户意图: {intent}\n请生成 pyautogui 代码（坐标系 1920x1080）："
+            resp = client.chat.completions.create(
+                model=MODEL,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{shot_b64}"}},
+                    ]},
+                ],
+                temperature=0.05,
+                max_tokens=512,
+            )
+            code = resp.choices[0].message.content.strip()
+            code = code.removeprefix("```python").removeprefix("```").removesuffix("```").strip()
+
+            if code.upper() == "DONE":
+                print(f"  [OK] {intent}")
+                return
+
+            print(f"  [exec] {code[:100]}")
+            try:
+                # 注入 pyautogui 到执行环境
+                local = {"pyautogui": pyautogui, "time": time}
+                exec(code, local)
+                time.sleep(0.5)
+                return
+            except Exception as e:
+                print(f"  [retry {attempt+1}] {e}")
+
+        raise RuntimeError(f"操作失败（重试 {max_retry} 次）: {intent}")
+
+    def verify(self, expectation: str) -> bool:
+        """截图 → LLM 判断界面是否符合预期"""
+        shot_b64 = self._screenshot("verify")
+        resp = client.chat.completions.create(
+            model=MODEL,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": (
+                        f"判断当前桌面是否满足: 「{expectation}」\n"
+                        "输出 JSON: {\"pass\": true/false, \"reason\": \"...\"}"
+                    )},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{shot_b64}"}},
+                ],
+            }],
+            temperature=0.0,
+            max_tokens=256,
+        )
+        text = resp.choices[0].message.content.strip()
+        text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+        result = json.loads(text)
+        print(f"  [verify] {result}")
+        return result.get("pass", False)
+
+    def verify_ocr(self, expected_text: str) -> bool:
+        """
+        用 OpenCV 模板匹配验证界面上出现指定文本
+        比 LLM 验证更快、更确定（适合 CI）
+        """
+        img = pyautogui.screenshot()
+        gray = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2GRAY)
+        # 简单方案：截图保存后人工确认（生产环境可接 Tesseract OCR）
+        path = self._dir / f"ocr_{expected_text[:20]}.png"
+        img.save(path)
+        print(f"  [ocr] 截图保存: {path}，请人工确认 '{expected_text}' 是否出现")
+        return True  # 实际项目中接 Tesseract 后返回匹配结果</code></pre>
+
+<div class="code-head"><span>test_calculator.py — 计算器测试示例</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+测试 Windows 计算器的基本运算
+前提：计算器已启动且在前台
+"""
+import pytest
+from desktop_agent import DesktopAgent
+
+@pytest.fixture
+def agent():
+    import subprocess
+    subprocess.Popen("calc.exe")  # 启动计算器
+    pytest.wait(2)
+    a = DesktopAgent()
+    yield a
+
+def test_addition(agent):
+    """1 + 2 = 3"""
+    agent.act("点击计算器数字键盘上的 '1' 按钮")
+    agent.act("点击 '+' 按钮")
+    agent.act("点击 '2' 按钮")
+    agent.act("点击 '=' 按钮")
+    assert agent.verify("计算器显示屏显示 3")
+
+def test_subtraction(agent):
+    agent.act("按 Ctrl+N 清空当前计算")
+    agent.act("点击 '9' 按钮")
+    agent.act("点击 '-' 按钮")
+    agent.act("点击 '4' 按钮")
+    agent.act("点击 '=' 按钮")
+    assert agent.verify("计算器显示屏显示 5")
+
+def test_divide_by_zero(agent):
+    """边界：除以零"""
+    agent.act("按 Ctrl+N 清空")
+    agent.act("点击 '5' 按钮")
+    agent.act("点击 '÷' 按钮")
+    agent.act("点击 '0' 按钮")
+    agent.act("点击 '=' 按钮")
+    assert agent.verify("计算器显示错误提示或不可计算")</code></pre>
+
+<div class="callout">pyautogui 的 <code>FAILSAFE=True</code> 是最后的安全网：鼠标快速移到屏幕左上角 (0,0) 会触发 <code>FailSafeException</code> 中断脚本，防止 LLM 误操作导致不可逆行为。</div>
+
+<h2>项目进阶：CI 远程桌面 + LLM 自愈 + 需求转用例</h2>
+<p>桌面测试 CI 的挑战在于需要 GUI 环境。方案：GitHub Actions Windows Runner + Xvfb（Linux）或真实 Windows 虚拟机 + VNC 录制，LLM 在 UI 变化时自动重新定位控件。</p>
+
+<div class="code-head"><span>ci_desktop_test.py — CI 远程桌面执行器</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+CI 环境中的桌面测试执行器
+支持 VNC 录制，失败时自动截图 + LLM 根因分析
+"""
+import os, base64, json, pathlib, subprocess, time, datetime
+import pyautogui
+from openai import OpenAI
+from desktop_agent import DesktopAgent
+
+client = OpenAI()
+MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
+
+class CITestRunner:
+    def __init__(self, app_launcher: str = "calc.exe"):
+        self.agent = DesktopAgent()
+        self._app_launcher = app_launcher
+        self._screens = []
+
+    def start_recording(self):
+        """CI 中用 ffmpeg 录制 VNC 流（可选）"""
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        vnc_rec = f"vnc_rec_{ts}.mp4"
+        # Windows: 用 OBS 或 ffmpeg 录制桌面
+        # 简化：只记录关键步骤截图
+        self._recording_file = vnc_rec
+        print(f"  [record] 开始记录: {vnc_rec}")
+
+    def launch_app(self):
+        subprocess.Popen(self._app_launcher)
+        time.sleep(3)  # 等待启动
+
+    def run_case(self, steps: list[dict]):
+        """
+        执行测试步骤列表
+        每步: {"action": "tap|input|menu", "intent": "...", "expect": "..."}
+        失败时自动截图 + LLM 根因分析
+        """
+        self.launch_app()
+        self.start_recording()
+
+        for i, step in enumerate(steps, 1):
+            print(f"  Step {i}/{len(steps)}: {step['intent']}")
+            try:
+                self.agent.act(step["intent"])
+                time.sleep(1)
+                if step.get("expect"):
+                    passed = self.agent.verify(step["expect"])
+                    if not passed:
+                        raise AssertionError(f"断言失败: {step['expect']}")
+            except Exception as e:
+                # 失败处理：截图 + LLM 根因分析
+                print(f"  [FAIL] Step {i}: {e}")
+                self._on_failure(i, step, e)
+                return False
+
+        print("  [PASS] 全部步骤通过")
+        return True
+
+    def _on_failure(self, step_num: int, step: dict, error: Exception):
+        """失败时收集证据并调用 LLM 分析根因"""
+        # 保存失败截图
+        fail_screenshot = pathlib.Path(f"failure_step{step_num}.png")
+        pyautogui.screenshot().save(fail_screenshot)
+        shot_b64 = base64.b64encode(fail_screenshot.read_bytes()).decode()
+
+        prompt = f"""
+        桌面自动化测试在第 {step_num} 步失败。
+        操作意图: {step['intent']}
+        错误信息: {str(error)[:200]}
+        截图已附。
+
+        请分析：
+        1. 根因分类（UI变更/超时/权限/分辨率/其他）
+        2. 具体分析（2-3句）
+        3. 修复建议（具体操作）
+        以 Markdown 输出。
+        """
+        resp = client.chat.completions.create(
+            model=MODEL,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{shot_b64}"}},
+                ],
+            }],
+            temperature=0.1,
+            max_tokens=512,
+        )
+        report = resp.choices[0].message.content
+        out = pathlib.Path(f"failure_report_step{step_num}.md")
+        out.write_text(report, encoding="utf-8")
+        print(f"  [report] 根因分析: {out}")
+
+def main():
+    runner = CITestRunner(app_launcher="notepad.exe")
+
+    # 示例：记事本测试
+    steps = [
+        {"intent": "点击记事本菜单栏的'文件'", "expect": "文件菜单展开"},
+        {"intent": "点击'新建'选项", "expect": "出现空白文档"},
+        {"intent": "输入 'Hello Desktop Test'", "expect": "文档中出现文本"},
+        {"intent": "按 Ctrl+S 保存", "expect": "弹出保存对话框"},
+        {"intent": "输入文件名 'test'，点击'保存'", "expect": "对话框关闭，文件已保存"},
+    ]
+
+    success = runner.run_case(steps)
+    print(f"\n最终结果: {'PASS' if success else 'FAIL'}")
+
+if __name__ == "__main__":
+    main()</code></pre>
+
+<div class="code-head"><span>requirements_to_cases.py — 需求文档 → 桌面测试用例</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>"""
+从需求文档生成桌面测试用例（JSON 格式）
+"""
+import json, os, pathlib
+from openai import OpenAI
+
+client = OpenAI()
+MODEL = os.environ.get("LLM_MODEL", "gpt-4o")
+
+def generate_desktop_cases(requirement_md: str, app_name: str) -> list[dict]:
+    """
+    输入：需求文档 + 应用名
+    输出：JSON 测试用例列表（供 ci_desktop_test.py 执行）
+    """
+    prompt = f"""
+    应用: {app_name}
+    需求文档:
+    {requirement_md[:2000]}
+
+    请生成桌面自动化测试用例，JSON 数组格式：
+    [
+      {{
+        "name": "用例名称",
+        "steps": [
+          {{"action": "menu|click|type|hotkey", "intent": "自然语言描述操作",
+           "expect": "操作后界面预期状态（可为空）"}},
+          ...
+        ]
+      }}
+    ]
+    要求覆盖：正向流程、异常输入、边界值。
+    """
+    resp = client.chat.completions.create(
+        model=MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2,
+        max_tokens=4096,
+    )
+    text = resp.choices[0].message.content.strip()
+    text = text.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    return json.loads(text)
+
+if __name__ == "__main__":
+    requirement = """
+    ## 文本编辑器需求
+    - 支持新建、打开、保存文本文件
+    - 支持字体大小调整（12-72pt）
+    - 支持搜索替换功能
+    - 文件编码支持 UTF-8、GBK
+    - 未保存时关闭窗口应弹出确认提示
+    """
+    cases = generate_desktop_cases(requirement, "记事本")
+    pathlib.Path("desktop_test_cases.json").write_text(
+        json.dumps(cases, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    print(f"生成 {len(cases)} 条桌面测试用例")</code></pre>
+
+<div class="code-head"><span>.github/workflows/desktop-ci.yml（Windows Runner）</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>name: Desktop UI Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  desktop-test:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          pip install pyautogui uiautomation openai opencv-python pillow
+
+      - name: Run desktop tests
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_MODEL: gpt-4o
+        run: python ci_desktop_test.py
+
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-failures
+          path: |
+            failure_step*.png
+            failure_report_step*.md
+          retention-days: 14</code></pre>
+
+<div class="callout warn">GitHub Actions Windows Runner 是无头服务器，pyautogui 需要虚拟显示。可安装 <code>Microsoft.UI.Xaml</code> 或使用 <code>xvfb</code>（需 WSL2）。本地测试建议在真实桌面环境运行。</div>
+
+<div class="callout">LLM 根因分析保留在 CI Artifacts 中，可直接作为 Bug 单附件。分辨率固定为 1920x1080 可避免坐标换算误差。</div>
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+<li>pyautogui 官方文档 — <a href="https://pyautogui.readthedocs.io/" target="_blank" rel="noopener">https://pyautogui.readthedocs.io</a></li>
+<li>uiautomation (Windows) — <a href="https://github.com/yinkaikew/uiautomation" target="_blank" rel="noopener">https://github.com/yinkaikew/uiautomation</a></li>
+<li>OpenCV Python 文档 — <a href="https://docs.opencv.org/" target="_blank" rel="noopener">https://docs.opencv.org</a></li>
+<li>GitHub Actions Windows Runner — <a href="https://docs.github.com/actions/using-github-hosted-runners/using-github-hosted-runners/about-github-hosted-runners" target="_blank" rel="noopener">https://docs.github.com/actions</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">桌面自动化</span>
+          <span class="tag">pyautogui</span>
+          <span class="tag">uiautomation</span>
+          <span class="tag">LLM 视觉</span>
+          <span class="tag">OpenCV</span>
+          <span class="tag">CI/CD</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>

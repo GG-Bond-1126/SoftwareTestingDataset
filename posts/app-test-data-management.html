@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>App 测试数据管理：账号池、环境隔离与数据回滚 · 软件测试资料集</title>
+<meta name="description" content="用账号池、环境隔离、接口造数与标记清理，把数据冲突导致的假失败压下去。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-test-data-management.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="App 测试数据管理：账号池、环境隔离与数据回滚">
+<meta property="og:description" content="用账号池、环境隔离、接口造数与标记清理，把数据冲突导致的假失败压下去。">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-test-data-management.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="App 测试数据管理：账号池、环境隔离与数据回滚">
+<meta name="twitter:description" content="用账号池、环境隔离、接口造数与标记清理，把数据冲突导致的假失败压下去。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"App 测试数据管理：账号池、环境隔离与数据回滚","description":"用账号池、环境隔离、接口造数与标记清理，把数据冲突导致的假失败压下去。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/app-test-data-management.html","articleSection":"APP 自动化","keywords":"test-data, account-pool, env-isolation","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">APP 自动化</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>12 min read</span>
+        </div>
+        <h1>App 测试数据管理：账号池、环境隔离与数据回滚</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="app-test-data-management">☆ 收藏</button>
+      </header>
+
+      <div class="article-body">
+        <h2>为什么值得做：数据是假失败的第一大来源</h2>
+        <p>我们统计过一组数：一个季度内 UI 自动化跑了两万三千次，失败九百多次，其中真正是产品缺陷的只有一百七十次。剩下七百多次里，按原因归类，第一名是数据问题，占三百二十次，约 43%。</p>
+        <p>数据问题长什么样？几个典型：两个人在两条流水线上用了同一个测试账号，一个把购物车清空了，另一个断言购物车有商品，于是红了；某个用例依赖「昨天的订单」，但昨天有人手工点了发货；某条用例把商品的库存改成零点几，后面的下单用例全部失败；还有一种最隐蔽的，账号被风控锁了，表现是登录一直转圈。</p>
+        <p>这类失败有个共同点：重跑一次大概率能过。于是团队形成了坏习惯——红了就重跑，重跑两次还红才去看。这个习惯的直接后果是，真缺陷混在噪声里被一起重跑掉了。我们有一次线上漏了一个「下单金额算错」的问题，事后回溯，脚本抓到过，但被当成偶发重跑了三次，三次都「过」了，因为那三次跑的时候优惠券刚好被别人用掉，走进了另一条分支。</p>
+        <p>所以数据管理的目标很明确：让每一次用例拿到的都是自己独占的、状态已知的、跑完能清掉的数据。做到这三点，假失败率能从两位数压到个位数。</p>
+
+        <h2>账号池：角色、状态、占用与释放</h2>
+        <p>账号是最稀缺的资源，也是最容易被随手写死在脚本里的东西。我们最早的做法是在 yaml 里写五个账号，谁用谁挑一个。结果就是上面说的互踩。</p>
+        <p>现在的方案是一个带租约的账号池，三个设计点：</p>
+        <ol>
+          <li><strong>按角色和环境分区</strong>。角色不只是「买家 / 卖家 / 管理员」，还要包括「新注册未实名」「实名未绑卡」「有未支付订单」「被风控标记」这些状态角色。用例声明自己要什么角色，不关心具体是哪个账号。</li>
+          <li><strong>租约而不是分配</strong>。领取时写入 <code>lease_id</code> 和 <code>lease_until</code>，超时自动回收。脚本崩了不会永久占着账号，这是最关键的一条，早期我们手工维护一张 Excel，一个人离职带走两个账号的密码，整条流水线停了两天。</li>
+          <li><strong>原子领取</strong>。用一条带子查询的 <code>UPDATE</code> 完成挑选和占用，不要先 <code>SELECT</code> 再 <code>UPDATE</code>。后者在并发下必然出现两个 worker 拿到同一个账号，而且是那种「本地单跑永远复现不了」的并发 bug。</li>
+        </ol>
+
+        <div class="code-head"><span>python — 带租约的账号池</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import sqlite3
+import time
+import uuid
+
+DDL = """
+CREATE TABLE IF NOT EXISTS account (
+  id          INTEGER PRIMARY KEY,
+  username    TEXT NOT NULL UNIQUE,
+  password    TEXT NOT NULL,
+  role        TEXT NOT NULL,
+  env         TEXT NOT NULL,
+  state       TEXT NOT NULL DEFAULT 'idle',
+  lease_id    TEXT,
+  lease_until INTEGER,
+  fail_count  INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_pick ON account (env, role, state, fail_count);
+"""
+
+class AccountPool:
+    def __init__(self, path="accounts.db"):
+        self.conn = sqlite3.connect(path, isolation_level=None)  # 手动控制事务
+        self.conn.executescript(DDL)
+
+    def lease(self, role: str, env: str, ttl: int = 900) -&gt; dict:
+        lease_id = uuid.uuid4().hex
+        now = int(time.time())
+
+        self.conn.execute("BEGIN IMMEDIATE")   # 拿到写锁，避免并发重复领取
+        try:
+            # 1. 回收过期租约
+            self.conn.execute(
+                "UPDATE account SET state='idle', lease_id=NULL, lease_until=NULL "
+                "WHERE state='leased' AND lease_until &lt; ?", (now,)
+            )
+            # 2. 原子领取：挑选 + 占用在同一条语句里完成
+            cur = self.conn.execute(
+                "UPDATE account SET state='leased', lease_id=?, lease_until=? "
+                "WHERE id = (SELECT id FROM account "
+                "            WHERE env=? AND role=? AND state='idle' "
+                "            ORDER BY fail_count, id LIMIT 1) "
+                "RETURNING id, username, password",
+                (lease_id, now + ttl, env, role)
+            )
+            row = cur.fetchone()
+            self.conn.execute("COMMIT")
+        except Exception:
+            self.conn.execute("ROLLBACK")
+            raise
+
+        if row is None:
+            raise RuntimeError(f"账号池耗尽：env={env} role={role}，请扩充容量")
+
+        return {"lease_id": lease_id, "id": row[0],
+                "username": row[1], "password": row[2]}
+
+    def release(self, lease_id: str, broken: bool = False):
+        if broken:
+            self.conn.execute(
+                "UPDATE account SET state='broken', lease_id=NULL, lease_until=NULL, "
+                "fail_count=fail_count+1 WHERE lease_id=?", (lease_id,)
+            )
+        else:
+            self.conn.execute(
+                "UPDATE account SET state='idle', lease_id=NULL, lease_until=NULL "
+                "WHERE lease_id=?", (lease_id,)
+            )
+
+    def revive_broken(self, retry_threshold: int = 3):
+        # 人工确认修好之后批量复活，避免坏账号永久占位
+        self.conn.execute(
+            "UPDATE account SET state='idle' WHERE state='broken' AND fail_count &lt; ?",
+            (retry_threshold,)
+        )</code></pre>
+
+        <p>配套的规矩有三条：账号密码只能从池子里拿，脚本里禁止出现明文；<code>broken</code> 状态必须有人定期处理，否则池子会慢慢漏光；新账号入池前要跑一次冒烟，确认能登录、角色正确。第三条听起来多余，但确实出现过「运营改了密码没通知」，那条流水线红了整整两天。</p>
+
+        <h2>环境隔离：dev、staging、预发各管一段</h2>
+        <p>环境混用造成的浪费比想象中大。最常见的是测试包连到了预发环境，在别人的灰度数据上下了一单，引发一轮排查。我们的做法是把环境写进构建产物，而不是散落在配置文件里。</p>
+
+        <table>
+          <thead>
+            <tr><th>环境</th><th>数据策略</th><th>账号来源</th><th>清理周期</th><th>谁能写</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>dev</td><td>随意造，不要求可追溯</td><td>开发自备</td><td>每日凌晨</td><td>开发、测试</td></tr>
+            <tr><td>staging</td><td>账号池 + 标记造数</td><td>账号池</td><td>每周日</td><td>仅自动化与测试</td></tr>
+            <tr><td>预发 pre</td><td>生产脱敏快照，只读为主</td><td>只读账号</td><td>不清理，按需重置</td><td>禁止造数</td></tr>
+          </tbody>
+        </table>
+
+        <p>配置注入我们用的是构建期方案：Android 走 <code>buildConfigField</code>，iOS 走 <code>xcconfig</code>，三个环境三个 scheme，包名后缀也不同（<code>.staging</code>、<code>.pre</code>），这样同一台手机能同时装三个包，不会互相覆盖。这一条解决了「装错包测错环境」的绝大部分问题。</p>
+        <p>再加一层保险：所有非生产包在页面右上角显示一个环境角标，dev 绿色、staging 黄色、预发红色。人是会看错的，让环境在屏幕上一直可见，比任何流程文档都有效。</p>
+
+        <h2>造数：接口优先，UI 兜底</h2>
+        <p>造数方式决定用例的稳定性和速度。优先级很明确：</p>
+        <ul>
+          <li><strong>接口直造</strong>：调后端接口创建订单、优惠券、地址。一次请求几十毫秒，不依赖 UI，最稳。</li>
+          <li><strong>数据库直插</strong>：只在前端没有对应接口时使用（比如构造一条三年前的历史订单）。缺点是绕过业务校验，容易造出线上不可能存在的状态。</li>
+          <li><strong>UI 造数</strong>：最慢也最脆，只作为兜底，用在「必须验证前端提交逻辑」的场景。</li>
+        </ul>
+
+        <div class="code-head"><span>python — 接口造数与幂等</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import uuid
+import requests
+
+class DataFactory:
+    def __init__(self, base_url: str, token: str):
+        self.base = base_url.rstrip("/")
+        self.s = requests.Session()
+        self.s.headers["Authorization"] = f"Bearer {token}"
+        # 每轮一个 tag，所有造出来的数据都带上它，方便按批清理
+        self.tag = uuid.uuid4().hex[:8]
+
+    def create_order(self, sku_id: int = 1001, qty: int = 1) -&gt; dict:
+        payload = {
+            "sku_id": sku_id,
+            "quantity": qty,
+            "source": f"auto_{self.tag}",
+            "remark": f"qa-{self.tag}",
+            # 幂等键：网络重试时后端返回同一笔订单，而不是造出两笔
+            "request_id": f"create-{self.tag}-{sku_id}",
+        }
+        r = self.s.post(f"{self.base}/api/order", json=payload, timeout=10)
+        r.raise_for_status()
+        order = r.json()["data"]
+        assert order["status"] == "CREATED", order
+        assert order["remark"] == f"qa-{self.tag}"
+        return order
+
+    def create_coupon(self, amount_cents: int = 1000) -&gt; dict:
+        payload = {
+            "amount": amount_cents,
+            "scope": "ALL",
+            "remark": f"qa-{self.tag}",
+            "request_id": f"coupon-{self.tag}",
+        }
+        r = self.s.post(f"{self.base}/api/coupon/grant", json=payload, timeout=10)
+        r.raise_for_status()
+        return r.json()["data"]
+
+    def cleanup_tag(self):
+        # 按标记批量回收，不用逐条记录 id
+        r = self.s.delete(f"{self.base}/api/qa/cleanup",
+                          params={"tag": self.tag}, timeout=30)
+        r.raise_for_status()
+        return r.json()["deleted"]</code></pre>
+
+        <p>这里有两个细节值得强调。<code>request_id</code> 不只是为了让造数幂等，它还是排查时的锚点：一条用例失败，用 tag 一搜就能把这一轮产生的所有数据捞出来。<code>remark</code> 字段则是给清理用的，任何没有标记的数据，三个月后就没人敢删了。</p>
+
+        <div class="code-head"><span>python — pytest 夹具接入</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import pytest
+
+@pytest.fixture(scope="session")
+def pool():
+    return AccountPool("accounts.db")
+
+@pytest.fixture
+def buyer(pool, api_base):
+    acc = pool.lease(role="buyer_verified", env="staging", ttl=900)
+    factory = DataFactory(api_base, token=login(acc))
+    failed = False
+    try:
+        yield factory
+    except Exception:
+        failed = True          # 用例失败不一定是账号问题，先记录
+        raise
+    finally:
+        # 先清数据，再还账号。顺序反了会留下「有未支付订单的账号」
+        try:
+            factory.cleanup_tag()
+        except Exception:
+            failed = True       # 清不掉就标记为脏，交给后台任务重置
+        pool.release(acc["lease_id"], broken=failed)</code></pre>
+
+        <h2>数据回滚与幂等</h2>
+        <p>回滚分两种粒度。用例级靠 <code>finally</code> 里清自己造的东西；整轮级靠环境快照。前者覆盖九成场景，后者用来兜住「脚本被 kill 掉」这种极端情况。</p>
+        <p>幂等是回滚的前提。如果接口不能保证「同一次提交只生效一次」，清理脚本删了订单但优惠券已经被核销，账户余额就永远对不平。所以我们要求所有造数接口都支持 <code>request_id</code>，并且数据库上有对应的唯一索引——应用层判重靠不住，两个请求同时到达时照样会插两条。</p>
+        <p>另有一条容易被忽略的：<strong>不要复用账号做回滚</strong>。正确的做法是还回池子时把账号标记为「脏」，由一个后台任务在低峰期做一次状态重置（清购物车、取消未支付订单）。我们最初在 <code>finally</code> 里同步做全套清理，结果是跑一百条用例要额外花二十分钟在清理上，后来全部异步化，租约 TTL 从三十分钟压到十分钟。</p>
+
+        <h2>敏感数据脱敏</h2>
+        <p>测试环境里最容易出事的是「图省事直接把生产库导过来」。这件事在很多公司是默认操作，但它同时违反数据安全规范和个人信息保护的要求，出一次事故就是通报级别。</p>
+        <p>如果确实需要生产的分布特征，做法是导结构不导明细，或者导明细后立刻脱敏。脱敏要覆盖手机号、身份证、银行卡、地址、邮箱这几类，而且必须在入库前完成，不能等到用的时候再处理。</p>
+
+        <div class="code-head"><span>python — 日志与响应脱敏</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import re
+
+RULES = [
+    # 手机号：保留前三位与后四位
+    (re.compile(r"\b(1[3-9]\d)\d{4}(\d{4})\b"), r"\1****\2"),
+    # 身份证：保留前六后四
+    (re.compile(r"\b(\d{6})\d{8}(\d{3}[\dXx])\b"), r"\1********\2"),
+    # 银行卡：16 到 19 位
+    (re.compile(r"\b(\d{4})\d{8,11}(\d{4})\b"), r"\1********\2"),
+    # 邮箱：保留首字母与域名
+    (re.compile(r"\b([\w.+-])[\w.+-]*(@[\w-]+\.[\w.]+)\b"), r"\1***\2"),
+]
+
+def mask(text: str) -&gt; str:
+    for pattern, repl in RULES:
+        text = pattern.sub(repl, text)
+    return text
+
+# 日志统一走这里，避免有人直接 print(response.text)
+def log_response(tag: str, resp):
+    print(f"[{tag}] {resp.status_code} {mask(resp.text[:2000])}")</code></pre>
+
+        <p>另外，测试账号本身也要用虚构信息：手机号用 138 开头后八位递增的号段，身份证用官方提供的测试号码格式，绝对不要用真实客户的数据做回归。这既是合规问题，也是伦理问题。</p>
+
+        <h2>并发冲突：分片与租户前缀</h2>
+        <p>并行跑用例时，冲突面比串行大得多。我们用两招解决，成本和收益都比较清楚。</p>
+        <p><strong>第一招是分片</strong>。四个 worker 并行，账号池按 <code>id % 4</code> 切成四片，每个 worker 只在自己的片里领账号。这样即使领取逻辑有 bug，也不会跨片抢同一个号。分片的代价是利用率下降，某片账号坏了那个 worker 就空转，所以要配合自动补片。</p>
+        <p><strong>第二招是租户前缀</strong>。所有造出来的数据都带一个 <code>qa-{tag}</code> 标记，用例里的查询也带上这个过滤条件。这样即使两个人同时在 staging 造了十笔订单，各自的断言只会看到自己的那十笔。没有前缀的话，写「订单列表第一条是待付款」这种断言，在并发下几乎必挂。</p>
+        <p>如果预算允许，最彻底的是每个 worker 一套独立 schema 或者独立数据库实例，跑完直接 drop。我们只对核心的支付链路这么做，因为它涉及的中间状态最多，隔离成本换来的稳定性是划算的。</p>
+
+        <h2>清理策略</h2>
+        <p>清理要分层，只做一层迟早出事：</p>
+        <ul>
+          <li><strong>T+0 用例自清</strong>：<code>finally</code> 里按 tag 删数据，覆盖正常路径。</li>
+          <li><strong>T+1 兜底扫描</strong>：每天凌晨扫一遍超过一天仍带 <code>qa-</code> 标记的数据，删掉并记录数量。数量异常上涨说明有用例没清干净，去修那条用例。</li>
+          <li><strong>T+7 全量重置</strong>：staging 每周日整体重置一次，保留白名单里的基线账号与商品。</li>
+          <li><strong>白名单保护</strong>：基线数据用固定 id 段（比如从 900001 起），清理脚本一律跳过。没有这条，迟早有一次把所有人依赖的十条基础数据删了。</li>
+        </ul>
+
+        <div class="callout warn">
+          <p>清理脚本必须先 <code>SELECT COUNT</code> 再 <code>DELETE</code>，并支持 dry-run。我们写过一个 <code>DELETE FROM orders WHERE remark LIKE 'qa-%'</code> 的脚本，忘记加环境判断，差点在预发上执行。现在所有清理脚本第一行强制校验 <code>ENV != production</code>，不满足直接退出。</p>
+        </div>
+
+        <h2>踩坑与边界</h2>
+        <ul>
+          <li><strong>症状</strong>：同一用例本地稳定过、流水线偶发红。<strong>原因</strong>：两个 worker 复用了账号或数据。<strong>处理</strong>：确认租约是原子领取，并给断言加上 tag 过滤。</li>
+          <li><strong>症状</strong>：账号池越来越少，最后报耗尽。<strong>原因</strong>：脚本异常退出没释放租约，而 TTL 设得过长。<strong>处理</strong>：TTL 收到十五分钟以内，并加一个每分钟回收过期租约的任务。</li>
+          <li><strong>症状</strong>：造数接口偶发造出两笔。<strong>原因</strong>：应用层判重，没有数据库唯一索引。<strong>处理</strong>：把 <code>request_id</code> 建成唯一索引，重试直接返回已有记录。</li>
+          <li><strong>症状</strong>：清理之后列表页仍显示旧数据。<strong>原因</strong>：删了库里的行，但缓存没失效。<strong>处理</strong>：清理走业务接口，让它自己处理缓存；直连数据库只用于最后手段。</li>
+        </ul>
+        <p>边界也要讲清楚：这套方案的前提是后端愿意提供造数与清理接口。如果后端推不动，退一步的做法是「每条用例自己唯一标记 + 查询自带过滤」，至少能解决并发冲突，代价是数据会越积越多，需要一个定期人工清理的窗口。</p>
+
+        <h2>效果度量</h2>
+        <table>
+          <thead>
+            <tr><th>指标</th><th>改造前</th><th>改造后</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>假失败占比</td><td>43%</td><td>7%</td></tr>
+            <tr><td>单轮用例耗时</td><td>52 分钟</td><td>31 分钟</td></tr>
+            <tr><td>账号相关问题工单（月）</td><td>11 张</td><td>1 张</td></tr>
+            <tr><td>测错环境导致的返工</td><td>每月 2 到 3 次</td><td>0</td></tr>
+          </tbody>
+        </table>
+        <p>耗时下降主要是因为不用再人工重置数据、不用重跑三遍。假失败从 43% 掉到 7% 之后，团队才真正开始信任红灯，这是这套东西最大的价值：让失败重新变得有意义。</p>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://www.sqlite.org/lang_returning.html" target="_blank" rel="noopener">RETURNING 子句 — SQLite 官方文档</a></li>
+            <li><a href="https://docs.pytest.org/en/stable/how-to/fixtures.html" target="_blank" rel="noopener">How to use fixtures — pytest 官方文档</a></li>
+            <li><a href="https://martinfowler.com/articles/patterns-of-distributed-systems/idempotent-receiver.html" target="_blank" rel="noopener">Idempotent Receiver — Martin Fowler</a></li>
+            <li><a href="https://www.pdpc.gov.sg/guidelines-and-consultation/2020/02/advisory-guidelines-on-applications-to-account-for-personal-data" target="_blank" rel="noopener">Advisory Guidelines on Personal Data — PDPC</a></li>
+          </ol>
+        </div>
+      </div>
+
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#test-data</span>
+          <span class="tag">#account-pool</span>
+          <span class="tag">#env-isolation</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+
+<script src="../assets/main.js"></script>
+</body>
+</html>

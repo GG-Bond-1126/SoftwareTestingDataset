@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Python 异步与多线程：让测试脚本「跑得更快」 · 软件测试资料集</title>
+<meta name="description" content="threading 多线程、线程池、asyncio 异步，各配并发调用接口案例…">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/style.css">
+<link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-async-and-threads.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="软件测试资料集">
+<meta property="og:title" content="Python 异步与多线程：让测试脚本「跑得更快」">
+<meta property="og:description" content="threading 多线程、线程池、asyncio 异步，各配并发调用接口案例…">
+<meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-async-and-threads.html">
+<meta property="og:locale" content="zh_CN">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Python 异步与多线程：让测试脚本「跑得更快」">
+<meta name="twitter:description" content="threading 多线程、线程池、asyncio 异步，各配并发调用接口案例…">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Python 异步与多线程：让测试脚本「跑得更快」","description":"threading 多线程、线程池、asyncio 异步，各配并发调用接口案例…","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/python-async-and-threads.html","articleSection":"Python 编程入门","keywords":"python, concurrency, testing","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-24","dateModified":"2026-11-24"}</script>
+<meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
+<link rel="manifest" href="../manifest.webmanifest">
+<meta name="theme-color" content="#0d141d">
+</head>
+<body>
+<div class="progress-bar"></div>
+<header class="site-header">
+  <div class="wrap nav">
+    <a class="brand" href="../index.html">
+      <span class="brand-mark">QA</span>
+      <span class="brand-text">
+        <span class="brand-name">软件测试资料集</span>
+        <span class="brand-sub">by GG Bond</span>
+      </span>
+    </a>
+    <nav class="nav-links">
+      <a href="../index.html">首页</a>
+      <a href="../index.html#posts">文章</a>
+      <a href="../tags.html">标签</a>
+      <a href="../paths.html">路径</a>
+      <a href="../favorites.html">收藏</a>
+      <a href="../about.html">关于</a>
+    </nav>
+    <a class="nav-gh" href="../index.html#posts">./notes →</a>
+  </div>
+</header>
+<main class="article-shell">
+  <div class="wrap">
+    <article class="article">
+      <header class="article-head">
+        <div class="post-meta">
+          <span class="post-cat">Python 编程入门</span> <span class="post-fw">传统框架</span>
+          <span>2026-11-23</span>
+          <span>·</span>
+          <span>11 min read</span>
+        </div>
+        <h1>Python 异步与多线程：让测试脚本「跑得更快」</h1>
+        <button class="fav-btn" id="fav-btn" type="button" data-slug="python-async-and-threads">☆ 收藏</button>
+      </header>
+      <div class="article-body">
+<h2>环境搭建</h2>
+<div class="code-head"><span>terminal</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code># 安装 Python 3.10+
+# 创建虚拟环境
+python -m venv venv
+venv\Scripts\activate   # Windows
+
+# 安装核心库
+pip install pytest requests pandas
+# 验证
+pytest --version</code></pre>
+<div class="code-head"><span>python — 验证</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+resp = requests.get("https://httpbin.org/get", timeout=5)
+assert resp.status_code == 200
+print("Python 环境就绪 ✓")</code></pre>
+
+<h2>基础应用：第一个测试用例</h2>
+<div class="code-head"><span>python</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import requests
+
+def test_api():
+    resp = requests.get("https://httpbin.org/get", params={"name": "test"}, timeout=10)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["args"]["name"] == "test"
+    print("基础接口测试通过 ✓")</code></pre>
+
+<h2>项目进阶：pytest + fixture + 参数化 + 报告</h2>
+<div class="code-head"><span>python — conftest.py</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest, requests
+
+@pytest.fixture
+def api():
+    return requests.Session()
+
+@pytest.fixture
+def user():
+    return {"username": "test@example.com"}</code></pre>
+<div class="code-head"><span>python — 参数化测试</span><button class="copy-btn" type="button">复制</button></div>
+<pre><code>import pytest
+
+@pytest.mark.parametrize("code", [200, 301, 404, 500])
+def test_status(api, code):
+    resp = api.get(f"https://httpbin.org/status/{code}", timeout=5)
+    assert resp.status_code == code</code></pre>
+
+        <h2>为什么测试脚本需要并发</h2>
+        <p>测试脚本 90% 的时间花在「等」上：等接口响应、等页面加载、等数据生成。串行跑（一条跑完跑下一条）时，这些「等」全在浪费时间。并发（多条同时跑）把「等」重叠起来，总耗时大幅缩短。</p>
+        <div class="code-head"><span>串行 vs 并发耗时对比</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 100 条用例，每条等接口 0.5 秒
+# 串行：100 × 0.5s = 50s
+# 并发 10 线程：ceil(100/10) × 0.5s = 5s
+# 并发 20 线程：ceil(100/20) × 0.5s = 2.5s
+
+# 100 条用例，每条跑 3 秒（含业务逻辑）
+# 串行：100 × 3s = 300s（5 分钟）
+# 并发 10 线程：ceil(100/10) × 3s = 30s（30 秒）</code></pre>
+
+        <h2>threading：多线程（IO 密集型首选）</h2>
+        <p>测试脚本是<strong>IO 密集型</strong>（等网络、等磁盘），不是 CPU 密集型（算数据）。IO 密集型用多线程就够了，不用管 GIL。</p>
+
+        <h3>基本用法</h3>
+        <div class="code-head"><span>python — 基本多线程</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import threading
+import time
+
+def call_api(user_id):
+    """模拟调用接口（等 1 秒）"""
+    time.sleep(1)   # 模拟网络延迟
+    print(f"  用户 {user_id} 数据获取完成")
+    return user_id
+
+# 创建 5 个线程，同时调用
+threads = []
+for i in range(5):
+    t = threading.Thread(target=call_api, args=(i,))
+    threads.append(t)
+    t.start()
+
+# 等待所有线程完成
+for t in threads:
+    t.join()   # 阻塞当前线程，等 t 结束
+
+print("全部完成")
+# 5 个线程同时跑，总耗时约 1 秒（不是 5 秒）</code></pre>
+
+        <h3>线程池（更实用）</h3>
+        <p>手动管理线程太麻烦，用线程池「控制并发数 + 自动回收」：</p>
+        <div class="code-head"><span>python — 线程池</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+
+def call_api(user_id):
+    """模拟调用接口"""
+    time.sleep(0.5)   # 等 0.5 秒
+    return f"user_{user_id}_data"
+
+# 创建线程池（10 个线程并发）
+with ThreadPoolExecutor(max_workers=10) as executor:
+    # 提交 100 个任务
+    futures = {
+        executor.submit(call_api, i): i
+        for i in range(100)
+    }
+
+    # 收集结果（按完成顺序）
+    results = []
+    for future in as_completed(futures):
+        user_id = futures[future]
+        result = future.result()   # 拿结果（异常在这里抛）
+        results.append(result)
+
+print(f"共 {len(results)} 条结果")
+# 总耗时约 5 秒（100 条 / 10 线程 × 0.5 秒）</code></pre>
+        <div class="callout">
+          <p>线程池的三个参数：<strong>max_workers</strong>（并发数，测试里一般 10~50）、<strong>as_completed</strong>（按完成顺序拿结果）、<strong>future.result()</strong>（拿结果，异常在这里抛）。比手动创建线程简洁 10 倍。</p>
+        </div>
+
+        <h3>GIL 限制：CPU 密集型用多进程</h3>
+        <div class="code-head"><span>python — 多进程（CPU 密集型）</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from concurrent.futures import ProcessPoolExecutor
+import time
+
+def heavy_computation(data):
+    """CPU 密集型（算数据）"""
+    result = 0
+    for i in range(10_000_000):
+        result += i
+    return result
+
+# 多线程跑 CPU 密集型（受 GIL 限制，不会更快）
+# 多进程跑 CPU 密集型（每个进程独立 GIL，真正并行）
+with ProcessPoolExecutor(max_workers=4) as executor:
+    futures = [executor.submit(heavy_computation, i) for i in range(8)]
+    for f in futures:
+        print(f.result())</code></pre>
+        <div class="callout warn">
+          <p>测试脚本 99% 是 IO 密集型（等接口），用<strong>多线程</strong>就够了。只有「跑大量计算」（比如性能测试数据分析）才需要<strong>多进程</strong>。</p>
+        </div>
+
+        <h2>asyncio：异步（高并发 IO 首选）</h2>
+        <p>线程池是「10 个线程各等各的」，asyncio 是「1 个线程轮流处理」。并发 1000 个请求时，asyncio 比 1000 个线程省内存得多。</p>
+
+        <h3>基本用法</h3>
+        <div class="code-head"><span>python — asyncio 基础</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import asyncio
+
+async def call_api(user_id):
+    """模拟调用接口（等 0.5 秒）"""
+    await asyncio.sleep(0.5)   # 异步等（不阻塞其他任务）
+    return f"user_{user_id}_data"
+
+async def main():
+    # 并发 100 个请求（asyncio 自动切换）
+    tasks = [call_api(i) for i in range(100)]
+    results = await asyncio.gather(*tasks)   # 等全部完成
+    print(f"共 {len(results)} 条结果")
+    # 总耗时约 0.5 秒（所有任务"同时"等，轮流完成）
+
+# 运行
+asyncio.run(main())</code></pre>
+
+        <h3>并发控制（信号量）</h3>
+        <p>1000 个请求同时打接口，服务器会崩。用信号量控制「同时最多 50 个」：</p>
+        <div class="code-head"><span>python — 信号量控制并发</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import asyncio
+import aiohttp   # 异步 HTTP 客户端（pip install aiohttp）
+
+async def fetch(url, session, semaphore):
+    async with semaphore:   # 同时最多 50 个请求
+        async with session.get(url, timeout=10) as resp:
+            return await resp.text()
+
+async def main():
+    semaphore = asyncio.Semaphore(50)   # 最多 50 并发
+    urls = [f"https://api.example.com/data/{i}" for i in range(1000)]
+
+    async with aiohttp.ClientSession() as session:
+        tasks = [fetch(url, session, semaphore) for url in urls]
+        results = await asyncio.gather(*tasks)
+
+    print(f"共 {len(results)} 条结果")
+
+asyncio.run(main())
+# 1000 个请求，50 并发，总耗时约 10 秒（20 批 × 0.5 秒）</code></pre>
+
+        <h3>线程池 vs asyncio 怎么选</h3>
+        <div class="code-head"><span>选择标准</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 并发数 10~100 → 线程池（ThreadPoolExecutor）简单够用
+# 并发数 1000+ → asyncio（省内存、不爆线程）
+# 代码复杂度 → 线程池更简单，asyncio 要理解 await 和协程
+# 测试场景 → 一般 10~50 并发就够，线程池是首选</code></pre>
+
+        <h2>案例：并发调用接口 + 结果收集 + 统计</h2>
+        <p>把线程池 + 结果收集 + 统计串起来，写一个「并发跑 100 条用例」的完整模板：</p>
+        <div class="code-head"><span>python — 并发测试完整模板</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
+import requests
+from dataclasses import dataclass
+from typing import Optional
+import json
+
+@dataclass
+class TestResult:
+    """测试结果"""
+    case_id: int
+    name: str
+    passed: bool
+    response_ms: Optional[int]
+    error: Optional[str]
+
+def run_single_case(case):
+    """跑单条用例（线程池里执行）"""
+    try:
+        start = time.time()
+        resp = requests.get(
+            f"https://api.example.com/api/{case['endpoint']}",
+            timeout=10
+        )
+        response_ms = int((time.time() - start) * 1000)
+
+        passed = resp.status_code == case.get("expected_status", 200)
+        if not passed:
+            error = f"状态码 {resp.status_code} != {case.get('expected_status')}"
+        else:
+            error = None
+        return TestResult(case["id"], case["name"], passed, response_ms, error)
+    except Exception as e:
+        return TestResult(case["id"], case["name"], False, None, str(e))
+
+def run_cases_concurrent(cases, max_workers=10):
+    """并发跑所有用例（线程池）"""
+    results = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(run_single_case, case): case
+            for case in cases
+        }
+        for future in as_completed(futures):
+            results.append(future.result())
+
+    # 按 case_id 排序
+    results.sort(key=lambda r: r.case_id)
+    return results
+
+# 100 条用例（模拟）
+test_cases = [
+    {"id": i, "name": f"用例 {i}", "endpoint": f"/data/{i}", "expected_status": 200}
+    for i in range(100)
+]
+
+# 跑
+start = time.time()
+results = run_cases_concurrent(test_cases, max_workers=10)
+total_time = time.time() - start
+
+# 统计
+passed = sum(1 for r in results if r.passed)
+failed = len(results) - passed
+avg_ms = sum(r.response_ms or 0 for r in results) / len(results)
+
+print(f"总耗时：{total_time:.1f}s")
+print(f"通过：{passed}/100，失败：{failed}")
+print(f"平均响应：{avg_ms:.0f}ms")
+
+# 打印失败用例
+for r in results:
+    if not r.passed:
+        print(f"  失败：{r.name} - {r.error}")</code></pre>
+        <div class="callout">
+          <p>测试并发三原则：① IO 密集型用<strong>线程池</strong>（10~50 并发）；② 高并发用 <strong>asyncio</strong>（1000+）；③ 加<strong>信号量</strong>控制并发数，别让服务器崩。100 条用例并发 10 线程，30 分钟降到 5 分钟。</p>
+        </div>
+
+        <div class="sources">
+          <h3>参考来源</h3>
+          <ol>
+            <li><a href="https://docs.python.org/3/library/threading.html" target="_blank" rel="noopener">Python threading 官方文档</a></li>
+            <li><a href="https://docs.python.org/3/library/concurrent.futures.html" target="_blank" rel="noopener">Python concurrent.futures 官方文档</a></li>
+            <li><a href="https://docs.python.org/3/library/asyncio.html" target="_blank" rel="noopener">Python asyncio 官方文档</a></li>
+          </ol>
+        </div>
+      </div>
+      <footer class="article-foot">
+        <div class="tag-row">
+          <span class="tag">#python</span>
+          <span class="tag">#concurrency</span>
+          <span class="tag">#testing</span>
+        </div>
+        <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
+      </footer>
+    </article>
+  </div>
+</main>
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <span>© 2026 软件测试资料集 · GG Bond</span>
+    <span><a href="../index.html">首页</a> · <a href="../about.html">关于</a></span>
+  </div>
+</footer>
+<script src="../assets/main.js"></script>
+</body>
+</html>
