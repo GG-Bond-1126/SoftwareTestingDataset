@@ -96,6 +96,8 @@ python -m http.server 8899
 python tools/build.py
 ```
 
+可选依赖：`pip install pypinyin`。装了它，索引会额外生成标题拼音首字母，支持用 `jkcscs` 这类缩写搜到「接口测试」相关文章；没装则自动跳过，构建照常成功。
+
 依次执行七步，任一步失败即中断并给出原因：
 
 1. `build_data.py` — 扫描 `posts/` 生成 `assets/posts-index.json`

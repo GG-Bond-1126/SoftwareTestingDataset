@@ -1449,3 +1449,66 @@ html[data-theme="light"] mark.hit { background: rgba(15, 157, 88, 0.16); }
   border-radius: 3px;
   padding: 0 3px;
 }
+
+/* ---------------- v7: 搜索联想 + 无障碍 + 打印 ---------------- */
+.search-bar { position: relative; flex-wrap: wrap; }
+.search-suggest {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-width: 560px;
+  display: none;
+  flex-direction: column;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-card-solid, var(--bg-card));
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .35);
+  z-index: 60;
+}
+.search-suggest.show { display: flex; }
+.search-suggest-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  color: var(--text-body);
+  text-decoration: none;
+  font-size: 13px;
+}
+.search-suggest-item.active,
+.search-suggest-item:hover { background: var(--panel-fade); color: var(--text-strong); }
+.sugg-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sugg-cat { flex: none; font-size: 11px; color: var(--text-faint); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  .site-header, .toc, .toolbar, .search-bar, .recent-q, .recent-bar,
+  .article-foot, .article-nav, .related, .copy-btn, .fav-btn, .back-top,
+  .site-footer, .article-cover, .article-figure figcaption { display: none !important; }
+  html, body { background: #fff !important; color: #111 !important; }
+  .article-body { max-width: none; font-size: 11.5pt; line-height: 1.65; }
+  .article-body a { color: #111; text-decoration: underline; }
+  .article-body pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+    border: 1px solid #ccc;
+    background: #f7f7f7;
+    color: #111;
+    page-break-inside: avoid;
+  }
+  .article-body h2, .article-body h3 { page-break-after: avoid; }
+  .article-body table, .article-body figure { page-break-inside: avoid; }
+  .article-body a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 9pt; color: #666; }
+}

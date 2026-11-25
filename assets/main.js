@@ -307,6 +307,7 @@
       return (card.textContent || "").replace(/\s+/g, " ").toLowerCase();
     });
     var hay = baseHay.slice();
+    var pyArr = cards.map(function () { return ""; });
     var indexLoaded = false;
     var slugPos = {};
     cards.forEach(function (c, i) { slugPos[c.getAttribute("data-slug")] = i; });
@@ -319,7 +320,9 @@
           var i = slugPos[it.slug];
           if (i == null) return;
           hay[i] = (it.title + " " + it.cat + " " + it.fw + " " + (it.tags || []).join(" ") + " " +
-            (it.headings || []).join(" ") + " " + it.desc + " " + it.text).toLowerCase();
+            (it.headings || []).join(" ") + " " + it.desc + " " + it.text + " " +
+            (it.py || "") + " " + it.slug.replace(/-/g, " ")).toLowerCase();
+          pyArr[i] = it.py || "";
         });
         runFilter();
       });
@@ -386,12 +389,91 @@
         empty.style.display = shown === 0 ? "block" : "none";
       }
     };
+    /* a11y: 结果数量播报 + 收藏筛选状态 */
+    if (countEl) { countEl.setAttribute("role", "status"); countEl.setAttribute("aria-live", "polite"); }
+    if (favFilter) favFilter.setAttribute("aria-pressed", "false");
+
+    /* search suggestions */
+    var suggEl = document.createElement("div");
+    suggEl.className = "search-suggest";
+    suggEl.id = "search-suggest";
+    suggEl.setAttribute("role", "listbox");
+    searchInput.setAttribute("role", "combobox");
+    searchInput.setAttribute("aria-autocomplete", "list");
+    searchInput.setAttribute("aria-controls", "search-suggest");
+    searchInput.setAttribute("aria-expanded", "false");
+    searchInput.parentNode.appendChild(suggEl);
+    var suggActive = -1;
+    var suggHits = [];
+    var hideSugg = function () {
+      suggEl.classList.remove("show");
+      suggEl.innerHTML = "";
+      suggHits = [];
+      suggActive = -1;
+      searchInput.setAttribute("aria-expanded", "false");
+      searchInput.removeAttribute("aria-activedescendant");
+    };
+    var setActive = function (k) {
+      var items = $$(".search-suggest-item", suggEl);
+      items.forEach(function (a, i) { a.classList.toggle("active", i === k); });
+      suggActive = k;
+      if (k >= 0 && items[k]) searchInput.setAttribute("aria-activedescendant", items[k].id);
+    };
+    var renderSugg = function (terms) {
+      if (!terms.length) { hideSugg(); return; }
+      var q = terms.join(" ");
+      var hits = [];
+      cards.forEach(function (card, i) {
+        if (hits.length >= 6) return;
+        var title = (baseHtml[i].title || "").toLowerCase();
+        var pyv = pyArr[i] || "";
+        if (title.indexOf(q) !== -1 || (pyv && pyv.indexOf(q) !== -1)) hits.push(i);
+      });
+      if (!hits.length) { hideSugg(); return; }
+      suggHits = hits;
+      suggEl.innerHTML = hits.map(function (i, k) {
+        var card = cards[i];
+        var catEl = card.querySelector(".post-cat");
+        return '<a class="search-suggest-item" role="option" id="sugg-' + k + '" href="' +
+          card.getAttribute("href") + '"><span class="sugg-title">' + baseHtml[i].title +
+          '</span><span class="sugg-cat">' + esc(catEl ? catEl.textContent : "") + "</span></a>";
+      }).join("");
+      suggEl.classList.add("show");
+      searchInput.setAttribute("aria-expanded", "true");
+      setActive(-1);
+      suggActive = -1;
+      suggEl.querySelectorAll(".search-suggest-item").forEach(function (a, i) {
+        a.addEventListener("mouseenter", function () { setActive(i); });
+      });
+    };
+    searchInput.addEventListener("keydown", function (e) {
+      if (!suggHits.length) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActive((suggActive + 1) % suggHits.length);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActive(suggActive <= 0 ? suggHits.length - 1 : suggActive - 1);
+      } else if (e.key === "Enter" && suggActive >= 0) {
+        e.preventDefault();
+        location.href = cards[suggHits[suggActive]].getAttribute("href");
+      } else if (e.key === "Escape") {
+        hideSugg();
+      }
+    });
+    searchInput.addEventListener("blur", function () { setTimeout(hideSugg, 120); });
+
     searchInput.addEventListener("focus", hydrate);
-    searchInput.addEventListener("input", function () { hydrate(); runFilter(); });
+    searchInput.addEventListener("input", function () {
+      hydrate();
+      runFilter();
+      renderSugg(searchInput.value.trim().toLowerCase().split(/\s+/).filter(Boolean));
+    });
     if (favFilter) {
       favFilter.addEventListener("click", function () {
         favOnly = !favOnly;
         favFilter.classList.toggle("on", favOnly);
+        favFilter.setAttribute("aria-pressed", favOnly ? "true" : "false");
         favFilter.textContent = favOnly ? "★ 显示全部" : "☆ 只看收藏";
         runFilter();
       });
@@ -442,7 +524,7 @@
     chipsEl.className = "recent-q";
     chipsEl.id = "recent-q";
     chipsEl.setAttribute("aria-label", "最近搜索");
-    searchInput.parentNode.insertBefore(chipsEl, searchInput.nextSibling);
+    searchInput.parentNode.parentNode.insertBefore(chipsEl, searchInput.parentNode.nextSibling);
     var renderChips = function () {
       var list = getRecentQ();
       if (!list.length) { chipsEl.innerHTML = ""; chipsEl.classList.remove("show"); return; }

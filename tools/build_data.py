@@ -5,6 +5,23 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 """Build assets/posts-index.json: metadata + headings + text excerpt + prev/next/related."""
 import os, re, json, glob, html as H
 
+try:
+    from pypinyin import lazy_pinyin, Style
+except ImportError:  # 未安装 pypinyin 时退化为纯中文匹配，不阻断构建
+    lazy_pinyin = None
+    Style = None
+
+
+def pinyin_initials(text):
+    """把标题转成首字母串，便于用 yldh 命中「用例生成」。"""
+    if lazy_pinyin is None:
+        return ""
+    try:
+        parts = lazy_pinyin(text, style=Style.FIRST_LETTER)
+    except Exception:
+        return ""
+    return re.sub(r"[^a-z0-9]", "", "".join(parts).lower())
+
 POSTS = os.path.join(ROOT, "posts")
 OUT = os.path.join(ROOT, "assets", "posts-index.json")
 
@@ -37,7 +54,8 @@ def parse(f):
     txt = H.unescape(re.sub(r'<[^>]+>', ' ', nocode))
     txt = re.sub(r'\s+', ' ', txt).strip()[:1200]
     return {"slug": slug, "title": title, "cat": cat.strip(), "fw": fw.strip(),
-            "desc": desc, "tags": tags, "headings": headings, "text": txt}
+            "desc": desc, "tags": tags, "headings": headings, "text": txt,
+            "py": pinyin_initials(title)}
 
 items = [parse(f) for f in sorted(glob.glob(os.path.join(POSTS, "*.html")))]
 items.sort(key=lambda it: (FW_RANK.get(it["fw"], 9), CAT_RANK.get(it["cat"], 20), it["slug"]))
