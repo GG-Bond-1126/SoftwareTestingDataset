@@ -3,6 +3,7 @@
 > 自动化测试与 AI 测试的实践笔记：把公开资料整理成能直接照着做的长文。
 
 **在线阅读：https://37lh5701lxo5frtwh6h.traesite.cn**
+**源码仓库：https://github.com/GG-Bond-1126/SoftwareTestingDataset**
 
 一个纯静态的测试知识库，124 篇文章，覆盖 Web / APP / PC 自动化、接口测试、Python、Git、数据库，以及 AI 测试与 AI 提效落地。每篇文章都按「机制拆解 → 从最小可用到生产可用 → 常见坑 → 上线检查清单」组织，代码可直接运行。
 
