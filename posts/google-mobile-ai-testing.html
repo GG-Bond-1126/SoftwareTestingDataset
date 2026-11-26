@@ -71,6 +71,7 @@
         <h2>一、它占据的是从计划到报告这一段</h2>
         <p>原文的描述是跨应用自动化：根据自然语言指令，在 Android 上执行测试流程和日常任务。定位采用多模态策略，优先用元素索引，遇到自绘界面再退回坐标与视觉。启动后自动打开本地控制台，提供设备连接向导、实时投屏、任务演练和状态回放，能看到推理流、目标坐标、任务队列和任务生命周期。</p>
         <p>这决定了它的正确用法：适合人盯着看、随时纠偏的半自动测试，而不是无人值守的批量执行。状态回放尤其值钱，一条任务跑完可以按时间线倒回去看每步的感知与动作，失败时比一句报错清楚得多。</p>
+        <p>还有一层含义要提前说清：它输出的是「任务结果 + 轨迹 + 诊断」，不是可执行的脚本。也就是说，跑通一次流程的产物不能直接进 CI 复用，要进 CI 还得把稳定路径改写成强类型断言。这决定了它的定位是探索与复现工具，不是回归执行器。</p>
 
         <h2>二、Flash 与 Pro 是两种取舍</h2>
         <table>
@@ -85,7 +86,7 @@
             <tr><td>代价</td><td>快，但可能走偏一步</td><td>稳，但更慢</td></tr>
           </tbody>
         </table>
-        <p>选择标准不是哪个更强，而是这一步错了要不要重来。登录、支付、删除这类动作走 Pro，动作前校验目标，多花的时间远小于误操作的代价；纯浏览、翻页、取值，Flash 就够。</p>
+        <p>选择标准不是哪个更强，而是这一步错了要不要重来。登录、支付、删除这类动作走 Pro，动作前校验目标，多花的时间远小于误操作的代价；纯浏览、翻页、取值，Flash 就够。一条经验：同一份任务清单里按动作分级，而不是整条任务统一一个模式，混合调度既稳又省。</p>
 
         <h2>三、装一次，跑通第一条指令</h2>
         <p>前提是一台开了 USB 调试的 Android 真机，或一个模拟器。一键脚本会自动检测并安装 ADB、scrcpy、FFmpeg 和 Python 运行时，再把 MCP 服务和一份移动端测试准则挂到你所用的 IDE 上，支持 Antigravity、Cursor、Claude Code、Codex、Windsurf、VS Code、Cline 等。</p>
@@ -105,7 +106,7 @@ uv run artemis helper status</code></pre>
 
         <h2>四、99% 这个数字该怎么读</h2>
         <p>原文说它在 Google Research 的 AndroidWorld 基准评测中取得 99% 以上的任务完成率，该基准包含一百多个多步任务。这个数字说明的是标准化环境、公开任务定义、自动评分下的表现，回答不了业务应用上的问题。真实 App 有登录态、弹窗、灰度开关、验证码、弱网，原文未给出业务场景的完成率，也没有按系统版本或厂商 ROM 拆分。</p>
-        <p>更实用的做法是自建小基准：挑二十条多步任务，分别跑 Flash 和 Pro，记录完成率、平均步数、人工接管次数。这个基准跑两周，比看任何公开数字都准。</p>
+        <p>更实用的做法是自建小基准：挑二十条多步任务，分别跑 Flash 和 Pro，记录完成率、平均步数、人工接管次数。这个基准跑两周，比看任何公开数字都准。记录时把「失败原因分类」一起留下，区分定位失败、断言失败、环境失败三类，之后优化才有靶子。</p>
 
         <h2>五、无障碍 helper：它和 UiAutomator 路线的分歧点</h2>
         <p>首次在某台设备上执行任务时，ARTEMIS 会装一个小型无障碍服务，用来读取屏幕布局。原文说明它不占用 UiAutomation 连接；而使用 UiAutomation 的工具需要开启 FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES，否则可能让它暂停。它在手机上表现为一条折叠通知和设置里的无障碍条目，且只监听回环地址，不向外发数据。</p>
@@ -116,7 +117,217 @@ uv run artemis helper status</code></pre>
         <p>控制台适合人工探索，投屏加自然语言下发，边看边改。MCP 适合泡在 IDE 里的场景，改完代码直接让 Agent 上机复现。命令行和 SDK 适合重复执行：SDK 给的是基于 Pydantic 的强类型结果，可接进 pytest 或流水线，断言落在任务结果与关键步骤上。</p>
         <p>这条路线值得照搬：先用 MCP 手动探索，确认流程能走通；再把稳定路径改写成 SDK 调用加断言；最后只把固化用例放进 CI。断言怎么写才不脆，<a class="ilink" href="ai-agent-testing-advanced.html">Agent 测试</a> 里那套轨迹分层思路可以直接用，只是把工具调用换成设备操作。</p>
 
-        <h2>七、踩坑与不适用场景</h2>
+        <h2>七、用自建小基准替代看公开数字</h2>
+        <p>公开完成率只能当参考，能指导决策的是自己那二十条任务。下面的脚本就是这份基准的执行器：按 Flash 与 Pro 各跑一遍，记录完成率、平均步数、人工接管次数，并把失败原因分成定位失败、断言失败、环境失败三类。它调用的是 ARTEMIS 的命令行入口，跑前请先确认 <code>uv run artemis run</code> 在本机能通。</p>
+        <div class="code-head"><span>python · demo_artemis_bench.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>"""自建移动端 Agent 小基准：同一批任务分别跑 Flash 与 Pro，出对比表。
+
+用途：用自己业务里的任务验证完成率与稳定性，替代参考公开数字。
+依赖：Python 3.9+，仅标准库；本机已装 uv 与 ARTEMIS，设备已连接。
+运行：
+    python demo_artemis_bench.py tasks.json
+    python demo_artemis_bench.py tasks.json --profiles flash --repeat 2 --timeout 180
+"""
+
+import argparse
+import json
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+# 失败原因分类：定位不到元素、结果不符预期、环境或工具本身出错
+FAIL_KINDS = ("定位失败", "断言失败", "环境失败")
+
+
+def read_record(path):
+    """读取 ARTEMIS 落盘的执行记录：目标元素是否存在，决定是否算定位失败。"""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"resolved": None, "reason": "记录缺失或格式不对"}
+    hit = data.get("target_found")
+    return {"resolved": bool(hit), "reason": data.get("reason", "")}
+
+
+def classify(output, code, record):
+    """返回 (失败类型, 依据说明)。先看记录里的定位结果，再看输出关键字，不猜。"""
+    if code == 0:
+        return None, "正常结束"
+    if record["resolved"] is False:
+        return "定位失败", "记录显示目标元素未被定位"
+    if record["resolved"] is True:
+        return "断言失败", "元素已定位但结果不符预期"
+    # 记录缺失时只做关键字提示，明确标注为推断，避免归因过强
+    text = output.lower()
+    if re.search(r"element|bounds|not found|定位", text):
+        return "断言失败", "按输出关键字推断，记录缺失"
+    return "环境失败", record["reason"] or "记录缺失，按环境问题处理"
+
+
+def run_task(task, profile, timeout, record_dir):
+    """跑一条任务，返回 (是否成功, 失败类型, 依据, 耗时秒, 输出片段)。"""
+    cmd = ["uv", "run", "artemis", "run", task["instruction"], "--profile", profile]
+    started = time.time()
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True,
+                              timeout=timeout, encoding="utf-8", errors="ignore")
+        code, out = proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+    except subprocess.TimeoutExpired:
+        return False, "环境失败", "执行超时，可能是设备卡住或弹窗阻塞", timeout, ""
+    except FileNotFoundError:
+        print("[失败] 找不到 uv 命令，请先确认环境", file=sys.stderr)
+        raise SystemExit(2)
+
+    record = read_record(Path(record_dir) / ("%s.json" % task.get("id")))
+    kind, basis = classify(out, code, record)
+    cost = round(time.time() - started, 1)
+    return code == 0, kind, basis, cost, out[-300:]
+
+
+def main():
+    ap = argparse.ArgumentParser(description="ARTEMIS 小基准执行器")
+    ap.add_argument("tasks", help="任务清单 JSON，见示例结构")
+    ap.add_argument("--profiles", default="flash,pro", help="要对比的模式")
+    ap.add_argument("--repeat", type=int, default=1, help="每条任务重复次数")
+    ap.add_argument("--timeout", type=int, default=120, help="单条任务超时秒数")
+    ap.add_argument("--out", default="bench_result.json", help="结果输出文件")
+    ap.add_argument("--records", default="records", help="ARTEMIS 执行记录目录")
+    args = ap.parse_args()
+
+    if not shutil.which("uv"):
+        print("[失败] 未找到 uv，请先安装后再跑", file=sys.stderr)
+        return 2
+
+    tasks = json.loads(Path(args.tasks).read_text(encoding="utf-8"))
+    if not isinstance(tasks, list) or not tasks:
+        print("[失败] 任务清单应是非空数组，每项含 id 与 instruction")
+        return 2
+
+    summary = {}
+    for profile in [p.strip() for p in args.profiles.split(",") if p.strip()]:
+        records = []
+        for task in tasks:
+            for round_no in range(args.repeat):
+                ok, kind, basis, cost, tail = run_task(
+                    task, profile, args.timeout, args.records)
+                records.append({"id": task.get("id"), "round": round_no + 1,
+                                "ok": ok, "fail_kind": kind, "basis": basis,
+                                "seconds": cost, "tail": tail})
+                mark = "通过" if ok else "失败(%s)" % kind
+                print("[%s] %s 第 %d 次：%s，%.1fs" % (
+                    profile, task.get("id"), round_no + 1, mark, cost))
+
+        total = len(records)
+        passed = sum(1 for r in records if r["ok"])
+        kinds = {k: sum(1 for r in records if r["fail_kind"] == k) for k in FAIL_KINDS}
+        summary[profile] = {
+            "total": total,
+            "passed": passed,
+            "pass_rate": round(passed / total, 3) if total else 0.0,
+            "avg_seconds": round(sum(r["seconds"] for r in records) / total, 1) if total else 0.0,
+            "fail_breakdown": kinds,
+            "records": records,
+        }
+
+    Path(args.out).write_text(json.dumps(summary, ensure_ascii=False, indent=2),
+                              encoding="utf-8")
+
+    print("\n%-8s %6s %8s %8s  %s" % ("模式", "样本", "完成率", "平均耗时", "失败分类"))
+    for profile, item in summary.items():
+        kinds = " ".join("%s=%d" % (k, v) for k, v in item["fail_breakdown"].items() if v)
+        print("%-8s %6d %7.0f%% %7.1fs  %s" % (
+            profile, item["total"], item["pass_rate"] * 100,
+            item["avg_seconds"], kinds or "无"))
+
+    # 完成率低于八成说明流程本身不稳定，先把失败分类最多的那类修掉
+    low = [p for p, v in summary.items() if v["pass_rate"] < 0.8]
+    if low:
+        print("\n[提示] %s 完成率低于 80%%，优先看失败分类最多的原因" % "、".join(low))
+    print("明细已写入 %s" % args.out)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+</code></pre>
+        <p>任务清单就一张 JSON，写法如下。二十条足够看出差异，不必求多。</p>
+        <div class="code-head"><span>json · tasks.json</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>[
+  {"id": "T01", "instruction": "打开系统设置，找到电池选项并告诉我当前电量"},
+  {"id": "T02", "instruction": "打开计算器，计算 128 乘以 37，告诉我结果"},
+  {"id": "T03", "instruction": "打开时钟应用，新建一个 5 分钟后的闹钟"}
+]
+</code></pre>
+        <p>失败分类比完成率更有用。定位失败多，说明界面元素结构对工具不友好，要查后端是 helper 还是 UiAutomator2；断言失败多，说明提示词对验收标准说得不够具体；环境失败多，多半是弹窗、锁屏、熄屏这类前置条件没固定。三类问题的修法完全不同，混在「失败」两个字里就永远修不完。</p>
+
+        <h2>八、把稳定路径固化成 pytest 断言</h2>
+        <p>探索阶段用 Agent，回归阶段必须用断言。ARTEMIS 的 SDK 返回强类型结果，可以接进 pytest：一条用例只断言任务成功与关键步骤里的文案，不断言整个界面树。下面的写法是最小骨架，具体导入路径以你安装的版本为准，跑之前先按官方文档核对一次。</p>
+        <div class="code-head"><span>python · test_artemis_smoke.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>"""把 ARTEMIS 跑通过的稳定路径固化成回归断言。
+
+用途：探索阶段确认流程之后，用 pytest 守住在 CI 里可以重复执行的那部分。
+依赖：Python 3.9+；pip install pytest；本机已装 ARTEMIS 且设备已连接。
+运行：
+    pytest test_artemis_smoke.py -v
+    ARTEMIS_PROFILE=pro pytest test_artemis_smoke.py -v
+"""
+
+import os
+
+import pytest
+
+# 具体模块名以所用版本为准，装好后先确认导入路径
+from artemis import ArtemisClient
+
+PROFILE = os.environ.get("ARTEMIS_PROFILE", "flash")
+
+
+@pytest.fixture(scope="module")
+def client():
+    """一个模块共用一个客户端，避免每条用例重复连设备。"""
+    try:
+        with ArtemisClient(profile=PROFILE) as cli:
+            yield cli
+    except Exception as exc:                       # 环境没通就整组跳过，不误报业务缺陷
+        pytest.skip("设备或 ARTEMIS 不可用：%s" % exc)
+
+
+def test_battery_option_visible(client):
+    """设置里能看到电池入口，验证的是定位与文案，不校验具体数值。"""
+    result = client.run("打开系统设置，进入电池页面")
+    assert result.success, "任务未完成，轨迹：%s" % result.trace_url
+    texts = [step.text for step in result.steps if step.text]
+    assert any("电池" in t for t in texts), "关键步骤里没出现电池字样，疑似页面改版"
+
+
+def test_calculator_multiply(client):
+    """计算器乘法，断言落在结果值上，比断言界面结构稳。"""
+    result = client.run("打开计算器，计算 128 乘以 37，告诉我结果")
+    assert result.success, "任务未完成"
+    assert "4736" in (result.answer or ""), "结果不符，实际：%r" % result.answer
+</code></pre>
+        <p>两条用例覆盖了两种断言思路：前者断言关键步骤里出现了业务文案，页面改版时会失败，提醒你修用例；后者断言结果值，只要业务对就稳。设备没通时整组跳过而不是报红，避免把环境问题记成产品缺陷，这一点在 CI 里尤其重要。</p>
+
+        <h2>九、排错清单：先分清是设备层还是模型层</h2>
+        <p>故障现象大多长得像「任务没跑完」，实际原因散落在设备、helper、指令三层。按顺序排查比随机试快得多。</p>
+        <table>
+          <thead>
+            <tr><th>症状</th><th>可能原因</th><th>验证命令</th><th>处理方式</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>首个任务慢约三秒</td><td>现场安装 helper</td><td>uv run artemis helper status</td><td>提前执行 helper install</td></tr>
+            <tr><td>元素读取失败</td><td>第三方工具占用了 UiAutomation</td><td>检查其他工具的标志位设置</td><td>给本工具加 FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES</td></tr>
+            <tr><td>跨机型弹窗打断</td><td>权限、更新、安全中心弹窗不在应用内</td><td>按机型逐台走一遍确认弹窗</td><td>把跨机型差异写进前置步骤，单独验证</td></tr>
+            <tr><td>用例一次过一次卡</td><td>后端回退到 UiAutomator2 后元素结构不同</td><td>看报告里记录的后端类型</td><td>统一后端，或把断言写成兼容两种结构</td></tr>
+            <tr><td>视觉定位点错位置</td><td>把视觉兜底当成了像素级判断</td><td>对比点前截图与元素树</td><td>视觉只用于找可点位置，样式断言另做</td></tr>
+            <tr><td>多设备行为漂移</td><td>并行调度能力未经验证</td><td>数任务日志里是否出现设备交叉</td><td>按单设备规划，多设备做串行</td></tr>
+          </tbody>
+        </table>
+
+        <h2>十、踩坑与不适用场景</h2>
         <ul>
           <li><strong>首个任务慢三秒左右。</strong>原因是现场装 helper，提前执行 helper install 即可。</li>
           <li><strong>第三方工具让 helper 停摆。</strong>同一台设备跑别的 UiAutomation 工具时注意那个标志位，否则会出现元素读取失败。</li>

@@ -4,20 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>mobile-mcp 实战：一句话在真机上跑用例 · 软件测试资料集</title>
-<meta name="description" content="用无障碍元素树替代反复截图，讲清 mobile-mcp 的接入门槛、取证闭环与不适合回归的边界。">
+<meta name="description" content="用无障碍元素树替代反复截图，讲清接入门槛、用例转步骤脚本、取证闭环与不适合回归的边界。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="../assets/style.css">
 <link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mobile-mcp-cases.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="软件测试资料集">
 <meta property="og:title" content="mobile-mcp 实战：一句话在真机上跑用例">
-<meta property="og:description" content="用无障碍元素树替代反复截图，讲清 mobile-mcp 的接入门槛、取证闭环与不适合回归的边界。">
+<meta property="og:description" content="用无障碍元素树替代反复截图，讲清接入门槛、用例转步骤脚本、取证闭环与不适合回归的边界。">
 <meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/mobile-mcp-cases.html">
 <meta property="og:locale" content="zh_CN">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="mobile-mcp 实战：一句话在真机上跑用例">
-<meta name="twitter:description" content="用无障碍元素树替代反复截图，讲清 mobile-mcp 的接入门槛、取证闭环与不适合回归的边界。">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"mobile-mcp 实战：一句话在真机上跑用例","description":"用无障碍元素树替代反复截图，讲清 mobile-mcp 的接入门槛、取证闭环与不适合回归的边界。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/mobile-mcp-cases.html","articleSection":"APP 自动化","keywords":"mobile-mcp, mcp, accessibility","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
+<meta name="twitter:description" content="用无障碍元素树替代反复截图，讲清接入门槛、用例转步骤脚本、取证闭环与不适合回归的边界。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"mobile-mcp 实战：一句话在真机上跑用例","description":"用无障碍元素树替代反复截图，讲清接入门槛、用例转步骤脚本、取证闭环与不适合回归的边界。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/mobile-mcp-cases.html","articleSection":"APP 自动化","keywords":"mobile-mcp, mcp, accessibility","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
 <meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -58,7 +58,7 @@
           <span class="post-cat">APP 自动化</span> <span class="post-fw">AI 框架</span>
           <span>2026-11-25</span>
           <span>·</span>
-          <span>8 min read</span>
+          <span>10 min read</span>
         </div>
         <h1>mobile-mcp 实战：一句话在真机上跑用例</h1>
         <button class="fav-btn" id="fav-btn" type="button" data-slug="mobile-mcp-cases">☆ 收藏</button>
@@ -66,12 +66,24 @@
 
       <div class="article-body">
         <p>做过移动端自动化的人都熟悉这种割裂：安卓一套 Espresso 或 Appium，iOS 一套 XCUITest，两套技术栈、两套选择器。真机插上测试架，驱动环境先配半天；脚本跟着版本走，界面一改版就成片飘红，时间多半花在维护脚本上。</p>
-        <p>mobile-mcp 换了个思路。它是 Mobile Next 团队开源的 MCP 服务器，Apache-2.0 协议，TypeScript 实现，一套工具覆盖 iOS 模拟器、iOS 真机、Android 仿真器与真机。底层是一个叫 mobilecli 的设备命令行，向下统一接管 adb 与 Xcode 通道，向上对任何 Agent 暴露同一组工具。</p>
+        <p>mobile-mcp 换了个思路。它是 Mobile Next 团队开源的 MCP 服务器，一套工具覆盖 iOS 模拟器、iOS 真机、Android 仿真器与真机。底层是一个叫 mobilecli 的设备命令行，向下统一接管 adb 与 Xcode 通道，向上对任何 Agent 暴露同一组工具。</p>
+        <p>但「一句话跑用例」这句话容易被读成「不需要设计」。真实情况是：指令越短，前置约束越要硬。下面从定位机制讲到接入、用例转步骤、取证与排错，最后给出两段脚本，把「口头指令」变成可核查、可复跑的结构化步骤。</p>
 
         <h2>一、它真正换掉的是定位方式</h2>
         <p>多数 AI 手机自动化方案走截图路线：隔几步截一次屏，看图认界面，再换算坐标去点。能跑，但慢，一步一张截图来回传；也贵，每张都是视觉 token，长流程下来额度烧得心疼。</p>
         <p>mobile-mcp 走无障碍优先。iOS 和 Android 都内置无障碍服务，应用每渲染一个界面，系统本身就在维护一棵元素树，控件类型、文案、坐标、是否可点全在里面。它把这棵树读出来交给 Agent，Agent 拿到的是一份结构化清单，要点哪个就按元素的 ref 点，全程不烧视觉 token，截图加坐标只作兜底。收益是快和稳：元素清单一次拿全，按 ref 点的是真实控件，界面轻微改版只要元素还在就不失效。</p>
         <p>代价也明确：自绘界面、游戏引擎渲染的页面、部分跨端框架页面，元素树可能缺项，只能退回坐标或视觉定位，稳定性立刻回到截图路线。原文未说明对 Flutter、Unity 这类页面的支持情况，接入前应拿自己的页面做小样本验证，通用定位方法见 <a class="ilink" href="app-element-locators.html">APP 元素定位</a>。</p>
+        <table>
+          <thead>
+            <tr><th>维度</th><th>按 ref 定位（元素树）</th><th>按坐标定位（截图）</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>上下文消耗</td><td>纯文本，一次拿全屏</td><td>每步一张图，视觉 token 高</td></tr>
+            <tr><td>改版容忍度</td><td>文字不变就不失效</td><td>分辨率与布局一变即失效</td></tr>
+            <tr><td>失败可读性</td><td>报「没找到某文案的元素」</td><td>报「点完没反应」，原因未知</td></tr>
+            <tr><td>适用界面</td><td>原生控件完整的常规页</td><td>自绘、游戏、元素缺失页</td></tr>
+          </tbody>
+        </table>
 
         <h2>二、按用例生命周期看这套工具</h2>
         <p>三十多个工具，按一条用例从准备到收尾的顺序看最清楚。</p>
@@ -98,13 +110,14 @@
   "mcpServers": {
     "mobile-mcp": {
       "command": "npx",
-      "args": ["-y", "@mobilenext/mobile-mcp@latest"]
+      "args": ["-y", "@mobilenext/mobile-mcp@1.0.12"]
     }
   }
 }</code></pre>
+        <p>注意这里没写 @latest。实验阶段追最新版没问题，一旦要进流水线就得锁版本，否则某天上游改了一个默认行为，你的用例会以「莫名其妙全红」的形式告诉你。</p>
         <p>Claude Code 用户可用一条命令代替配置文件，配完发一句 list available devices，能列出在线设备就说明通路正常。</p>
         <div class="code-head"><span>bash · 安装与验证</span><button class="copy-btn" type="button">复制</button></div>
-        <pre><code>claude mcp add mobile-mcp -- npx -y @mobilenext/mobile-mcp@latest
+        <pre><code>claude mcp add mobile-mcp -- npx -y @mobilenext/mobile-mcp@1.0.12
 
 # Android 真机三步
 adb devices
@@ -122,31 +135,266 @@ xcodebuild -project WebDriverAgent.xcodeproj -scheme WebDriverAgentRunner \
         <h2>四、用例写成一句话，比写成脚本更难</h2>
         <p>原文的两条示例很有代表性：一条安装冒烟，要求装包、注册、走引导、下单、全程录屏，结束后检查崩溃；一条探索式回归，要求搜索、播放、点赞、评论，换关键词重复三轮，并记录每轮耗时。</p>
         <p>写这类指令有两个要点。目标要具体，注册一个账号走完引导下一单，远好于测试注册功能，后者只能让模型自己猜。取证要求直接写进指令，录屏、崩溃检查、耗时统计一次跑完一次交齐，别等 Agent 收工再补。这也是它跟脚本的差别：脚本定义每一步，指令只定义验收结果，好处是覆盖你想不到的路径，坏处是两次跑出来的路径可能不同。</p>
+        <p>「路径可能不同」这一点，决定了用例不能只写成一句自然语言就丢进流水线。稳妥做法是中间加一层：把自然语言用例翻译成步骤 JSON，人先审一遍，再让 Agent 照步骤执行。这样既保留了模型对界面变化的适应力，又让每次执行有共同基线可比对。</p>
+        <table>
+          <thead>
+            <tr><th>写法</th><th>可复跑性</th><th>覆盖未知路径</th><th>适合放在哪</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>一句自然语言</td><td>低，两次路径可能不同</td><td>强</td><td>人工探索、临时验证</td></tr>
+            <tr><td>步骤 JSON + Agent 执行</td><td>中，步骤固定但定位自适应</td><td>中</td><td>每日冒烟、发版前回归</td></tr>
+            <tr><td>固化脚本（Appium 等）</td><td>高</td><td>无</td><td>每次提交都跑的确定性回归</td></tr>
+          </tbody>
+        </table>
 
-        <h2>五、取证是它最被低估的能力</h2>
+        <h2>五、把用例翻成步骤：一个校验脚本</h2>
+        <p>步骤 JSON 的字段不用多，够描述动作与验收就行。麻烦在于人写的 JSON 经常少字段、动作名拼错、断言写成自然语言，等到执行时才炸。下面这个脚本在提交前把结构性问题一次挑出来。</p>
+        <div class="code-head"><span>python · demo_case_lint.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>"""校验 mobile-mcp 步骤用例的结构，拦住少字段、错动词、空断言。
+
+用途：把自然语言用例落成 steps.json 之后、交给 Agent 执行之前跑一遍。
+依赖：Python 3.8+，仅标准库。
+运行（Windows 下反斜杠双写避免转义警告，通配符加引号交给 shell 展开）：
+    python demo_case_lint.py cases\\login_smoke.json
+    python demo_case_lint.py "cases\\*.json" --strict
+"""
+
+import argparse
+import glob
+import json
+import sys
+from pathlib import Path
+
+# 只允许这几种动作，避免出现「滑动一下」「随便点点」这类无法执行的说法
+ACTIONS = {"launch", "tap", "type", "swipe", "back", "wait", "assert_text", "screenshot"}
+REQUIRED = {"action", "target"}
+LIMIT_STEPS = 40        # 单条用例步数上限，过长说明该拆成两条
+
+
+def check_case(case):
+    """返回问题列表，空列表代表通过。"""
+    problems = []
+    if not case.get("name"):
+        problems.append("缺少 name，缺陷单里没法指认是哪条用例")
+    steps = case.get("steps")
+    if not isinstance(steps, list) or not steps:
+        return problems + ["steps 必须是非空数组"]
+    if len(steps) &gt; LIMIT_STEPS:
+        problems.append("步数 %d 超过上限 %d，建议拆分" % (len(steps), LIMIT_STEPS))
+
+    has_assert = False
+    for idx, step in enumerate(steps, 1):
+        where = "第 %d 步" % idx
+        if not isinstance(step, dict):
+            problems.append("%s 不是对象" % where)
+            continue
+        missing = REQUIRED - set(k for k, v in step.items() if v not in (None, ""))
+        if missing:
+            problems.append("%s 缺少字段：%s" % (where, "、".join(sorted(missing))))
+        action = step.get("action")
+        if action and action not in ACTIONS:
+            problems.append("%s 动作 %s 不在允许列表内" % (where, action))
+        if action == "assert_text":
+            has_assert = True
+            if not step.get("expect"):
+                problems.append("%s 断言缺少 expect" % where)
+        if action == "type" and "text" not in step:
+            problems.append("%s 输入动作缺少 text" % where)
+    if not has_assert:
+        problems.append("整条用例没有 assert_text，跑完无法判断成败")
+    return problems
+
+
+def main():
+    ap = argparse.ArgumentParser(description="校验 mobile-mcp 步骤用例")
+    ap.add_argument("paths", nargs="+", help="用例文件或通配符")
+    ap.add_argument("--strict", action="store_true", help="出现任何问题即以非零码退出")
+    args = ap.parse_args()
+
+    files = []
+    for pattern in args.paths:
+        files.extend(sorted(glob.glob(pattern)))
+    if not files:
+        print("[失败] 没有匹配到任何用例文件")
+        return 2
+
+    total_bad = 0
+    for name in files:
+        path = Path(name)
+        try:
+            case = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            print("[语法错误] %s：%s" % (path.name, exc))
+            total_bad += 1
+            continue
+        problems = check_case(case)
+        if problems:
+            total_bad += 1
+            print("[不合格] %s" % path.name)
+            for item in problems:
+                print("  - " + item)
+        else:
+            print("[通过] %s，共 %d 步" % (path.name, len(case["steps"])))
+
+    print("检查 %d 个文件，%d 个有问题" % (len(files), total_bad))
+    return 1 if (total_bad and args.strict) else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+</code></pre>
+        <p>允许列表这个设计是重点。自然语言里「滑动一下」可以有十种实现，写成 swipe 就必须给出起止点与方向，模糊空间被压掉了。断言必须落在 expect 上，也是同一个道理：没有 expect 的步骤，执行完只能靠人看截图判断。</p>
+        <p>一个通过校验的用例长这样，字段少但每个都有用。</p>
+        <div class="code-head"><span>json · login_smoke.json</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>{
+  "name": "登录冒烟",
+  "device": "emulator-5554",
+  "steps": [
+    {"action": "launch", "target": "com.example.shop"},
+    {"action": "tap", "target": "我的"},
+    {"action": "tap", "target": "登录"},
+    {"action": "type", "target": "手机号", "text": "13800000000"},
+    {"action": "type", "target": "密码", "text": "qa-demo-only"},
+    {"action": "tap", "target": "登录", "note": "提交按钮与标签同文案，靠位置区分"},
+    {"action": "assert_text", "target": "首页", "expect": "欢迎回来"},
+    {"action": "screenshot", "target": "首页"}
+  ]
+}</code></pre>
+        <p>注意 target 写的是界面上的文案而不是选择器。这是这套方案的核心：位置交给模型按元素树现场找，你只声明想点哪个词。代价是文案改了就失效，所以断言与 target 都应该跟着产品文案一起维护。</p>
+
+        <h2>六、执行侧留证据：adb 兜底巡检脚本</h2>
+        <p>Agent 跑完一轮，你需要一份不依赖模型的客观记录：设备还在不在、App 有没有崩、当前停在哪一屏。这些用 adb 就能拿到，且不受模型判断影响，正好做交叉验证。</p>
+        <div class="code-head"><span>python · demo_post_run_check.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>"""跑完用例后的客观巡检：设备状态、进程存活、崩溃、当前界面。
+
+用途：与 Agent 的自述结论交叉验证，避免「模型说成功其实是停在了别处」。
+依赖：Python 3.8+，adb 在 PATH 中，设备已授权。
+运行：
+    python demo_post_run_check.py --package com.example.shop
+    python demo_post_run_check.py --package com.example.shop --serial emulator-5554 --out check.json
+"""
+
+import argparse
+import json
+import subprocess
+import sys
+
+
+def adb(serial, *args, timeout=20):
+    """统一的 adb 调用，返回 (返回码, 输出文本)。"""
+    cmd = ["adb"] + (["-s", serial] if serial else []) + list(args)
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    except FileNotFoundError:
+        raise RuntimeError("找不到 adb，请先安装 Platform-Tools 并加入 PATH")
+    except subprocess.TimeoutExpired:
+        return 1, "命令超时：%s" % " ".join(cmd)
+    return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+
+
+def device_state(serial):
+    """设备是否仍以 device 状态在线。"""
+    code, out = adb(serial, "get-state")
+    return {"online": code == 0 and "device" in out, "raw": out.strip()}
+
+
+def process_alive(serial, package):
+    """用 pidof 判断主进程是否还在，空输出即已退出。"""
+    code, out = adb(serial, "shell", "pidof", package)
+    return {"alive": bool(out.strip()), "pid": out.strip()}
+
+
+def focus_activity(serial):
+    """取当前前台窗口，用来看用例最后停在哪一屏。"""
+    code, out = adb(serial, "shell", "dumpsys", "window", "windows")
+    if code != 0:
+        return {"activity": "", "note": "dumpsys 无输出"}
+    for line in out.splitlines():
+        if "mCurrentFocus" in line:
+            return {"activity": line.strip(), "note": ""}
+    return {"activity": "", "note": "未找到 mCurrentFocus，可能是系统权限限制"}
+
+
+def crash_lines(serial, package, limit=20):
+    """抓最近的崩溃关键字，只留与目标包相关的行。"""
+    code, out = adb(serial, "logcat", "-d", "-v", "brief", "-b", "crash")
+    hits = [ln for ln in out.splitlines() if package in ln][-limit:]
+    return {"count": len(hits), "tail": hits}
+
+
+def main():
+    ap = argparse.ArgumentParser(description="用例执行后的设备巡检")
+    ap.add_argument("--package", required=True, help="被测应用包名")
+    ap.add_argument("--serial", default="", help="多设备时指定设备编号")
+    ap.add_argument("--out", default="post_run_check.json", help="巡检结果输出路径")
+    args = ap.parse_args()
+
+    report = {"package": args.package}
+    try:
+        report["device"] = device_state(args.serial)
+        if not report["device"]["online"]:
+            print("[失败] 设备不在线，后续检查跳过。先跑 adb devices 确认授权与连接")
+            return 2
+        report["process"] = process_alive(args.serial, args.package)
+        report["focus"] = focus_activity(args.serial)
+        report["crash"] = crash_lines(args.serial, args.package)
+    except RuntimeError as exc:
+        print("[失败] %s" % exc)
+        return 2
+
+    with open(args.out, "w", encoding="utf-8") as fh:
+        json.dump(report, fh, ensure_ascii=False, indent=2)
+
+    print("设备在线：%s" % report["device"]["online"])
+    print("进程存活：%s pid=%s" % (report["process"]["alive"], report["process"]["pid"]))
+    print("前台窗口：%s" % (report["focus"]["activity"] or "未知"))
+    print("崩溃记录：%d 条" % report["crash"]["count"])
+    print("结果已写入 %s" % args.out)
+
+    # 崩溃非零或进程已退出，视为需要人工复核
+    if report["crash"]["count"] or not report["process"]["alive"]:
+        print("[警告] 存在异常信号，请先看 %s 再相信执行结论" % args.out)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+</code></pre>
+        <p>这段脚本的价值在于它完全不依赖模型。模型说成功了，但前台窗口停在登录页、进程已经不在了、crash 缓冲里有十条记录，任何一个都足以推翻结论。三者都正常，才轮到相信「跑通了」。</p>
+        <p>有个细节要处理：crash 缓冲是环形滚动覆盖的，如果设备一直在跑别的任务，你的崩溃记录可能已经被冲掉。要么跑完立刻查，要么固定执行 clear 后再跑，别指望第二天还能捞回来。</p>
+
+        <h2>七、排错清单：症状、原因、验证与处理</h2>
+        <table>
+          <thead>
+            <tr><th>症状</th><th>可能原因</th><th>验证命令</th><th>处理方式</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>list available devices 返回空</td><td>设备未连上或未授权</td><td>adb devices</td><td>先修设备层，再重连 MCP 服务</td></tr>
+            <tr><td>能列设备，但操作无声失败</td><td>多台设备时未指定目标</td><td>adb devices -l</td><td>指令里写明设备名称或编号</td></tr>
+            <tr><td>找不到某个按钮</td><td>元素树未暴露，或文案已改</td><td>dumpsys window 或读屏自查</td><td>改用截图兜底，或推动开发补无障碍标签</td></tr>
+            <tr><td>点击后界面没变</td><td>点在父容器但未命中子控件</td><td>对比点击前后元素树 diff</td><td>改为按可见文字定位</td></tr>
+            <tr><td>iOS 真机连不上</td><td>隧道进程已退出、WDA 签名过期</td><td>ios list；看隧道终端是否还在</td><td>重启隧道，重跑 WDA 一次 Test</td></tr>
+            <tr><td>长流程后段开始胡说</td><td>上下文被元素清单塞满</td><td>观察对话轮次与长度</td><td>用 batch_commands 合并动作，拆成多条用例</td></tr>
+            <tr><td>进 CI 后结果忽好忽坏</td><td>用了 @latest，版本漂移</td><td>对比两次的包版本</td><td>锁定版本号，升级走单独验证</td></tr>
+            <tr><td>远程共享端口暴露</td><td>加了 --listen 未配鉴权</td><td>检查启动参数与 MOBILEMCP_AUTH</td><td>加 Bearer token，或只在本机监听</td></tr>
+          </tbody>
+        </table>
+
+        <h2>八、取证是它最被低估的能力</h2>
         <p>跑完一轮探索，直接问设备上有没有新增崩溃，Agent 会把崩溃列表和报告原文取回来，贴进缺陷单就是现成的复现材料，省去连 Xcode 翻日志的工夫。录屏同理，失败时的操作过程比一句报错有用。这套逻辑和 <a class="ilink" href="app-test-report.html">App 自动化报告</a> 里的三件套一致：截图看现场、录屏看过程、日志看原因。</p>
         <p>长流程要主动控上下文。元素清单比截图省，但来回几十轮一样吃满窗口，点击、输入、再点击这类固定组合就用 batch_commands 合并。</p>
+        <p>三个容易被忽略的运维细节。遥测默认开启，介意就设 MOBILEMCP_DISABLE_TELEMETRY=1，内网接入前先过安全评审。远程共享加 --listen 会把 MCP 变成 HTTP 服务，此时必须配鉴权，否则同网段任何人都能操作你的手机。iOS 免费账号签的 WDA 有有效期，过期只需重跑一次 Test，不是工具问题。</p>
 
-        <h2>六、五个容易踩的坑</h2>
-        <ul>
-          <li><strong>遥测默认开着。</strong>原文说明它走 PostHog 和 Scarf 做匿名统计，介意就设 MOBILEMCP_DISABLE_TELEMETRY=1，内网要先过安全评审。</li>
-          <li><strong>用 @latest 装包。</strong>好处是拿到最新修复，坏处是行为可能变。要进 CI 应锁版本，原文提到 1.0.12 于 10 月 18 日发布。</li>
-          <li><strong>iOS 签名过期。</strong>免费账号签的 WDA 有有效期，过期重跑一次 Test 即可，这是苹果的限制，跟工具无关。</li>
-          <li><strong>隧道被关掉。</strong>两个终端一关设备就掉线，报错通常与真实原因无关，排查先看进程还在不在。</li>
-          <li><strong>远程共享没加鉴权。</strong>加 --listen 3000 会把 MCP 转成 HTTP 服务，这时必须配 MOBILEMCP_AUTH 加 Bearer token。</li>
-        </ul>
-
-        <h2>七、哪些场景别指望它</h2>
-        <p>原文说得很直白：它擅长探索、冒烟、数据录入这类开放场景，替代不了确定性回归套件。要每次提交都跑的用例，得把探索出的路径固化下来，同团队的 mobilewright 就做这件事，接入流水线的方式见 <a class="ilink" href="app-cicd-integration.html">APP 测试 CI/CD</a>。</p>
-        <p>另外三种情况别硬上。需要精确数值基线的性能用例，它给的耗时只是粗略观测。需要多设备并发的场景，一个会话对应一台设备，调度得自己搭。合规要求高的项目，默认遥测加外部 npm 依赖这两点要先解决。</p>
-        <p>把它放对位置：探索和取证用它，回归和门禁用固化脚本。</p>
+        <h2>九、哪些场景别指望它</h2>
+        <p>原文说得很直白：它擅长探索、冒烟、数据录入这类开放场景，替代不了确定性回归套件。要每次提交都跑的用例，得把探索出的路径固化下来，接入流水线的方式见 <a class="ilink" href="app-cicd-integration.html">APP 测试 CI/CD</a>。</p>
+        <p>一个可执行的判断标准：如果这条用例失败后，你能从日志里一眼看出是产品问题还是定位问题，它适合交给 Agent；如果失败后还得人肉回放才知道发生了什么，就先补证据链，再谈自动化。工具能省掉写脚本的力气，省不掉对流程的理解。</p>
 
         <div class="sources">
           <h3>参考来源</h3>
           <ol>
-            <li><a href="https://mp.weixin.qq.com/s/RMVG_x0arVDglnOZboe1lQ" target="_blank" rel="noopener">测试开发技术 · GitHub上开源真机测试工具mobile-mcp，说句话就能让AI在手机上跑用例！</a></li>
+            <li><a href="https://mp.weixin.qq.com/s/NcfkszPn0A85pQEMbpn2ow" target="_blank" rel="noopener">逛逛GitHub · mobile-mcp：一句话让 AI 在真机上跑完整个测试用例。</a></li>
             <li><a href="https://github.com/mobile-next/mobile-mcp" target="_blank" rel="noopener">mobile-next/mobile-mcp — GitHub</a></li>
-            <li><a href="https://mobilenext.ai" target="_blank" rel="noopener">Mobile Next 官网</a></li>
           </ol>
         </div>
       </div>
@@ -154,8 +402,8 @@ xcodebuild -project WebDriverAgent.xcodeproj -scheme WebDriverAgentRunner \
       <footer class="article-foot">
         <div class="tag-row">
           <span class="tag">#mobile-mcp</span>
-          <span class="tag">#accessibility-tree</span>
-          <span class="tag">#real-device</span>
+          <span class="tag">#mcp</span>
+          <span class="tag">#accessibility</span>
         </div>
         <a class="back-link" href="../index.html#posts">← 返回文章列表</a>
       </footer>

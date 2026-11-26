@@ -70,8 +70,20 @@
         <p>Droy 换了个思路：把整套 DeepSeek Harness 运行时连同运行环境一起封进安装包，填好 API Key、拔掉数据线就能独立跑。按原文记录，它当时是 v0.0.3，AGPL-3.0 协议，356 个 star，由个人开发者维护，并非 DeepSeek 官方出品。版本号这么早，更适合当工程样本来读。</p>
 
         <h2>一、为什么安卓 Agent 总被一根数据线拴住</h2>
-        <p>传统做法的耦合点在「谁持有执行能力」：ADB 方案里执行权在电脑侧的守护进程，手机只是被操控的终端；网页壳方案里干脆没有执行权。于是 Agent 的可用性会随一条线、一台机器、一个进程的存活状态波动。</p>
+        <p>传统做法的耦合点在「谁持有执行能力」：ADB 方案里执行权在电脑侧的守护进程，手机只是被操控的终端；网页壳方案里干脆没有执行权，只能聊天不能点屏幕。于是 Agent 的可用性会随一条线、一台机器、一个进程的存活状态波动：电脑休眠、隧道掉线、adb server 被别的工具抢了端口，任务就在半路断掉。</p>
         <p>搬进 APK 后，模型调用、任务规划、动作派发合并到一个进程。原文提到安装包已带好运行环境，手机不需要另装 Node、npm 或 DSH。少一层外部依赖，就少一类环境没配对导致的故障。</p>
+        <p>三种形态的差别放进一张表更清楚。判断依据不是「谁更先进」，而是你的任务需不需要跨机器调度。</p>
+        <table>
+          <thead>
+            <tr><th>形态</th><th>执行能力归属</th><th>断链后果</th><th>适合的场合</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>ADB 隧道</td><td>电脑侧守护进程</td><td>拔线、合盖即失效</td><td>多设备并发、CI 跑批、借桌面算力</td></tr>
+            <tr><td>网页壳 / 云手机</td><td>无系统级执行权</td><td>不受影响，但只能看不能点</td><td>只做问答、只读信息</td></tr>
+            <tr><td>打包进 APK</td><td>应用进程内</td><td>受系统杀后台影响</td><td>单人单机、离线、随身场景</td></tr>
+          </tbody>
+        </table>
+        <p>反例也要说清：如果你的目标是「二十台真机并发跑回归」，APK 方案反而是劣势——每台手机都要单独安装、单独授权、单独填 Key，调度成本远高于一台主机挂二十条 adb。Droy 这类方案解决的是「一台手机自己能动」，不是「一群手机被你管」。判断条件可以简化成一句话：任务发起时人不在电脑前，APK 方案才有净收益。</p>
 
         <h2>二、三层架构拆开，测试该盯住哪一层</h2>
         <p>原文把工程拆成交互层、引擎层、执行层。三层的不确定性来源不同，能施加的控制手段也不同。</p>
@@ -87,13 +99,259 @@
         </table>
         <p>引擎层最难测：模型是黑盒，工具是真实系统接口，时序还受手机性能影响。执行层最好测，它有明确的前置校验和拒绝路径，可以把每条限制写成负向用例。交互层最该验证的不是界面，而是急停能否在任意时刻生效——Agent 在后台切应用时，用户只剩这一个刹车。</p>
         <p>团队若要照着做，建议先把引擎层的动作序列当成<a class="ilink" href="ai-agent-testing-advanced.html">轨迹断言</a>的对象：顺序、参数、终止各断一层，而不是只看最后一句回复。</p>
+        <p>先测哪层有个简单依据：越接近「确定性接口」的层越好测，也越该先测。执行层的校验是纯判断——有没有授权、快照是否同源、坐标是否在范围内，给定输入必然得到同一结果，几十分钟就能写完一轮负向用例。引擎层的输出依赖模型采样，同一句话两次可能给出不同动作序列，只能用不变量去断言：步数不超上限、危险工具必须带审批、终止原因必须是枚举之一。</p>
+        <p>反过来说，如果大部分用例压在交互层截图上，投入产出比会很低：UI 改一版配色就全红，而真正的越权风险一条都没覆盖。原文三层拆分最大的价值，是让「这条用例在测哪一层的不确定性」变成一句必须回答的话。</p>
 
-        <h2>三、坐标动作为什么必须绑快照和允许范围</h2>
+        <h2>三、环境准备：真机、驱动与三种授权路径</h2>
+        <p>原文给出的运行条件是 Android 11 以上、ARM64、竖屏。这三条不是建议而是硬门槛：低于 11 拿不到部分无障碍接口，32 位包跑不了内嵌运行时，横屏下坐标映射会错。装机前先用命令确认，别等装完再猜。</p>
+        <div class="code-head"><span>bash · 装机前五项自检</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>adb devices                                   # 必须是 device，不是 unauthorized
+adb shell getprop ro.build.version.release    # 期望 11 及以上
+adb shell getprop ro.product.cpu.abi          # 期望 arm64-v8a
+adb shell wm size                             # 记下分辨率，后面校验坐标要用
+adb shell dumpsys window | grep mCurrentFocus # 确认前台窗口，排错第一步</code></pre>
+        <p>授权有三条路径，能力和风险完全不同。上线前必须选定一条，并把它写进测试范围，而不是笼统记一句「已授权」。</p>
+        <table>
+          <thead>
+            <tr><th>路径</th><th>能做到</th><th>稳定性</th><th>主要风险</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>无障碍服务</td><td>读节点树、点按、滑动</td><td>较高，系统升级可能改接口</td><td>被系统判定为辅助功能滥用</td></tr>
+            <tr><td>Shizuku</td><td>跨应用注入、模拟输入</td><td>中，需常驻进程</td><td>服务掉线后动作全失败</td></tr>
+            <tr><td>Root</td><td>进程内存读写、系统级改写</td><td>视机型而定</td><td>权限无边界，误操作代价高</td></tr>
+          </tbody>
+        </table>
+        <p>选择依据是能力需求，不是「哪条最强」：只要点按和读屏，无障碍够用也最安全；需要跨应用注入才考虑 Shizuku；要读写别的进程内存，没有 Root 就没有替代方案。三条路径对应三套用例，混在一起测等于三条都没测透。</p>
+        <p>保活是第四个前置条件。国产系统对后台进程很激进，原文要求把引擎加入电池优化白名单、允许后台运行、并在最近任务里加锁。这一条测不了功能，但测得出稳定性：任务跑到一半锁屏、切到别的应用、搁置十分钟再回来，看任务是否还在推进。放置测试失败往往不是 Agent 逻辑问题，而是进程已经被回收。</p>
+
+        <h2>四、先快照后动作：把界面变成结构化清单</h2>
+        <p>「先快照、后动作」落到命令只有两步：<code>uiautomator dump</code> 把当前窗口导出成 XML，再解析 XML 拿到每个节点的可点状态与坐标。这一步做扎实，后面的动作分发才有依据；做不扎实，模型给出的编号与坐标都对不上真实界面。</p>
+        <p>下面这段是闭环里的观察端：抓 XML、算 snapshotId、过滤不可交互节点、按面积排序后重新编号，输出结构化 JSON。</p>
+        <div class="code-head"><span>python · demo_ui_snapshot.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>"""抓取安卓当前界面快照，输出结构化 JSON，供 Agent 选择动作目标。
+
+用途：把 uiautomator dump 的 XML 变成「带编号的可交互元素清单 + 内容哈希」。
+依赖：Python 3.8+，adb 在 PATH 中，设备已授权 USB 调试。
+运行：
+    python demo_ui_snapshot.py
+    python demo_ui_snapshot.py --only-clickable --min-area 400 --top 30 --out snapshot.json
+"""
+
+import argparse
+import hashlib
+import json
+import re
+import subprocess
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+REMOTE_XML = "/sdcard/ui_snapshot.xml"
+
+
+def adb(args, timeout=30):
+    """执行 adb 命令，非零返回码直接抛错，附带命令原文方便排查。"""
+    cmd = ["adb"] + args
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    if proc.returncode != 0:
+        raise RuntimeError("adb 失败：%s\n%s" % (" ".join(cmd), proc.stderr.strip()))
+    return proc.stdout
+
+
+def pull_xml(serial):
+    """导出界面并拉回本机，返回 XML 文本与临时文件路径。"""
+    base = (["-s", serial] if serial else [])
+    adb(base + ["shell", "uiautomator", "dump", REMOTE_XML])
+    local = Path(tempfile.gettempdir()) / "ui_snapshot.xml"
+    adb(base + ["pull", REMOTE_XML, str(local)])
+    return local.read_text(encoding="utf-8", errors="ignore"), local
+
+
+def bounds_of(node):
+    """解析 bounds 属性，返回 (x1, y1, x2, y2)；格式异常返回 None。"""
+    nums = [int(n) for n in re.findall(r"-?\d+", node.get("bounds") or "")]
+    return tuple(nums) if len(nums) == 4 else None
+
+
+def walk(node, only_clickable, min_area, out):
+    """递归收集节点，按面积从大到小过滤，保证模型优先看到主控件。"""
+    box = bounds_of(node)
+    if box:
+        x1, y1, x2, y2 = box
+        area = max(0, x2 - x1) * max(0, y2 - y1)
+        clickable = node.get("clickable") == "true"
+        text = (node.get("text") or "").strip()
+        desc = (node.get("content-desc") or "").strip()
+        wanted = clickable if only_clickable else (clickable or text or desc)
+        if wanted and area &gt;= min_area:
+            out.append({
+                "text": text,
+                "desc": desc,
+                "type": node.get("class", "").rsplit(".", 1)[-1],
+                "clickable": clickable,
+                "area": area,
+                "center": [(x1 + x2) // 2, (y1 + y2) // 2],
+            })
+    for child in node:
+        walk(child, only_clickable, min_area, out)
+
+
+def main():
+    ap = argparse.ArgumentParser(description="导出可交互元素快照")
+    ap.add_argument("--serial", default="", help="多设备时指定 adb 设备编号")
+    ap.add_argument("--only-clickable", action="store_true", help="只要可点击节点")
+    ap.add_argument("--min-area", type=int, default=0, help="面积阈值，过滤碎节点")
+    ap.add_argument("--top", type=int, default=0, help="只保留面积最大的前 N 个")
+    ap.add_argument("--out", default="snapshot.json", help="输出文件")
+    args = ap.parse_args()
+
+    try:
+        xml_text, local = pull_xml(args.serial)
+        root = ET.fromstring(xml_text)
+    except RuntimeError as exc:
+        print("[失败] 取快照出错：%s" % exc)
+        print("排查：adb devices 是否 device 状态；无障碍服务是否被系统断开")
+        return 2
+    except ET.ParseError as exc:
+        print("[失败] XML 解析失败，可能抓到了动画中间态：%s" % exc)
+        return 2
+
+    items = []
+    walk(root, args.only_clickable, args.min_area, items)
+    items.sort(key=lambda it: it["area"], reverse=True)
+    if args.top &gt; 0:
+        items = items[:args.top]
+    for idx, item in enumerate(items, 1):
+        item["ref"] = idx          # 编号由排序后重新生成，模型只认这份编号
+
+    snapshot = {
+        "snapshotId": hashlib.sha256(xml_text.encode("utf-8")).hexdigest()[:12],
+        "elementCount": len(items),
+        "elements": items,
+    }
+    Path(args.out).write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    print("快照 %s，元素 %d 个，已写入 %s" % (snapshot["snapshotId"], len(items), args.out))
+    for item in items[:10]:
+        print("  #%d %s %s @%s" % (item["ref"], item["type"],
+                                   item["text"] or item["desc"], item["center"]))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+</code></pre>
+        <p>参数怎么取值：<code>--only-clickable</code> 适合只要点入口的回归，能砍掉大半噪音；<code>--min-area 400</code> 用来过滤贴边碎节点和图标角标，20×20 以下基本点不准；<code>--top 30</code> 在长列表页很有用，因为模型看到的清单越长，选错编号的概率越高。三个参数一起用，等于替模型做了一次注意力裁剪。</p>
+        <p>snapshotId 用 XML 内容的哈希而不是时间戳，是有意为之：内容没变哈希就不变，正好用来判断「界面到底动没动」，也避免重复抓取产生的假变化。按以下步骤运行：先 <code>adb devices</code> 确认设备在线，再带 <code>--out snapshot.json</code> 执行，最后打开 JSON 核对 <code>elementCount</code> 与肉眼看到的是否一致。差得多通常是 dump 抓到了动画中间态，加一次重试即可；若 <code>elements</code> 为空而界面正常，先查无障碍服务是否连通。</p>
+
+        <p>快照解决的是「看」，另一半是「点」。原文的派发顺序是：模型在清单里选编号，编号反查坐标，执行前核对允许范围与快照是否同源。下面这段是分发端的最小实现，和上面的快照脚本配对使用：它读快照、把编号换成坐标、模拟 <code>input tap</code>，并拦住越界编号与坐标跑出屏外的两种错。</p>
+        <div class="code-head"><span>python · demo_action_dispatch.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>"""把模型选出的元素编号翻译成真实坐标并派发点击，先做两道核对。
+
+用途：与 demo_ui_snapshot.py 配套，验证编号到坐标的转换链路是否可靠。
+依赖：Python 3.8+，adb 在 PATH 中，设备已授权。
+运行：
+    python demo_action_dispatch.py --serial emulator-5554 --plan plan.json
+    python demo_action_dispatch.py --plan plan.json --dry-run
+"""
+
+import argparse
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+
+def load_snapshot(path):
+    """读快照文件，结构不对直接拦下，不让编号去碰一个不可信的清单。"""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print("[失败] 快照读不了：%s" % exc)
+        print("先跑一次 demo_ui_snapshot.py 生成 snapshot.json")
+        raise SystemExit(2)
+    if "elements" not in data or "snapshotId" not in data:
+        print("[失败] 快照缺 elements 或 snapshotId，文件不完整")
+        return 2
+    return data
+
+
+def dispatch(serial, items, plan, dry_run, width=0, height=0):
+    """按计划里的编号逐个点击，越界与出屏都拦下。"""
+    refs = {it["ref"] for it in items}
+    results = []
+    for step in plan:
+        ref = step.get("ref")
+        if ref not in refs:
+            results.append({"ref": ref, "ok": False, "why": "编号不在当前快照里"})
+            print("[拦截] 第 %d 步编号 %s 越界，停止派发" % (step.get("i", 0), ref))
+            break
+
+        item = next(it for it in items if it["ref"] == ref)
+        cx, cy = item["center"]
+        # 出屏核对：坐标必须落在屏幕范围内，否则说明快照与设备分辨率对不上
+        if (width and (cx &lt; 0 or cx &gt;= width)) or (height and (cy &lt; 0 or cy &gt;= height)):
+            results.append({"ref": ref, "ok": False,
+                           "why": "坐标 (%d,%d) 超出屏幕 %dx%d" % (cx, cy, width, height)})
+            print("[拦截] %s 的坐标越界，先重取快照" % ref)
+            break
+
+        cmd = ["adb"] + (["-s", serial] if serial else []) + ["shell", "input", "tap", str(cx), str(cy)]
+        if dry_run:
+            print("[dry-run] %s" % " ".join(cmd))
+        else:
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            if proc.returncode != 0:
+                results.append({"ref": ref, "ok": False, "why": proc.stderr.strip()})
+                break
+        results.append({"ref": ref, "ok": True, "at": [cx, cy]})
+
+    bad = [r for r in results if not r["ok"]]
+    print("共派发 %d 步，失败 %d 步" % (len(results), len(bad)))
+    return 1 if bad else 0
+
+
+def main():
+    ap = argparse.ArgumentParser(description="把元素编号派发成点击")
+    ap.add_argument("--serial", default="", help="adb 设备编号")
+    ap.add_argument("--snapshot", default="snapshot.json", help="快照文件")
+    ap.add_argument("--plan", default="plan.json", help="计划文件，含编号列表")
+    ap.add_argument("--width", type=int, default=0, help="屏幕宽，留空则跳过出屏核对")
+    ap.add_argument("--height", type=int, default=0, help="屏幕高")
+    ap.add_argument("--dry-run", action="store_true", help="只打印不执行")
+    args = ap.parse_args()
+
+    data = load_snapshot(args.snapshot)
+    if data == 2:
+        return 2
+    items = data["elements"]
+    plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
+    if not isinstance(plan, list):
+        print("[失败] 计划文件应是数组，每项含 ref")
+        return 2
+    for i, step in enumerate(plan):
+        step.setdefault("i", i + 1)
+    return dispatch(args.serial, items, plan, args.dry_run, args.width, args.height)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+</code></pre>
+        <p>计划文件是一份纯 JSON，写法如下。它和模型的真实决策是两个来源：这里用静态计划做结构验证，接上模型时把 <code>plan</code> 换成模型每轮吐出的编号即可，分发逻辑不动。</p>
+        <div class="code-head"><span>json · plan.json</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>[
+  {"ref": 3, "expect": "进入订单页"},
+  {"ref": 7, "expect": "点完列表首项"}
+]</code></pre>
+        <p>两个拦截点就是安全阀。编号越界说明模型看的是另一份快照，直接停手比点错地方好；坐标出屏说明快照与设备分辨率不一致，重取比继续派发有意义。把 <code>--dry-run</code> 接进评审流程，新设备接入前先空跑一遍，坐标对不对一眼可见。</p>
+
+        <h2>五、坐标动作为什么必须绑快照和允许范围</h2>
         <p>「截张图猜坐标再瞎点」是真实事故来源：弹个广告、来条通知、页面自己滚一下，坐标就落到别处。Droy 在 <code>android-use</code> 模块给坐标动作加了两道约束：绑定当次的 <code>snapshotId</code>，限定允许范围；页面突变或目标有歧义时直接停手。</p>
         <p>两个参数值得列为验收项：多指手势支持 2 到 5 条同步轨迹，<code>android_sequence</code> 一次串行 2 到 6 步。串联越长，中间任何一步落空，后面全歪。</p>
         <p>登录和验证码交给本人，且用户答完后 Agent 仍要重新观察页面，不能把口头回复当成验证通过。翻译成测试语言就是：人工介入后必须重新取快照，后续动作绑在新快照上。对应两条负向用例——过期快照发起动作必须被拒绝；人工答复后不重新观察就继续动作，判失败。</p>
 
-        <h2>四、NFC、红外和进程内存开放后，安全阀怎么验</h2>
+        <h2>六、NFC、红外和进程内存开放后，安全阀怎么验</h2>
         <p>硬件工具组最特别，也最容易出事。原文给出的边界本身就是一份验收清单。</p>
         <table>
           <thead>
@@ -108,7 +366,25 @@
         <p>细节能看出作者踩过真机坑：卡模拟首版用 <code>exact_apdu_state_v1</code>，本地匹配完整 APDU 报文与状态流转，不碰厂商钱包安全元件；文档还写明内置 NFC 读不了 125 kHz 低频门卡。内存工具把会话绑在任务、包版本、UID、PID 与进程启动时间上，进程一重启旧引用即作废，写入前还要核对预期字节。大块数据走 <code>dataRef</code> 放私有目录分页读，上限 4 MiB。</p>
         <p>测试重点不是能否读出内存，而是不该读时能否被挡住。这和常规<a class="ilink" href="app-permission-testing.html">APP 权限测试</a>同思路：每条限制配一条拒绝用例，比如非 Root 调用内存工具应报错、写入超 8 字节应拒绝、进程重启后旧会话应失效。只测正向能力，等于没测安全阀。</p>
 
-        <h2>五、什么场景现在还不该用它</h2>
+        <h2>七、排错清单：症状、原因、验证与处理</h2>
+        <p>故障现象大多长得像「任务没跑完」，实际原因散落在设备、快照、授权、模型四层。按顺序排查，比随机试快得多。</p>
+        <table>
+          <thead>
+            <tr><th>症状</th><th>可能原因</th><th>验证命令</th><th>处理方式</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>adb devices 显示 unauthorized</td><td>手机未点允许调试</td><td>adb devices -l</td><td>看手机弹窗，重新信任这台电脑</td></tr>
+            <tr><td>uiautomator dump 报 XML 解析失败</td><td>抓到动画中间态</td><td>隔 500 ms 重导一次再解析</td><td>加重试，或把 dump 放在操作前固定等待之后</td></tr>
+            <tr><td>快照元素为空但界面正常</td><td>无障碍服务被系统断开</td><td>adb shell dumpsys window 查 mCurrentFocus</td><td>回到设备层重连，别改提示词</td></tr>
+            <tr><td>坐标动作报「过期快照」</td><td>页面已变化，仍绑旧 snapshotId</td><td>对比两次 dump 的哈希</td><td>人工介入后强制重新取快照再发指令</td></tr>
+            <tr><td>NFC 读卡失败</td><td>读不了 125 kHz 低频卡</td><td>看设备支持的频段</td><td>按原文边界走，不强行补</td></tr>
+            <tr><td>内存工具写入被拒</td><td>单次超过 8 字节或目标页不可写</td><td>核对写入前校验日志</td><td>大块数据走 dataRef 分页，单标量 ≤ 8 字节</td></tr>
+            <tr><td>任务跑一半进程消失</td><td>国产系统杀后台</td><td>看最近任务里是否被清</td><td>加白名单、允许后台、最近任务加锁</td></tr>
+          </tbody>
+        </table>
+        <p>规律很清楚：设备层没通之前，改提示词纯属浪费时间。排查顺序必须是「设备可见 → 快照正常 → 授权路径对 → 模型层」，跳步只会把简单问题复杂化。</p>
+
+        <h2>八、什么场景现在还不该用它</h2>
         <p>原文列了四条现实边界。成熟度：v0.0.3，仅支持 Android 11 以上、ARM64 与竖屏，不适合压生产关键流程。保活：国产系统易强杀引擎，需要持续后台运行、电池不受限、最近任务加锁。权限门槛：通知静默接管与进程内存读写必须有 Root。演示口径：仓库海报里的对话与清单属于本地演示数据，真实稳定度取决于配置的视觉模型与当前界面。</p>
         <p>安装有两条路。一是装签名 APK，从 Release 下载 ARM64 包，核对 SHA-256 与签名指纹。二是交给电脑脚本跑 <code>tools/setup.py</code> 的 <code>scan</code>、<code>plan</code>、<code>apply</code>、<code>verify</code> 四步，看过 <code>approvalDigest</code> 才真动手机；API Key 始终只在手机本地手填，不进日志。</p>
         <p>它的价值不在今天能替你点外卖，而在把权限分级、离线语音、本地记忆、射频约束、签名校验写成可检查的规格。对做移动端 Agent 的团队，<a class="ilink" href="app-automation-intro.html">App 自动化</a>的下一步不是让模型更聪明，而是让每条「不许干什么」都能被测试证明。</p>

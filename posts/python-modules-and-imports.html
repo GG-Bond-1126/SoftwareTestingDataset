@@ -141,7 +141,7 @@ import requests as rq</code></pre>
           <p>99% 的场景用<strong>方式一</strong>（import 整个模块）。方式二（from import）适合「只导入一两个函数」且名字不冲突时。方式三（import *）基本不用，命名空间太乱。</p>
         </div>
 
-        <h2>__name__ == 「__main__」：让脚本「既能被 import，也能直接运行」</h2>
+        <h2>__name__ 判断：让脚本既能被 import，也能直接运行</h2>
         <p>这是测试脚本的「入口」判断。一个 .py 文件既可以是「被 import 的模块」，也可以是「直接运行的脚本」：</p>
         <div class="code-head"><span>python — __name__ 判断</span><button class="copy-btn" type="button">复制</button></div>
         <pre><code># test_runner.py（既能被 import，也能直接运行）
@@ -171,7 +171,7 @@ if __name__ == "__main__":
     main()
     # 被 import 时，__name__ 是模块名（如 "test_runner"），不执行 main()</code></pre>
         <div class="callout">
-          <p>测试脚本的标准写法：<strong>函数定义 + <code>if __name__ == "__main__": main()</code></strong>。这样别人 import 你的模块时，不会自动执行 main（只拿到函数），直接运行时才执行。</p>
+          <p>测试脚本的标准写法：<strong>函数定义，末尾加一段 <code>if __name__ == &lt;主模块名&gt;:</code> 的判断再调 main()</strong>。这样别人 import 你的模块时，不会自动执行 main（只拿到函数），直接运行时才执行。</p>
         </div>
 
         <h2>包（package）和 __init__.py</h2>

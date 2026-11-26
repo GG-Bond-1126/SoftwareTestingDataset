@@ -4,20 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>把测试经验做成可复用 Skill：八个部件从零搭起 · 软件测试资料集</title>
-<meta name="description" content="提示词只管一次输出，Skill 管一类任务的下限。按八个分区把踩坑、口径与模板沉淀成可复用资产。">
+<meta name="description" content="提示词只管一次输出，Skill 管一类任务的下限。八个分区把踩坑、口径与模板沉淀成可复用资产，含排错表。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="../assets/style.css">
 <link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/testing-skill-build.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="软件测试资料集">
 <meta property="og:title" content="把测试经验做成可复用 Skill：八个部件从零搭起">
-<meta property="og:description" content="提示词只管一次输出，Skill 管一类任务的下限。按八个分区把踩坑、口径与模板沉淀成可复用资产。">
+<meta property="og:description" content="提示词只管一次输出，Skill 管一类任务的下限。八个分区把踩坑、口径与模板沉淀成可复用资产，含排错表。">
 <meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/testing-skill-build.html">
 <meta property="og:locale" content="zh_CN">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="把测试经验做成可复用 Skill：八个部件从零搭起">
-<meta name="twitter:description" content="提示词只管一次输出，Skill 管一类任务的下限。按八个分区把踩坑、口径与模板沉淀成可复用资产。">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"把测试经验做成可复用 Skill：八个部件从零搭起","description":"提示词只管一次输出，Skill 管一类任务的下限。按八个分区把踩坑、口径与模板沉淀成可复用资产。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/testing-skill-build.html","articleSection":"AI 测试","keywords":"test-skill, prompt-engineering, case-design","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
+<meta name="twitter:description" content="提示词只管一次输出，Skill 管一类任务的下限。八个分区把踩坑、口径与模板沉淀成可复用资产，含排错表。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"把测试经验做成可复用 Skill：八个部件从零搭起","description":"提示词只管一次输出，Skill 管一类任务的下限。八个分区把踩坑、口径与模板沉淀成可复用资产，含排错表。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/testing-skill-build.html","articleSection":"AI 测试","keywords":"test-skill, prompt-engineering, case-design","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
 <meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -114,6 +114,7 @@ cd msg_test_skill</code></pre>
         <p>outputs 的价值在字段固定：编号、所属链路、验证场景、前置状态、操作路径、判定依据、优先级、回归标记。编号自定规则，比如 MSG-链路代码-三位序号；优先级按 P0 消息丢失或错乱、P1 主链路不可用、P2 体验与展示来分。字段固定后，导表格、贴用例平台都不用重排。<a class="ilink" href="ai-api-testcase-generation.html">用模型生成用例</a>时最容易丢判定依据与回归标记两列，靠模板反而不会漏。</p>
         <p>templates 是勾选表：正常送达、发送失败、断线重连补推、离线拉取、重复推送、乱序到达、多端已读同步、免打扰与折叠、通知权限关闭、弱网与超时。出用例前先输出勾选状态，再逐项展开；模型不会漏项，评审的人只看没勾的几行。</p>
         <p>assets 是唯一越用越强的一块。先列高危 Top 5：消息丢失、重复推送、乱序、已读不同步、限流误伤正常用户；再补改动牵连关系：改推送网关要回归离线补推与去重，改已读回写要回归多端同步与未读数。这张表决定了 <a class="ilink" href="ai-testpoint-generation.html">测试点梳理</a>能不能从改动直接推到风险。</p>
+        <p>判断一张资产表是不是活的，看一条硬指标：最近一次上线改动有没有对应的新条目。连续三个月没动，说明复盘结论根本没往这落，表只是建了个壳。活的资产表应该随着每次故障复盘长出一两行，一年下来从 5 条长成 40 条才正常。</p>
 
         <h2>五、端到端验收、四个高频坑与不适用场景</h2>
         <p>八个部件填完要跑一次验收：拿一段群消息未读数同步的需求，说「按消息测试角色出用例并自检」。合格产出应含风险清单、勾选表、固定字段用例、自评分数与扣分说明，四样齐全才算能交付。</p>
@@ -124,6 +125,159 @@ cd msg_test_skill</code></pre>
           <li><strong>资产库不更新。</strong>复盘结论不进 assets，用一年还是第一天的水平。</li>
           <li><strong>输出不贴现有流程。</strong>字段跟用例平台对不上，产出再漂亮也得人工重排。</li>
         </ul>
+        <p>上面四条坑都偏「人的习惯」，还有一类是「结构没立住」，用下面这段脚本在提交前拦一次：数每个分区有几个可执行文件、模板字段是不是平台认识的名字、评分维度有没有锚点描述。</p>
+        <div class="code-head"><span>python · demo_skill_structure_check.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>"""检查测试 Skill 目录结构是否立住，拦住空目录、缺锚点、字段名对不上。
+
+用途：提交或评审前跑一次，输出结构分与具体缺口，避免「目录建了但内容没填」。
+依赖：Python 3.9+，仅标准库。
+运行：
+    python demo_skill_structure_check.py msg_test_skill
+    python demo_skill_structure_check.py msg_test_skill --strict --platform-fields case_id,priority
+"""
+
+import argparse
+import re
+import sys
+from pathlib import Path
+
+# 八个分区必须各自承担的职责：有可执行文件（非空）才算立住
+ZONES = {
+    "system": "role",        # 至少一份角色文件
+    "prompts": "entry",      # 每个入口都要是文件
+    "cases": "case",         # 案例用固定字段记
+    "workflows": "flow",     # 七步链路
+    "outputs": "template",   # 字段模板
+    "scoring": "rubric",     # 评分维度
+    "templates": "checklist",# 必测勾选表
+    "assets": "knowledge",   # 经验资产
+}
+
+# 案例与资产条目的必备字段，缺一个都算没记全
+CASE_FIELDS = ["scenario", "symptom", "impact", "cause", "regression"]
+
+
+def check_zone(dir_path, zone, platform_fields):
+    """返回 (得分 0~1, 问题列表)。每个目录至少一个非空文件得 0.5 起。"""
+    problems = []
+    files = [p for p in dir_path.iterdir() if p.is_file() and p.stat().st_size > 0]
+    if not files:
+        problems.append(f"{zone}/ 下没有任何非空文件")
+        return 0.0, problems
+
+    score = 0.5
+    text = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in files)
+
+    if zone == "cases":
+        # 至少一条案例要带完整字段
+        ok_case = any(
+            all(re.search(rf"\b{k}\b", seg, re.IGNORECASE) for k in CASE_FIELDS)
+            for seg in re.split(r"\n\s*\n|^---$", text, flags=re.MULTILINE)
+        )
+        if not ok_case:
+            problems.append("cases/ 没有一条案例带齐 scenario、symptom、impact、cause、regression")
+        else:
+            score += 0.3
+
+    if zone == "scoring":
+        # 每个维度必须带锚点（1~10 分描述），不能只有维度名
+        anchors = re.findall(r"\b\d+\s*分[:：]?\s*\S+", text)
+        if not anchors:
+            problems.append("scoring/ 维度没有 1~10 分锚点，模型会全打满")
+        else:
+            score += 0.2
+
+    if zone == "outputs" and platform_fields:
+        missing = [f for f in platform_fields if f not in text]
+        if missing:
+            problems.append(f"outputs/ 缺少平台字段：{', '.join(missing)}")
+        else:
+            score += 0.2
+
+    if zone == "assets":
+        # 资产表应该是「长出来」的，至少 5 行才有复用价值
+        lines = [ln for ln in text.splitlines() if ln.strip()]
+        if len(lines) < 5:
+            problems.append("assets/ 条目不足 5 行，还处在建壳阶段")
+        else:
+            score += 0.3
+
+    return min(score, 1.0), problems
+
+
+def main():
+    ap = argparse.ArgumentParser(description="测试 Skill 结构检查")
+    ap.add_argument("root", help="Skill 目录根路径")
+    ap.add_argument("--strict", action="store_true", help="存在任何缺口即以非零码退出")
+    ap.add_argument(
+        "--platform-fields",
+        default="case_id,priority,judge_basis,regression_mark",
+        help="平台列头，逗号分隔，用于校验 outputs 是否对得上",
+    )
+    args = ap.parse_args()
+
+    root = Path(args.root)
+    if not root.is_dir():
+        print(f"[失败] 目录不存在：{root}")
+        return 2
+
+    platform = [f.strip() for f in args.platform_fields.split(",") if f.strip()]
+    report = {}
+    total = 0.0
+    all_problems = []
+
+    for zone, _ in ZONES.items():
+        zdir = root / zone
+        if not zdir.is_dir():
+            report[zone] = {"score": 0.0, "problems": [f"{zone}/ 目录不存在"]}
+            all_problems.append(f"{zone}/ 目录不存在")
+            continue
+        s, probs = check_zone(zdir, zone, platform)
+        report[zone] = {"score": s, "problems": probs}
+        total += s
+        all_problems.extend(probs)
+
+    total = round(total / len(ZONES), 2)
+    print(f"结构分：{total} / 1.00")
+    for zone, item in report.items():
+        mark = "✓" if not item["problems"] else "✗"
+        print(f"  {mark} {zone}: {item['score']:.2f}")
+        for p in item["problems"]:
+            print("    - " + p)
+
+    if total >= 0.8:
+        print("\n[结论] 可以进评审")
+    elif total >= 0.5:
+        print("\n[结论] 补齐缺口再评审，先处理 ✗ 的分区")
+    else:
+        print("\n[结论] 骨架还没立住，别急着填内容")
+
+    # 严格模式：有任何缺口就非零退出，方便接进 CI 前置检查
+    return 1 if (args.strict and all_problems) else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+</code></pre>
+        <p>重点看两件事。一是八个分区各自拿了多少分，0.5 起步代表「有内容」，加分项代表「内容立住了」；二是平台字段校验，列头写错一个，产出再漂亮也得人工重排一次。把它接进提交前检查，结构问题就不会再拖到评审现场才暴露。</p>
+
+        <h2>六、排错清单：产出总是偏，按顺序查哪一块</h2>
+        <p>用了半个月发现产出质量上不去，别从头重写。按八块逐一对照，通常卡点很集中。</p>
+        <table>
+          <thead>
+            <tr><th>症状</th><th>可能原因</th><th>验证命令</th><th>处理方式</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>用例只有正常与失败两类</td><td>system 没钉死判断顺序与禁止项</td><td>把 system 文件原文丢给模型，问「弱网场景你怎么处理」</td><td>在 system 里写死「先可靠性再异常最后展示」的顺序</td></tr>
+            <tr><td>案例库从未被引用</td><td>入口指令没要求先检索 cases</td><td>看产出里有没有标注引用了哪条</td><td>在 prompts 入口加「出用例前先检索并标注」的硬性要求</td></tr>
+            <tr><td>产出字段缺判定依据</td><td>outputs 模板与用例平台对不上</td><td>把模板字段列表与平台列头逐一比对</td><td>按平台字段名改 outputs，别用平台不认识的名字</td></tr>
+            <tr><td>评分自检走形式</td><td>scoring 维度太粗，模型全打满</td><td>手动把一条用例的各维度分数打出来看</td><td>给每个维度写 1 到 10 分的锚点描述</td></tr>
+            <tr><td>一次想覆盖全业务</td><td>范围太大，资产库空转</td><td>数一数 cases 目录里实际有几个文件</td><td>砍到一条链路跑通 1.0，再往外扩</td></tr>
+            <tr><td>资产库一年没更新</td><td>复盘结论没进 assets 的流程</td><td>看最近一次复盘的产出物落没落进目录</td><td>把「复盘必落 assets」写进 workflows 最后一步</td></tr>
+          </tbody>
+        </table>
+
+        <h2>七、不适用的场景与判断标准</h2>
         <p>也有明确不适用的时候：一次性临时任务，为它建八个目录纯属浪费；团队没有复盘机制，assets 会长期空转，Skill 退化成写得比较长的提示词；需求还在剧烈变动，模板与评分维度刚写下就过期。判断标准很简单——这条链路一年要重复很多次、每次判断标准基本一致，才值得沉淀。</p>
         <p>它真正的意义不在省下写用例的几十分钟，而在于把判断、踩过的坑、评审口径从「只有你知道」变成「拷个目录就带走」：人走了经验还在，新人不必再靠口口相传。</p>
 

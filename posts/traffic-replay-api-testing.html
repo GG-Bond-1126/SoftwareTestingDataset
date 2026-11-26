@@ -71,7 +71,7 @@
 
         <h2>一、写接口测试的时间，最后都花在了哪里</h2>
         <p>把成本拆开：一是设计用例，二是准备数据，三是搭环境，四是维护。前两项是测试本身的活，后两项是工程负担，而且随服务数量线性增长。一个服务对接五个外部依赖，十个服务就是五十个 Mock，任何一个上游改了返回结构，都要回来改 Mock。</p>
-        <p>录制回放把「准备数据」和「搭环境」一起省掉了，代价是覆盖上限由录制决定：真实用户没走到的分支，录不到，也就测不到。这不是缺陷，是这类工具必须先说清的前提。</p>
+        <p>录制回放把「准备数据」和「搭环境」一起省掉了，代价是覆盖上限由录制决定：真实用户没走到的分支，录不到，也就测不到。这不是缺陷，是这类工具必须先说清的前提。换句话说，它解决的是「把已知路径跑得更快更省」，不解决「把未知路径找出来」，后者仍得靠人设计。</p>
 
         <h2>二、eBPF 抓包为什么能做到业务零改造</h2>
         <p>流量录制不是新概念，差别在抓包位置。Keploy 在网络层用 eBPF 抓内核里流过的流量，不侵入应用：代码一行不改，SDK 一个不装，也不依赖某种语言的 agent 注入。录制时应用照常启动，正常操作页面或打接口，请求、响应以及背后真实的数据库查询都会落进 keploy 目录，一边是用例文件，一边是 Mock 文件。</p>
@@ -88,7 +88,8 @@ keploy test -c "python main.py" --delay 10</code></pre>
 
         <h2>三、数据库和队列也录成 Mock，回放凭什么离线跑</h2>
         <p>多数 Mock 工具只管 HTTP 接口，数据库和队列要另想办法。Keploy 录得更深：Postgres、MySQL、MongoDB、Redis 的查询，Kafka、RabbitMQ 的消息，gRPC 与 GraphQL 调用都跟着请求一起录。回放时这些依赖不用启动，应用发出的查询直接命中录制数据，官方把这个能力叫基础设施虚拟化。</p>
-        <p>对开发者，本地不用再装一整套中间件；对测试，回归不再被环境卡住，录一次可以反复回放，产物也能直接进 GitHub Actions 或 Jenkins。原文提到 Keploy 自己用自己的工具测自己，README 挂着 75% 的自测覆盖率，算一个正面信号，但终究是它自家团队的数据。另一处值得学的设计是覆盖率拆分：开发者看语句与分支覆盖，测试看接口结构与业务场景覆盖，同一份录制产物分别统计。</p>
+        <p>对开发者，本地不用再装一整套中间件；对测试，回归不再被环境卡住，录一次可以反复回放，产物也能直接进 GitHub Actions 或 Jenkins。原文提到 Keploy 自己用自己的工具测自己，README 挂着 75% 的自测覆盖率，算一个正面信号，但终究是它自家团队的数据，不能当成通用承诺。</p>
+        <p>另一个值得学的设计是覆盖率拆分：开发者看语句与分支覆盖，测试看接口结构与业务场景覆盖，同一份录制产物分别统计。这比把两种口径混在一个数字里靠谱得多，因为一个接口被调过十次，语句覆盖已经打满，但业务场景可能一条都没踩到。</p>
 
         <h2>四、第一次回放大面积失败，先查什么</h2>
         <p>回放是快照对比，任何每次都变的字段都会判失败：时间戳、随机 ID、自增主键、trace id。第一次跑 <code>test</code> 大面积挂，先别怀疑业务回归，按顺序处理这些不变量，再看差异。</p>
@@ -105,13 +106,255 @@ keploy test -c "python main.py" --delay 10</code></pre>
             <tr><td><code>export</code></td><td>导出为 Postman 集合</td><td>交给习惯 Postman 的同学</td></tr>
           </tbody>
         </table>
-        <p><code>test-gen</code> 由 AI Agent 驱动，从已有录制和 Swagger、OpenAPI 文档里找问题，边界值、缺字段、多字段、类型错误、调用顺序颠倒，找到就补成新用例。它补的是「录制没覆盖的输入组合」，不是替代人工设计业务场景。想看这类自动补用例的边界，可参考<a class="ilink" href="web-api-testing.html">从接口文档生成用例</a>的做法，两者思路互补。</p>
+        <p><code>test-gen</code> 由 AI Agent 驱动，从已有录制和 Swagger、OpenAPI 文档里找问题，边界值、缺字段、多字段、类型错误、调用顺序颠倒，找到就补成新用例。它补的是「录制没覆盖的输入组合」，不是替代人工设计业务场景，两者边界要分开写进用例规划。想看这类自动补用例的边界，可参考<a class="ilink" href="web-api-testing.html">从接口文档生成用例</a>的做法，思路是互补的：一个补输入组合，一个补场景设计。</p>
 
         <h2>五、什么团队不适合用它</h2>
         <p>第一类是接口还在快速改结构、契约一天一变的服务。录制的用例绑定了当时的请求与响应形态，契约一动，回放产物就腐烂，维护成本并不比手写低。第二类是核心结果依赖外部服务实时返回的流程，把对方响应录成快照后，回放验证的只是「同样的输入我们处理对不对」，验证不了「对方变了我们会怎样」。</p>
-        <p>第三类是合规压力大的业务。录制产物里会有真实账号、手机号，进 Git 前必须用 <code>sanitize</code> 过一遍，而脱敏规则本身要评审，漏一个字段就是数据事故。第四类是环境太旧的团队：原文给出的要求是 Linux 内核 5.10 以上、macOS Apple Silicon、Windows x86-64，支持 Docker 与 Podman。还有一条要提前问清：核心 CLI 是 Apache-2.0，但 Mock Registry、时间冻结、Console 挂在官方云服务下，用到就得看付费方案。</p>
+        <p>第三类是合规压力大的业务。录制产物里会有真实账号、手机号，进 Git 前必须用 <code>sanitize</code> 过一遍，而脱敏规则本身要评审，漏一个字段就是数据事故。脱敏规则最好写成可执行的校验脚本，每次进 CI 前跑一遍，而不是靠人肉检查。</p>
+        <p>第四类是环境太旧的团队：原文给出的要求是 Linux 内核 5.10 以上、macOS Apple Silicon、Windows x86-64，支持 Docker 与 Podman。还有一条要提前问清：核心 CLI 是 Apache-2.0，但 Mock Registry、时间冻结、Console 挂在官方云服务下，用到就得看付费方案，别把免费假设写进选型结论。</p>
 
-        <h2>六、怎么判断它值不值得接</h2>
+        <h2>六、不装 Keploy 也能做的录制回放：一个最小实现</h2>
+        <p>录制回放的核心只有三件事：把一次真实请求与响应存下来、回放时把不稳定的字段模板化、比对时忽略这些字段。下面这个脚本用标准库把这套逻辑写完，用来理解工具在做什么，也可以直接拿去测少量依赖简单的接口。</p>
+        <div class="code-head"><span>python · demo_replay.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>"""最小录制回放：录一次真实响应，回放时模板化不稳定字段再比对。
+
+用途：理解录制回放的关键动作（存档、模板化、比对），也可用于依赖简单的接口。
+依赖：Python 3.9+，仅标准库。
+运行：
+    # 录制（会真的发请求）
+    python demo_replay.py record --name order --url https://api.example.com/v1/orders/1
+    # 回放（再发一次，与录制结果比对）
+    python demo_replay.py replay --name order
+"""
+
+import argparse
+import difflib
+import json
+import re
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+STORE = Path("replay")
+
+# 不稳定字段的模板化规则：命中即替换成占位符，比对时两侧同样处理
+UNSTABLE = [
+    (re.compile(r"\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?Z?"), "&lt;TS&gt;"),
+    (re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b"), "&lt;UUID&gt;"),
+    (re.compile(r'"(trace[_]?id|request[_]?id)"\s*:\s*"[^"]*"'), r'"\1":"&lt;ID&gt;"'),
+]
+
+
+def record(name, url, timeout=15):
+    """发一次请求并落盘，同时保存状态码与响应体。"""
+    req = urllib.request.Request(url, headers={"User-Agent": "replay-demo"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body, status = resp.read().decode("utf-8", "replace"), resp.status
+    except urllib.error.HTTPError as exc:      # 4xx/5xx 也要录，断言里要用
+        body, status = exc.read().decode("utf-8", "replace"), exc.code
+    except urllib.error.URLError as exc:
+        print("[失败] 请求不通：%s" % exc.reason, file=sys.stderr)
+        return 2
+
+    STORE.mkdir(parents=True, exist_ok=True)
+    path = STORE / (name + ".json")
+    path.write_text(json.dumps({"url": url, "status": status, "body": body},
+                               ensure_ascii=False, indent=2), encoding="utf-8")
+    print("已录制 %s，状态码 %d，%d 字节" % (path, status, len(body)))
+    return 0
+
+
+def templatize(text):
+    """把每次都变的字段替换成占位符，模板化之后才可比。"""
+    for pattern, repl in UNSTABLE:
+        text = pattern.sub(repl, text)
+    return text
+
+
+def flatten(obj, prefix=""):
+    """把嵌套 JSON 拍平成 路径 -> 值，便于逐字段比对与定位差异。"""
+    if isinstance(obj, dict):
+        out = {}
+        for key, val in obj.items():
+            out.update(flatten(val, prefix + "/" + str(key)))
+        return out
+    if isinstance(obj, list):
+        out = {}
+        for idx, val in enumerate(obj):
+            out.update(flatten(val, prefix + "/" + str(idx)))
+        return out
+    return {prefix or "/": obj}
+
+
+def replay(name, timeout=15):
+    path = STORE / (name + ".json")
+    if not path.exists():
+        print("[失败] 没有录制文件，先跑 record", file=sys.stderr)
+        return 2
+    saved = json.loads(path.read_text(encoding="utf-8"))
+
+    req = urllib.request.Request(saved["url"], headers={"User-Agent": "replay-demo"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body, status = resp.read().decode("utf-8", "replace"), resp.status
+    except urllib.error.HTTPError as exc:
+        body, status = exc.read().decode("utf-8", "replace"), exc.code
+    except urllib.error.URLError as exc:
+        print("[失败] 请求不通：%s" % exc.reason, file=sys.stderr)
+        return 2
+
+    problems = []
+    if status != saved["status"]:
+        problems.append("状态码变化：录制 %d，回放 %d" % (saved["status"], status))
+
+    try:
+        old, new = json.loads(saved["body"]), json.loads(body)
+    except json.JSONDecodeError:
+        # 非 JSON 响应只做文本比对
+        if templatize(saved["body"]) != templatize(body):
+            problems.append("响应体文本不一致")
+        old = new = None
+
+    if old is not None:
+        fo, fn = flatten(old), flatten(new)
+        for key in sorted(set(fo) - set(fn)):
+            problems.append("字段消失：%s" % key)
+        for key in sorted(set(fn) - set(fo)):
+            problems.append("新增字段：%s" % key)
+        for key in sorted(set(fo) &amp; set(fn)):
+            a, b = templatize(str(fo[key])), templatize(str(fn[key]))
+            if a != b:
+                problems.append("值变化：%s 录制=%s 回放=%s" % (key, a[:40], b[:40]))
+
+    if not problems:
+        print("[通过] 除不稳定字段外与录制一致")
+        return 0
+
+    print("[失败] 发现 %d 处差异" % len(problems))
+    for item in problems[:20]:
+        print("  - " + item)
+    if old is not None:
+        diff = difflib.unified_diff(
+            json.dumps(old, ensure_ascii=False, indent=2).splitlines(),
+            json.dumps(new, ensure_ascii=False, indent=2).splitlines(),
+            "录制", "回放", lineterm="", n=1)
+        print("\n".join(list(diff)[:40]))
+    return 1
+
+
+def main():
+    ap = argparse.ArgumentParser(description="最小录制回放")
+    ap.add_argument("mode", choices=["record", "replay"])
+    ap.add_argument("--name", required=True, help="样本名")
+    ap.add_argument("--url", default="", help="record 时必填")
+    args = ap.parse_args()
+
+    if args.mode == "record":
+        if not args.url:
+            print("[失败] record 需要 --url", file=sys.stderr)
+            return 2
+        return record(args.name, args.url)
+    return replay(args.name)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+</code></pre>
+        <p>这个脚本把 Keploy 的几个关键概念都体现出来了。<code>templatize</code> 对应它把时间戳、UUID 参数化的能力；<code>flatten</code> 让差异能定位到具体字段而不是整段字符串；4xx 与 5xx 也录下来，才能真正断言「这个参数应该报 400」。它做不到的是数据库与队列的虚拟化，那才是 eBPF 那层真正省事的地方。</p>
+
+        <h2>七、脱敏自检：进 Git 之前先扫一遍</h2>
+        <p>录制产物进仓库前必须脱敏，但脱敏规则最容易漏字段。与其靠人眼看，不如写一条自检：在产物目录里搜手机号、身份证、邮箱、token 这些模式，命中就拦下。这条脚本几分钟写完，能长期挡在提交之前。</p>
+        <div class="code-head"><span>python · demo_secret_scan.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>"""扫描录制产物中的敏感信息，作为进 Git 前的最后一道门。
+
+用途：脱敏规则会漏，用正则再扫一遍，命中即失败，避免真实数据入库。
+依赖：Python 3.9+，仅标准库。
+运行：
+    python demo_secret_scan.py replay
+    python demo_secret_scan.py replay --allow demo- --strict
+"""
+
+import argparse
+import re
+import sys
+from pathlib import Path
+
+# 命中即报告的模式；mobile 与 email 最常漏，token 类误报高，先只做提示
+PATTERNS = {
+    "mobile": re.compile(r"(?&lt;!\d)1[3-9]\d{9}(?!\d)"),
+    "idcard": re.compile(r"(?&lt;!\d)\d{17}[\dXx](?!\d)"),
+    "email": re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+"),
+    "token": re.compile(r"(?i)bearer\s+[A-Za-z0-9._-]{20,}"),
+}
+
+
+def scan(text, allow_prefix):
+    """返回 [(类型, 命中片段)]，白名单前缀用于放过脱敏后的占位值。"""
+    hits = []
+    for kind, pattern in PATTERNS.items():
+        for match in pattern.finditer(text):
+            value = match.group(0)
+            if allow_prefix and value.startswith(allow_prefix):
+                continue
+            hits.append((kind, value))
+    return hits
+
+
+def main():
+    ap = argparse.ArgumentParser(description="录制产物敏感信息扫描")
+    ap.add_argument("root", help="扫描目录")
+    ap.add_argument("--allow", default="", help="命中片段以此开头则放过")
+    ap.add_argument("--strict", action="store_true", help="有命中即非零退出")
+    args = ap.parse_args()
+
+    root = Path(args.root)
+    if not root.is_dir():
+        print("[失败] 目录不存在：%s" % root)
+        return 2
+
+    total = 0
+    for path in sorted(root.rglob("*")):
+        if not path.is_file() or path.stat().st_size &gt; 5 * 1024 * 1024:
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        hits = scan(text, args.allow)
+        if hits:
+            total += len(hits)
+            print("[命中] %s" % path.relative_to(root))
+            for kind, value in hits[:5]:
+                # 只打印前四位，日志本身也不要泄露完整数据
+                print("  - %s：%s***" % (kind, value[:4]))
+
+    print("扫描完成，命中 %d 处" % total)
+    if total:
+        print("处理：把对应字段加入脱敏规则，或放进 --allow 白名单再确认")
+    return 1 if (total and args.strict) else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+</code></pre>
+        <p>日志里只打印前四位，是很重要的一条：扫描脚本自己不能成为泄露渠道。把它接在流水线提交之前，命中即失败，脱敏规则漏一个字段也不会流到远端仓库。</p>
+
+        <h2>八、排错清单：大面积失败先按顺序查</h2>
+        <p>回放大面积红时，第一反应不应该是怀疑业务，而是怀疑产物本身。下面这张表把常见症状按出现频率排了序。</p>
+        <table>
+          <thead>
+            <tr><th>症状</th><th>可能原因</th><th>验证命令</th><th>处理方式</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>第一次 test 大面积失败</td><td>时间戳、随机 ID 等不稳定字段未参数化</td><td>对比一条失败用例的录制值与回放值差异</td><td>先跑 templatize 再回放，别急着改业务</td></tr>
+            <tr><td>只有涉及自增主键的用例挂</td><td>数据库快照里的序列值与回放时不一致</td><td>看快照中主键字段的固定值</td><td>把主键字段加入参数化规则</td></tr>
+            <tr><td>脱敏后部分用例跑不通</td><td>脱敏改掉了业务校验字段，如手机号正则</td><td>比对脱敏前后字段的格式</td><td>把校验字段排除在脱敏规则外，单独加密</td></tr>
+            <tr><td>gRPC 用例全挂但 HTTP 正常</td><td>录制时 gRPC 通道未被 eBPF 捕获</td><td>看录制目录里是否有对应 .proto 产物</td><td>确认版本支持 gRPC 录制，旧产物重录</td></tr>
+            <tr><td>CI 里本地能跑通但偶发失败</td><td>应用启动慢于 delay，首条请求打到冷启动上</td><td>加大 --delay 复现一次</td><td>按启动耗时调大 delay，或加健康检查轮询</td></tr>
+            <tr><td>脱敏规则漏字段</td><td>正则没覆盖到新加的业务字段</td><td>在脱敏产物里搜原始关键词</td><td>把新字段加进规则并补一条自检用例</td></tr>
+          </tbody>
+        </table>
+
+        <h2>九、怎么判断它值不值得接</h2>
         <p>原文的标准很实用：后端服务多、依赖杂的团队值得认真试一次，因为它把成本从写用例挪到了跑业务上，而跑业务本来每天都在发生。落地可分三步：拿一个本地小服务确认 <code>record</code> 与 <code>test</code> 能跑通；脱敏、参数化后进仓库跑一次完整 CI，重点看误报率；最后挑一个真实复杂服务试点，与现有<a class="ilink" href="python-api-testing-with-requests.html">requests 测试脚本</a>并存，比较谁先发现问题。像<a class="ilink" href="mysql-concurrent-transactions.html">并发扣库存</a>这类依赖数据库时序的场景，仍要专门设计用例，录制回放补不了。</p>
         <p>不装它也能学走思路：流量就是用例，依赖可用录制数据顶替，回放前先处理不稳定字段。对照自己的测试方案，通常能找到几处可省掉的重复劳动。</p>
 

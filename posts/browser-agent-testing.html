@@ -81,6 +81,7 @@
         <h2>三、两代引擎差在哪：每步一问还是持久会话</h2>
         <p>仓库里还有一套 <code>taskv3</code> 引擎，从「每一步独立问一次模型」换成「持久会话加工具调用」：模型全程持有一个对话，通过 <code>observe</code>、<code>execute</code>、<code>finish</code> 自主推进。两代并存，建任务时可以选。</p>
         <p>差别不只是省 token。v1 每步独立决策，可审计、可单步重放，代价是每轮重复塞上下文；v3 有连续记忆，单步可解释性下降。对测试团队，v1 适合稳定回归，失败能精确定位到某一步；v3 更适合跑长流程。取舍无标准答案。</p>
+        <p>落地时有一个很实用的判别法：如果这条流程里有任何一步失败了你无法从日志里说清原因，就上 v1；如果流程很长但每步的验收条件都写得很硬，v3 的连续记忆反而能减少重复上下文。两者并不互斥，同一个项目里按任务长短分配就行。</p>
 
         <h2>四、本地跑起来要过哪几道坎</h2>
         <p>两条路线的差异很明确：pip 只有 API 服务，Docker 才带可视化管理界面。</p>
@@ -96,16 +97,156 @@ cp .env.example .env
 # 编辑 .env，填入至少一家 LLM 的 API Key，并把对应 ENABLE_XXX 改成 true
 docker compose up -d
 # 起来后浏览器访问 http://localhost:8080</code></pre>
-        <p>模型跑在云端，本地只承担浏览器和 API 服务，一台 8G 内存的开发机够用，不需要 GPU。想全离线可以配 Ollama，但本地小模型操作浏览器的能力会明显打折。</p>
+        <p>模型跑在云端，本地只承担浏览器和 API 服务，一台 8G 内存的开发机够用，不需要 GPU。想全离线可以配 Ollama，但本地小模型操作浏览器的能力会明显打折，尤其在长列表里挑目标元素时容易选错。</p>
+        <p>还有一个隐性成本要提前算：每步都是一次多模态调用，一个多步任务跑几万 token 很平常。铺开前先用两个任务跑完一轮，把单次执行成本记下来，再决定要不要进流水线。省 token 的手段很多，但前提是先得知道基线。</p>
         <p>原文列的六个翻车点里，三个与配置直接相关：pip 装完没有 Web UI，因为包只带 API；填了 Key 还是调不动模型，因为 <code>.env</code> 里每家厂商前的 <code>ENABLE_XXX</code> 默认是 false；1.0.31 版本有 <code>litellm</code> 与 <code>fastmcp</code> 的依赖冲突，会报 <code>ResolutionImpossible</code>，升到 1.0.32 以上或改用 uv 安装。其余三个是 Windows 需要 Rust 与 C++ 工具链、<code>quickstart</code> 报表已存在时删掉本地 data.db 重跑、遥测默认开启可手动关闭。</p>
+        <p>把这六个点串起来看，会发现共同特征是「安装成功了但运行时不响」。排查顺序也固定：先看进程在不在，再看配置里开关有没有打开，最后才轮到依赖版本。团队第一次踩坑的人多半在依赖冲突上耗最久，其实前两个检查项三分钟就能排除。</p>
 
-        <h2>五、什么时候不该用它</h2>
+        <h2>五、把编排逻辑落到代码：一个可断言的决策循环</h2>
+        <p>不管用哪家工具，这套机制真正可复用的部分只有三件事：给元素编号、把清单与截图交给模型、拿到编号后反查执行。想验证自己团队的页面适不适合这条路，不必先装整套服务，用 Playwright 加一段本地桩就能跑通骨架。</p>
+        <p>下面的脚本用本地 JSON 当决策来源，只做结构验证：编号是否与页面一致、越界编号能否被拦住、每步是否留了记录。把 <code>decide()</code> 换成真实模型调用，其余逻辑一字不改就能接上去。</p>
+        <div class="code-head"><span>python · demo_agent_loop.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>"""验证浏览器 Agent 的决策循环骨架：编号、分发、越界拦截、轨迹留档。
+
+用途：在接入正式 Agent 框架前，用小样本确认页面元素编号与动作分发是否可靠。
+依赖：Python 3.9+；pip install playwright 后执行 python -m playwright install chromium。
+运行：
+    python demo_agent_loop.py --url https://example.com --plan plan.json
+    python demo_agent_loop.py --url file:///d:/demo/index.html --headed
+"""
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from playwright.sync_api import Error as PWError, sync_playwright
+
+# 注入到页面的编号脚本：给可交互元素打 data-agent-id，与模型看到的清单一一对应
+TAG_SCRIPT = """
+() => {
+  const sel = 'a,button,input,select,textarea,[role=button]';
+  const list = [];
+  document.querySelectorAll(sel).forEach((el, i) => {
+    const id = 'agent-' + i;
+    el.setAttribute('data-agent-id', id);
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) return;   // 不可见的元素不给模型
+    list.push({id: id, tag: el.tagName.toLowerCase(),
+               text: (el.innerText || el.value || '').trim().slice(0, 40)});
+  });
+  return list;
+}
+"""
+
+
+def observe(page):
+    """每一次观察都重新编号，保证清单与当前页面同源。"""
+    return page.evaluate(TAG_SCRIPT)
+
+
+def decide(elements, step):
+    """桩决策：按计划顺序挑元素。接入真实模型时只改这个函数。"""
+    if step &gt;= len(elements):
+        return {"action": "finish", "reason": "没有可点元素"}
+    target = elements[step]
+    return {"action": "click", "id": target["id"], "reason": "按计划第 %d 步" % (step + 1)}
+
+
+def run(url, plan, headed, max_steps=8):
+    trace = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=not headed)
+        page = browser.new_page()
+        try:
+            page.goto(url, wait_until="load", timeout=20000)
+        except PWError as exc:
+            print("[失败] 页面打不开：%s" % exc)
+            browser.close()
+            return 2
+
+        for step in range(max_steps):
+            elements = observe(page)
+            if not elements:
+                trace.append({"step": step, "result": "页面无可用元素，结束"})
+                break
+            action = decide(elements, step)
+            if action["action"] == "finish":
+                trace.append({"step": step, "result": action["reason"]})
+                break
+
+            # 越界与不存在一律判硬错误，这一层是可控性的来源
+            ids = {el["id"] for el in elements}
+            if action["id"] not in ids:
+                trace.append({"step": step, "result": "编号越界：%s" % action["id"]})
+                print("[拦截] 第 %d 步编号越界，停止" % step)
+                break
+
+            before = page.url
+            try:
+                page.click('[data-agent-id="%s"]' % action["id"], timeout=5000)
+                page.wait_for_load_state("load", timeout=8000)
+            except PWError as exc:
+                trace.append({"step": step, "result": "执行失败：%s" % exc})
+                break
+            trace.append({"step": step, "action": action, "url_before": before,
+                          "url_after": page.url})
+            if plan and step + 1 &gt;= plan.get("max_clicks", 99):
+                break
+
+        page.screenshot(path="agent_trace.png", full_page=True)
+        browser.close()
+
+    Path("agent_trace.json").write_text(
+        json.dumps(trace, ensure_ascii=False, indent=2), encoding="utf-8")
+    print("共 %d 步，轨迹已写入 agent_trace.json，截图 agent_trace.png" % len(trace))
+    # 有任何越界或执行失败即视为失败，便于接进 CI
+    bad = any("拦截" in str(t) or "失败" in str(t.get("result")) for t in trace)
+    return 1 if bad else 0
+
+
+def main():
+    ap = argparse.ArgumentParser(description="浏览器 Agent 决策循环骨架")
+    ap.add_argument("--url", required=True, help="要观察的页面")
+    ap.add_argument("--plan", default="", help="可选计划文件，含 max_clicks")
+    ap.add_argument("--headed", action="store_true", help="显示浏览器窗口，便于人盯")
+    args = ap.parse_args()
+
+    plan = {}
+    if args.plan and Path(args.plan).exists():
+        plan = json.loads(Path(args.plan).read_text(encoding="utf-8"))
+    return run(args.url, plan, args.headed)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+</code></pre>
+        <p>三个设计点值得照抄。每次观察都重新编号，清单与页面永远同源，不会出现拿旧编号点新页面；编号不在集合内直接判硬错误，而不是让 Playwright 抛超时；每步记录 URL 前后变化，断言可以落在跳转结果上，不依赖模型说自己完成了。</p>
+
+        <h2>六、什么时候不该用它</h2>
         <p>原文的判断：适合网站不是你家的、改版你控制不了、页面千奇百怪但流程高度重复的场景。反之，有三类情况要慎重。</p>
         <p>第一是强反爬站点。原文写明反爬措施属于云端商业版独占，开源版碰上 Cloudflare 盾和验证码重灾网站，成功率会掉得厉害。官方在 WebBench 上报了 64.4% 的准确率，其中填表、登录、下载这类写操作任务排第一；同一张图里，有人工监督的参考线是 76.5%。这两个数只能说明它在同类里相对领先，不能理解成十次能成六次半的承诺。</p>
-        <p>第二是成本。每一步循环都是一次带截图的多模态调用，一个多步任务跑几万 token 很平常，铺开之前先算账单。第三是协议：项目采用 AGPL-3.0，改代码对外提供服务有开源义务，内部使用不受影响。已有稳定脚本的团队也不必全部重写，它的 SDK 支持传统选择器与 AI 定位混用。</p>
+        <p>第二是成本。每一步循环都是一次带截图的多模态调用，铺开之前先算账单，把一次执行的花费记下来再决定要不要进流水线。第三是协议：项目采用 AGPL-3.0，改代码对外提供服务有开源义务，内部使用不受影响。已有稳定脚本的团队也不必全部重写，它的 SDK 支持传统选择器与 AI 定位混用，按页面稳定性分流比全量替换稳得多。</p>
         <p>如果只是解决自家站点的回归，用 <a class="ilink" href="web-playwright-intro.html">Playwright</a> 加稳定的<a class="ilink" href="web-element-locators.html">元素定位</a>通常更便宜；这类 Agent 的价值在「页面结构不受你控制」的流程。想把它接进 CI 做门禁，可参考 <a class="ilink" href="web-pytest-allure.html">Playwright Agents 与 pytest 的组合</a>，把 AI 规划与用例报告分开管理。</p>
 
-        <h2>六、同类项目怎么选</h2>
+        <h2>七、排错清单：跑挂了先定位到哪一层</h2>
+        <p>浏览器 Agent 的失败不像传统脚本那样报一行红字，它常常是「动作执行了、结果不对」，得先判断卡在哪一环，再决定是改提示词、改裁剪规则还是改选择器兜底。</p>
+        <table>
+          <thead>
+            <tr><th>症状</th><th>可能原因</th><th>验证命令</th><th>处理方式</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>填了 Key 还是调不动模型</td><td>.env 里对应厂商的 ENABLE_XXX 默认是 false</td><td>cat .env | grep ENABLE_</td><td>把目标厂商前缀改成 true，重启服务</td></tr>
+            <tr><td>返回的 ID 不在元素清单里</td><td>提示词被截断或元素裁剪过激</td><td>看动作日志里模型回的原始 JSON</td><td>放宽裁剪阈值，保留更多候选</td></tr>
+            <tr><td>动作执行成功但页面没变</td><td>元素被遮挡或被前端拦截</td><td>手动在 DevTools 里对同一元素触发事件，看是否生效</td><td>先关掉浮层，或改用坐标点击兜底</td></tr>
+            <tr><td>截图全白</td><td>渲染未完成就执行了下一步</td><td>加大观察间隔，再截一张对比</td><td>给页面加载加固定等待或轮询目标文本</td></tr>
+            <tr><td>长流程后段开始乱点</td><td>上下文被元素清单塞满</td><td>看对话轮次与每次注入的元素数</td><td>调小 top N，或把长任务拆成多段</td></tr>
+            <tr><td>CI 里偶发通过</td><td>模型采样随机性导致路径漂移</td><td>把模型温度调低，固定种子</td><td>关键断言落在 URL 与可见文本，不依赖路径</td></tr>
+            <tr><td>pip 装完没有 UI</td><td>pip 包只带 API 服务，UI 走 Docker 路线</td><td>ps aux | grep skyvern</td><td>改用 Docker 路线部署</td></tr>
+          </tbody>
+        </table>
+
+        <h2>八、同类项目怎么选</h2>
         <p>原文的对比只有四行，star 数为发文当天口径，只能当参考：</p>
         <table>
           <thead>
@@ -118,7 +259,7 @@ docker compose up -d
             <tr><td>Skyvern</td><td>视觉加 DOM 混合引擎，可视化工作流</td><td>表单填写与 RPA 替代</td></tr>
           </tbody>
         </table>
-        <p>要可视化管理与执行记录选 Skyvern；给自家 Agent 加浏览器能力，轻量 MCP 更合适；TypeScript 团队要求行为可控，代码优先更稳。把它当一份可替换定位层的参考实现来读，比急着替换现有脚本更有价值。</p>
+        <p>要可视化管理与执行记录选 Skyvern；给自家 Agent 加浏览器能力，轻量 MCP 更合适；TypeScript 团队要求行为可控，代码优先更稳。把它当一份可替换定位层的参考实现来读，比急着替换现有脚本更有价值。选之前先问一句：你的瓶颈在页面结构不受控，还是在用例设计本身？前者这类工具能直接帮上，后者再聪明也绕不过去。</p>
 
         <div class="sources">
           <h3>参考来源</h3>

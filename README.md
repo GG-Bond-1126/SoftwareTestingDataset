@@ -101,18 +101,19 @@ python tools/build.py
 
 可选依赖：`pip install pypinyin`。装了它，索引会额外生成标题拼音首字母，支持用 `jkcscs` 这类缩写搜到「接口测试」相关文章；没装则自动跳过，构建照常成功。
 
-依次执行八步，任一步失败即中断并给出原因：
+依次执行九步，任一步失败即中断并给出原因：
 
 1. `build_data.py` — 扫描 `posts/` 生成 `assets/posts-index.json`
 2. `rebuild_index2.py` — 按框架与分类重建首页文章卡片
-3. `seo.py` — 生成 sitemap、RSS 与 OG 元信息
-4. `pwa_seo.py` — 生成 manifest 与 Service Worker，注入 PWA 元信息
-5. `validate.py` — HTML 结构与标签闭合校验
-6. `health_check.py` — 全站链接、锚点、下载文件体检
-7. `final_check.py` — 中文引号与 meta description 长度检查
-8. `asset_guard.py` — 体积守卫：图片单张 ≤300 KB、索引 ≤600 KB、单页 ≤300 KB、整站 ≤6 MB
+3. `build_links.py` — 由 `data/external.json` 生成 `links.html`（精选外链页）
+4. `seo.py` — 生成 sitemap、RSS 与 OG 元信息
+5. `pwa_seo.py` — 生成 manifest 与 Service Worker，注入 PWA 元信息
+6. `validate.py` — HTML 结构与标签闭合校验
+7. `health_check.py` — 全站链接、锚点、下载文件体检
+8. `final_check.py` — 中文引号与 meta description 长度检查
+9. `asset_guard.py` — 体积守卫：图片单张 ≤300 KB、索引 ≤600 KB、单页 ≤300 KB、整站 ≤6 MB
 
-第 5–8 步都会以非零退出码报错，CI 中表现为失败。
+第 6–9 步都会以非零退出码报错，CI 中表现为失败。
 
 单独运行某一项：
 

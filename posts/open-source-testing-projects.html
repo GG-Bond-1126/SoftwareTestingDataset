@@ -4,20 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>七个热门开源项目，哪些能进测试工具箱 · 软件测试资料集</title>
-<meta name="description" content="按可编程、可重复、可担责三条判据，逐项判定七个开源项目的测试用途与替代方案。">
+<meta name="description" content="用打分脚本与并行对照实验筛开源测试工具，逐项给出门槛、命令与排错清单。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="../assets/style.css">
 <link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/open-source-testing-projects.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="软件测试资料集">
 <meta property="og:title" content="七个热门开源项目，哪些能进测试工具箱">
-<meta property="og:description" content="按可编程、可重复、可担责三条判据，逐项判定七个开源项目的测试用途与替代方案。">
+<meta property="og:description" content="用打分脚本与并行对照实验筛开源测试工具，逐项给出门槛、命令与排错清单。">
 <meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/open-source-testing-projects.html">
 <meta property="og:locale" content="zh_CN">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="七个热门开源项目，哪些能进测试工具箱">
-<meta name="twitter:description" content="按可编程、可重复、可担责三条判据，逐项判定七个开源项目的测试用途与替代方案。">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"七个热门开源项目，哪些能进测试工具箱","description":"按可编程、可重复、可担责三条判据，逐项判定七个开源项目的测试用途与替代方案。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/open-source-testing-projects.html","articleSection":"落地实践","keywords":"oss-selection, test-tooling, headless-browser","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
+<meta name="twitter:description" content="用打分脚本与并行对照实验筛开源测试工具，逐项给出门槛、命令与排错清单。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"七个热门开源项目，哪些能进测试工具箱","description":"用打分脚本与并行对照实验筛开源测试工具，逐项给出门槛、命令与排错清单。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/open-source-testing-projects.html","articleSection":"落地实践","keywords":"oss-selection, test-tooling, headless-browser","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
 <meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -65,46 +65,341 @@
       </header>
 
       <div class="article-body">
-        <p>这类项目合集读起来每个都想装，但对测试团队来说，好玩和能用是两件事：能不能被脚本调用、能不能进 CI、失败时能不能定位。三条过不去，装上也只是一个新的维护负担。</p>
-        <p>结论先给：只有一个能直接进测试链路，一个能当接口测试的数据源，两个语音工具只在测语音时有意义，剩下三个值得借的是结构。</p>
+        <p>这类合集读起来每个都想装，但装上之后能不能留下，取决于三个朴素的问题：能不能被脚本调用、能不能进 CI、失败时能不能定位。前两条不过，它只是一个需要人盯着的新玩具；第三条不过，它会在第一次飘红时被悄悄关掉。</p>
+        <p>下面按这三条过一遍七个项目。判断依据限于原文的能力描述与仓库公开元数据，原文没给性能数字，这里也不替它补；凡是要拿数字说话的结论，都附一段可以自己跑的脚本。结论先给：一个能直接进测试链路，一个能当接口样本源，两个语音工具只在测语音时有意义，剩下三个值得借的是结构。</p>
 
         <h2>一、三条判据，先把热度放一边</h2>
-        <p>原文只交代了用途和地址，没有给性能数据与版本情况，所以这里不引用星标数与发布节奏，判断基于能力描述。</p>
-        <ol>
-          <li><strong>可编程</strong>：有没有命令行、HTTP 接口、SDK 或 MCP，只能靠点鼠标的工具进不了流水线。</li>
-          <li><strong>可重复</strong>：能否无头运行、离线使用，同一输入两次结果是否一致；一半的价值来自可重复。</li>
-          <li><strong>可担责</strong>：许可证能否商用、有没有默认遥测、数据会不会出内网。金融和医疗项目里这是硬门槛。</li>
-        </ol>
+        <p>这三条是门槛，不是排序。任何一条不过就先淘汰，别急着比较功能和星标；过了门槛的候选，再用第三节的打分表排队。顺序反过来，最常见的结局是接了两周，在评审上被一句许可证不能用打回。</p>
+        <p><strong>可编程</strong>。触发条件是这条用例要每次提交都跑，命中就必须有命令行、HTTP 接口、SDK 或 MCP 之一。判断依据不是 README 写没写 API，而是在干净容器里跑一次无头命令，能拿到退出码和结构化结果。反例是语音输入工具：再准也没有接口，转写结果交不给断言，只能人听一遍再手敲。</p>
+        <p><strong>可重复</strong>。触发条件是同一输入要跑第二次。判断依据是连跑三次，产物除时间戳与随机 ID 外一致，并且不依赖登录态。反例是每次都要连云端模型的服务：模型一升级，昨天通过的今天失败，这种波动无法归因。可重复不等于离线，联网可以，但要能录制回放。</p>
+        <p><strong>可担责</strong>。触发条件是代码或数据出内网、或要商用分发。判断依据有三处可查：LICENSE 里的 SPDX 标识、设置项里的遥测开关、首次启动抓包看连了哪些域名。反例是把 AGPL 组件塞进闭源链路，以及遥测默认开着而评审只扫了一眼 README。</p>
+        <p>还有一条工程约束要提前说：谁来维护它的运行时。自带二进制的工具，和要 Node 22 加一堆全局包的工具，半年后的维护成本不在一个量级。</p>
 
         <h2>二、七个项目的实际位置</h2>
+        <p>先把定位摆正，再谈取舍。门槛列是按原文描述推断的结论，不是实测；拿不准的一律写待验证，这比拍脑袋给推荐诚实。</p>
         <table>
           <thead>
-            <tr><th>项目</th><th>实际是什么</th><th>对测试的价值</th><th>建议</th></tr>
+            <tr><th>项目</th><th>实际是什么</th><th>门槛结论</th><th>对测试的价值</th><th>建议</th></tr>
           </thead>
           <tbody>
-            <tr><td>Lightpanda</td><td>无头浏览器</td><td>可进自动化与 CI</td><td>试用</td></tr>
-            <tr><td>Public APIs</td><td>公开 API 目录</td><td>接口测试的靶场</td><td>采用</td></tr>
-            <tr><td>Handy</td><td>离线语音输入</td><td>语音链路的输入侧</td><td>按需</td></tr>
-            <tr><td>Hex</td><td>本地语音输入</td><td>同上，带纠正词</td><td>按需</td></tr>
-            <tr><td>FreeToken</td><td>本地模型推理引擎</td><td>私有化评测</td><td>观望</td></tr>
-            <tr><td>OpenMausBot</td><td>多 Agent 聊天编排</td><td>借审批卡片设计</td><td>只看设计</td></tr>
-            <tr><td>Game Studios</td><td>游戏角色与 Skill 模板</td><td>借流程编排</td><td>只看结构</td></tr>
+            <tr><td>Lightpanda</td><td>给脚本用的无头浏览器</td><td>可无头；兼容范围待验证</td><td>批量页面检查与轻量冒烟</td><td>单点试用</td></tr>
+            <tr><td>Public APIs</td><td>公开 API 目录</td><td>可编程；稳定性不可依赖</td><td>接口测试的样本来源</td><td>采用，但要录制</td></tr>
+            <tr><td>Handy</td><td>离线语音输入</td><td>无接口，人工可用</td><td>语音链路的输入构造</td><td>只在测语音时用</td></tr>
+            <tr><td>Hex</td><td>本地语音输入，带纠正词</td><td>同 Handy</td><td>偏差对照的第二份参考</td><td>只在测语音时用</td></tr>
+            <tr><td>FreeToken</td><td>本地模型推理引擎</td><td>兼容 OpenAI 接口</td><td>含敏感数据的私有化评测</td><td>先算硬件</td></tr>
+            <tr><td>OpenMausBot</td><td>多 Agent 聊天编排</td><td>无断言与报告</td><td>借审批卡片做写操作确认</td><td>只看设计</td></tr>
+            <tr><td>Game Studios</td><td>游戏角色与 Skill 模板</td><td>与测试链路无交集</td><td>借角色分工的编排思路</td><td>只看结构</td></tr>
           </tbody>
         </table>
+        <p>建议列最容易误读。单点试用是拿一周在一个非关键链路验证，不是全组推广；只看设计是连装都不装，直接把交互方式搬进自己的方案。</p>
 
-        <h2>三、Lightpanda：唯一能直接进测试链路的项目</h2>
-        <p>原文的描述是：给 AI 和自动化脚本用的浏览器，程序在后台控制，不需要窗口；能打开网页、执行脚本、读取内容、点击按钮、填写表单；最大的特点是把网页绘制成画面的流程省掉，因此运行快、省内存；已经在用 Puppeteer、Playwright 的也可以连接它执行其支持的操作。</p>
-        <p>这正好对上测试里最贵的开销：批量页面检查。上线前扫内链、给 Agent 提供网页通道、CI 里做轻量冒烟，这些不要求像素正确，只要求 DOM 与交互可用。原文未说明它支持哪些浏览器特性、兼容范围多大，引入前必须用自己站点的页面对照，挑出不支持的 API。需要真实渲染、视觉回归、多内核矩阵的项目仍要留在真实浏览器上，做法可参考 <a class="ilink" href="web-playwright-intro.html">Playwright 入门</a>。</p>
-        <p>也别把它当免费提速：渲染省掉后，懒加载触发时机、滚动高度这类依赖布局的行为会变，断言元素可见时要用真实浏览器复核。</p>
+        <h2>三、把热度换成可核查的数字</h2>
+        <p>选型会上常听到的理由是这个很火。火按什么算？星标受渠道和话题影响，能刷；与测试团队有关的其实只有四件事：还在不在维护、有没有人用、许可证能不能用、issue 有没有人管。四件事都能从仓库元数据取到，也都能写成可复核的打分逻辑。</p>
+        <table>
+          <thead>
+            <tr><th>维度</th><th>权重</th><th>数据来源</th><th>什么情况下会失真</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>活跃度</td><td>0.35</td><td>最近一次 push 距今天数</td><td>只在分支上提交、从不发版的项目会被高估</td></tr>
+            <tr><td>采用度</td><td>0.25</td><td>stargazers 数量</td><td>做话题营销的仓库，星标与实际使用脱节</td></tr>
+            <tr><td>许可证</td><td>0.20</td><td>license 的 SPDX 标识</td><td>双许可项目只显示主协议，商用条款要另读</td></tr>
+            <tr><td>issue 健康</td><td>0.20</td><td>未关 issue 与星标的比值</td><td>用户基数小的项目，比值天然偏高</td></tr>
+          </tbody>
+        </table>
+        <p>权重写死在脚本顶部，是为了让每次调整都留痕。活跃度最高，因为半年没提交的工具功能再多也只是遗迹；issue 比值只是代理指标，它回答不了问题解决得快不快，只能反映有没有人管。</p>
+        <div class="code-head"><span>python · demo_oss_score.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>"""候选工具打分：拉 GitHub 元数据，按权重算分，输出 Markdown 对比表。
 
-        <h2>四、Public APIs：靶场不是被测对象</h2>
-        <p>原文说它按天气、图书、地理信息等类别整理，每条列出用途、认证方式、HTTPS 与跨站调用支持，另有检索入口可筛选。</p>
-        <p>正确用法是做结构真实但不受你控制的响应样本：给接口自动化补字段、给 Mock 找参考结构。错误用法是当稳定性基线，这类服务随时可能改字段、限流或下线。要长期跑就把一次响应录成固定样本，思路同 <a class="ilink" href="python-api-testing-with-requests.html">接口测试</a> 里的录制回放。</p>
+用途：把「感觉很火」换成可核查的四个维度，用于选型会上的横向对照。
+依赖：Python 3.9+，仅标准库。
+运行：
+    set GITHUB_TOKEN=你的token      # 可选，只影响限流额度，不要写进脚本
+    python demo_oss_score.py --repos lightpanda-io/browser public-apis/public-apis
+    python demo_oss_score.py --repos lightpanda-io/browser --out shortlist.md
+"""
+
+import argparse
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+
+API = "https://api.github.com/repos/{repo}"
+
+# ---------- 配置区：权重之和为 1，按团队关注点调整 ----------
+WEIGHTS = {"activity": 0.35, "adoption": 0.25, "license": 0.20, "issue": 0.20}
+FRESH_DAYS = 90        # 最近一次提交超过这个天数，活跃度直接判 0
+COMMERCIAL_OK = {"mit", "apache-2.0", "bsd-2-clause", "bsd-3-clause", "mpl-2.0", "isc"}
+MAX_STARS = 20000      # 采用度满分线，候选池量级不同时要改
+
+
+def fetch_meta(repo, token, timeout=15):
+    """取单个仓库元数据，失败抛 RuntimeError，由调用方决定跳过还是退出。"""
+    req = urllib.request.Request(API.format(repo=repo))
+    req.add_header("Accept", "application/vnd.github+json")
+    req.add_header("User-Agent", "oss-score-demo")
+    if token:
+        req.add_header("Authorization", "Bearer " + token)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError("HTTP %s，先确认仓库名与限流额度" % exc.code) from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError("网络不可达：%s" % exc.reason) from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("返回不是 JSON，可能被网关拦截") from exc
+
+
+def days_since(stamp):
+    """ISO 时间转距今天数，活跃度判断的唯一输入。"""
+    then = datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - then).days
+
+
+def activity_score(days):
+    # 分段而不是线性，避免「刚发版」和「天天提交」被算成同一档
+    if days &lt;= 30:
+        return 1.0
+    if days &lt;= FRESH_DAYS:
+        return 0.7
+    if days &lt;= 180:
+        return 0.3
+    return 0.0
+
+
+def issue_score(open_issues, stars):
+    """未关 issue 与星标的比值只是代理指标：越低越像有人打理。"""
+    ratio = open_issues / max(stars, 1)
+    if ratio &lt;= 0.02:
+        return 1.0
+    if ratio &lt;= 0.05:
+        return 0.6
+    if ratio &lt;= 0.10:
+        return 0.3
+    return 0.0
+
+
+def score(repo, meta):
+    days = days_since(meta["pushed_at"])
+    license_id = (meta.get("license") or {}).get("spdx_id", "NOASSERTION").lower()
+    parts = {
+        "activity": activity_score(days),
+        "adoption": min(meta.get("stargazers_count", 0) / MAX_STARS, 1.0),
+        "license": 1.0 if license_id in COMMERCIAL_OK else 0.0,
+        "issue": issue_score(meta.get("open_issues_count", 0), meta.get("stargazers_count", 0)),
+    }
+    total = sum(parts[key] * WEIGHTS[key] for key in WEIGHTS)
+    if meta.get("archived"):      # 归档仓库数据再好看也不进工具箱
+        total = 0.0
+    return {"repo": repo, "days": days, "license": license_id, "parts": parts, "total": total}
+
+
+def verdict(total):
+    if total &gt;= 0.8:
+        return "进对照实验"
+    if total &gt;= 0.6:
+        return "观望，先补小样本"
+    return "不进工具箱"
+
+
+def to_markdown(rows):
+    text = "| 项目 | 活跃度 | 采用度 | 许可 | issue 健康 | 总分 | 建议 |\n"
+    text += "| --- | --- | --- | --- | --- | --- | --- |\n"
+    for row in sorted(rows, key=lambda r: r["total"], reverse=True):
+        part = row["parts"]
+        text += "| {repo} | {a:.2f} | {b:.2f} | {c:.2f} | {d:.2f} | **{t:.2f}** | {v} |\n".format(
+            repo=row["repo"], a=part["activity"], b=part["adoption"],
+            c=part["license"], d=part["issue"], t=row["total"], v=verdict(row["total"]))
+    return text
+
+
+def main():
+    parser = argparse.ArgumentParser(description="开源测试工具选型打分")
+    parser.add_argument("--repos", nargs="+", required=True, help="owner/name 形式，可给多个")
+    parser.add_argument("--token", default=os.environ.get("GITHUB_TOKEN", ""))
+    parser.add_argument("--out", default="tool_shortlist.md", help="Markdown 输出路径")
+    args = parser.parse_args()
+
+    rows, failed = [], []
+    for repo in args.repos:
+        try:
+            rows.append(score(repo, fetch_meta(repo, args.token)))
+        except RuntimeError as exc:
+            failed.append("%s：%s" % (repo, exc))
+            print("[跳过] %s" % failed[-1], file=sys.stderr)
+
+    if not rows:
+        print("没有一个仓库取到数据，先查网络与 token 额度", file=sys.stderr)
+        return 1
+
+    report = to_markdown(rows)
+    with open(args.out, "w", encoding="utf-8") as fh:
+        fh.write(report)
+    print(report)
+    print("已写入 " + args.out)
+    if failed:
+        print("失败 %d 项，原因见 stderr" % len(failed))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+</code></pre>
+        <p>运行步骤：配一个只读 token，只给 public repo 权限；把候选按 owner/name 传进去；把输出贴进选型文档。脚本故意不缓存，因为活跃度每天在变，缓存会让结论看着比实际新。看结果先看总分，再看被扣分的维度：0.72 如果只扣在许可证，值得单独讨论；活跃度为 0 就直接放下。它的边界也清楚：衡量的是仓库健康度，不是好不好用，两个都过线仍要靠第九节的实验分胜负。</p>
+
+        <h2>四、Lightpanda：替换渲染层之前先做兼容性抽样</h2>
+        <p>原文的描述是：给 AI 和自动化脚本用的浏览器，程序在后台控制，不需要窗口；能打开网页、执行脚本、读取内容、点击按钮、填写表单；最大的特点是把绘制画面的流程省掉，因此快且省内存；已经在用 Puppeteer、Playwright 的也能连它执行其支持的操作。</p>
+        <p>触发条件是批量页面检查：上线前扫内链、给 Agent 提供网页通道、CI 里做轻量冒烟。这三件事都不要求像素正确，只要求 DOM 与交互可用。反过来，需要真实渲染、视觉回归、多内核矩阵的项目不适用，这类需求见 <a class="ilink" href="web-playwright-intro.html">Playwright 入门</a>。</p>
+        <p>环境准备两步：先确认运行时能起、CDP 端口只监听回环；再确认客户端用 connect_over_cdp 连地址，不改用例里的定位写法。启动命令与镜像名随版本变化，先跑一次 --help 看当前参数，别照抄半年前的博客。</p>
+        <div class="code-head"><span>bash · 启动与连通性检查</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code># 1. 启动（命令以仓库 README 为准，下面按本地二进制的常见形态示意）
+lightpanda serve --host 127.0.0.1 --port 9222
+
+# 2. 确认 CDP 端口真的活着，返回 JSON 才算通
+curl.exe -s http://127.0.0.1:9222/json/version
+
+# 3. 用 Playwright 连过去，跑同一批页面
+set LIGHTPANDA_WS=ws://127.0.0.1:9222
+python check_pages.py</code></pre>
+        <p>最小验证就是取一次页面内容长度，能拿到非零值再谈兼容性。连不上通常不是代码问题，先看第一步的进程还在不在。</p>
+        <div class="code-head"><span>python · 最小连通性验证</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>import os
+from playwright.sync_api import sync_playwright
+
+with sync_playwright() as p:
+    browser = p.chromium.connect_over_cdp(os.environ["LIGHTPANDA_WS"])
+    page = browser.new_page()
+    page.goto("https://example.com", wait_until="load")
+    print("内容长度：", len(page.content()))
+    browser.close()</code></pre>
+        <p>接下来是决定能不能用的兼容性抽样：挑二十个真实页面，覆盖登录页、列表页、懒加载长页和含 canvas 的页面，每页记三件事，首屏是否完整、控制台有没有报错、原本能定位的元素还在不在。原文未说明支持哪些浏览器特性与兼容范围，这块只能自己测。</p>
+        <p>失败先查什么，按顺序来：整页空白，先看 wait_until 是否设得太早，改 load 或 networkidle；元素找不到，看是不是要靠滚动触发渲染，先滚到底再查；断言可见却不通过，多为布局计算缺失，换真实浏览器复核。还有一个容易忽略的点：懒加载触发时机依赖视口高度，渲染层一换，写死的滚动次数就会失效。</p>
+
+        <h2>五、Public APIs：靶场不是被测对象</h2>
+        <p>原文说它按天气、图书、地理信息等类别整理，每条列出用途、认证方式、HTTPS 与跨站调用支持，另有检索入口可筛选。价值不在数量，而在每条都标了认证与跨站支持，这两项恰好是写接口用例前最先要确认的。</p>
+        <p>触发条件有三个：手上没有真实响应样本时补字段结构；教新人写第一个断言时给一个不怕弄坏的靶子；给 Mock 找参考结构。共同点是只需要结构真实，不需要长期稳定。错误用法是把它当稳定性基线，这类服务随时会改字段、限流或下线。要长期跑就录成固定样本，思路同 <a class="ilink" href="python-api-testing-with-requests.html">接口测试</a> 的录制回放。下面脚本做两件事：落盘带时间戳的快照，并与上次对比顶层字段，字段一变就提示，而不是等用例批量失败才发现契约变了。</p>
+        <div class="code-head"><span>python · demo_api_snapshot.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>"""把公开接口的一次响应录成固定样本，并在下次运行时对比字段变化。
+
+用途：公开 API 只能当靶场，不能当稳定性基线；录成快照后本地回放才可重复。
+依赖：Python 3.9+，仅标准库。
+运行：
+    set DEMO_API_KEY=你的密钥     # 需要鉴权的接口才设置，不要写进代码
+    python demo_api_snapshot.py --name weather --url https://api.example.com/v1/weather?city=110000
+"""
+
+import argparse
+import hashlib
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+from datetime import datetime
+
+
+def load_previous(path):
+    """读上一次的快照，没有就返回 None，首次运行不报错。"""
+    if not os.path.exists(path):
+        return None
+    with open(path, "r", encoding="utf-8") as fh:
+        try:
+            return json.load(fh)
+        except json.JSONDecodeError:
+            print("[警告] 上次快照不是合法 JSON，跳过对比", file=sys.stderr)
+            return None
+
+
+def fetch(url, key_env, timeout=15):
+    req = urllib.request.Request(url)
+    req.add_header("User-Agent", "api-snapshot-demo")
+    key = os.environ.get(key_env, "")
+    if key:
+        req.add_header("Authorization", "Bearer " + key)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError("HTTP %s，先看是不是限流或路径写错" % exc.code) from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError("网络不可达：%s" % exc.reason) from exc
+
+
+def top_keys(payload):
+    """只取第一层字段名，够用来发现契约变更，不必做深度比对。"""
+    if isinstance(payload, dict):
+        return sorted(payload.keys())
+    if isinstance(payload, list) and payload and isinstance(payload[0], dict):
+        return sorted(payload[0].keys())
+    return []
+
+
+def main():
+    parser = argparse.ArgumentParser(description="公开接口响应快照")
+    parser.add_argument("--name", required=True, help="样本名，用作文件名前缀")
+    parser.add_argument("--name", required=True, help="接口名，作为快照文件名")
+    parser.add_argument("--url", required=True, help="要录的接口地址")
+    parser.add_argument("--dir", default="snapshots", help="样本目录")
+    parser.add_argument("--key-env", default="DEMO_API_KEY", help="读取密钥的环境变量名")
+    args = parser.parse_args()
+
+    os.makedirs(args.dir, exist_ok=True)
+    latest = os.path.join(args.dir, args.name + ".latest.json")
+    previous = load_previous(latest)
+
+    try:
+        text = fetch(args.url, args.key_env)
+    except RuntimeError as exc:
+        print("[失败] " + str(exc), file=sys.stderr)
+        return 2
+
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        print("[警告] 响应不是 JSON，按原文保存，不做字段对比", file=sys.stderr)
+        payload = None
+
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    shot = os.path.join(args.dir, "%s-%s.json" % (args.name, stamp))
+    with open(shot, "w", encoding="utf-8") as fh:
+        fh.write(text)
+    with open(latest, "w", encoding="utf-8") as fh:
+        fh.write(text)
+
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+    print("已保存 %s（sha256 前 12 位 %s）" % (shot, digest))
+
+    if payload is not None and previous is not None:
+        old, new = set(top_keys(previous)), set(top_keys(payload))
+        added, removed = sorted(new - old), sorted(old - new)
+        if added:
+            print("新增字段：" + "、".join(added))
+        if removed:
+            print("消失字段：" + "、".join(removed))
+        if not added and not removed:
+            print("顶层字段与上次一致，可以当回放基线")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+</code></pre>
+        <p>第一次跑只是存档，第二次才有对比。把 snapshots 目录纳入版本管理，评审时能看到上游什么时候改了字段。只想先粗筛免认证且支持 HTTPS 的条目，读一遍目录仓库的 README 就够：</p>
         <div class="code-head"><span>python · shortlist_public_apis.py</span><button class="copy-btn" type="button">复制</button></div>
-        <pre><code>from pathlib import Path
+        <pre><code>"""从 public-apis 目录里粗筛免认证且支持 HTTPS 的条目。
 
-# 先把目录仓库克隆到本地
-# git clone --depth 1 https://github.com/public-apis/public-apis
+用途：在没有真实响应样本时，先圈出一批接口候选，逐个发请求确认可用性。
+依赖：Python 3.9+，仅标准库；已把目录仓库克隆到本地（见运行说明）。
+运行：
+    git clone --depth 1 https://github.com/public-apis/public-apis
+    python shortlist_public_apis.py
+"""
+
+from pathlib import Path
+
 text = Path("public-apis/README.md").read_text(encoding="utf-8")
 rows = [
     line for line in text.splitlines()
@@ -113,25 +408,53 @@ rows = [
 print("免认证且支持 HTTPS 的条目数：", len(rows))
 for line in rows[:10]:
     print(line.split("|")[1].strip())</code></pre>
-        <p>脚本只做粗筛：挑认证为 No、HTTPS 为 Yes 的行，真正的可用性还得自己发请求确认。</p>
+        <p>它只做粗筛，真正的可用性还得自己发一次请求。原文未说明这些接口的可用率，也没承诺长期维护，所以筛出来的结果只当候选。</p>
 
-        <h2>五、Handy 与 Hex：只在你测语音输入时才相关</h2>
-        <p>Handy 支持三个桌面系统，用快捷键把讲话转成文字并粘到光标处，不需注册账号，模型可选 Whisper、Parakeet，基础识别可离线。Hex 同类，按住快捷键讲话，松开上屏，基础听写走本地模型，支持纠正词，原文的例子是 Claude 常被识别成 Cloud。</p>
-        <p>用得上它的只有两个场景。一是构造输入：往被测应用灌一段转写结果，比手工打字快。二是做对照：拿第三方输出当参考文本，看偏差落在哪些词。不能拿它当断言口径，识别本身有误差，用它做标准答案等于把产品缺陷算成工具噪声。原文未说明准确率与硬件要求。</p>
+        <h2>六、Handy 与 Hex：只在你测语音输入时才相关</h2>
+        <p>Handy 支持三个桌面系统，用快捷键把讲话转成文字并粘到光标处，不需注册账号，模型可选 Whisper、Parakeet，基础识别可离线。Hex 同类，按住讲话松开上屏，基础听写走本地模型，支持纠正词，原文的例子是 Claude 常被识别成 Cloud。</p>
+        <p>触发条件只有一个：被测产品本身有语音输入或转写。判断依据是测试里是否需要快速造输入，或需要第二份输出做偏差对照。两个场景都不成立，装了也只是多一个输入法。对照的做法是同一段音频分别跑两个工具，把两份输出与产品输出三方对齐，看偏差集中在哪些词，尤其是人名、产品名和中英混说，这张词表比一句识别不准有用得多。</p>
+        <p>反例必须写清：不能拿它当断言口径。识别本身有误差，用它当标准答案，等于把工具误差算成产品缺陷，缺陷单会被开发反复打回。原文未说明准确率与硬件要求，几台机器上的差异也不能直接比较。</p>
 
-        <h2>六、剩下三个：借结构，不借工具</h2>
-        <p>FreeToken 是本地模型推理引擎，面向消费级硬件跑大型 MoE，让显卡、CPU 和内存一起参与，带桌面界面，还能通过兼容 OpenAI、Anthropic 的接口把 Claude Code、Codex 接到本地模型。对测试的意义是私有化评测：含真实用户数据的用例先在本地跑一轮，不出内网。原文未说明支持的模型清单与最低硬件。</p>
-        <p>OpenMausBot 把 Agent 做成聊天软件里的联系人，可以分组、设职责与模型，接入已登录的 Claude、Codex，也能连 Gmail、GitHub；需要操作网页或桌面时挂云端 Linux 或隔离环境；有屏幕预览，需要确认的步骤以审批卡片出现在聊天里。它不是测试工具，没有断言和报告，但审批卡片值得抄：把写操作卡在人工确认之前，本质就是 <a class="ilink" href="ai-agent-testing-advanced.html">Agent 测试</a> 里要求的写操作前置校验。</p>
-        <p>Game Studios 把游戏工作室的分工做成模板，含 49 个 Agent 角色和 74 套 Skill，覆盖设计到发布。可借鉴的是角色分工加 Skill 化流程，测试团队可照此把用例设计、执行、缺陷分析拆成角色。</p>
+        <h2>七、FreeToken：私有化评测的门槛在硬件</h2>
+        <p>FreeToken 是本地模型推理引擎，面向消费级硬件跑大型 MoE，让显卡、CPU 和内存一起参与，带桌面界面，还能通过兼容 OpenAI、Anthropic 的接口把 Claude Code、Codex 接到本地模型。</p>
+        <p>触发条件很具体：用例里含真实用户数据，不能出内网。判断依据是接口兼容性，兼容 OpenAI 协议意味着现有评测脚本只改 base_url 和 key 就能跑，这比它支持多少模型更重要。落地时地址与密钥全部放环境变量，脚本里不出现明文，这也是 <a class="ilink" href="ai-agent-testing-advanced.html">Agent 测试</a> 里同样适用的底线。</p>
+        <p>反例是为了省钱而引入。本地推理省 token 费，花的是硬件与运维：显存不够会退到内存，速度掉一个量级，评测从半小时变成一整夜。原文未给模型清单与最低硬件，选型前先用目标模型在目标机器上跑一条真实长度的输入，量首 token 延迟与总耗时再决定。也别拿它做回归门禁：本机模型一换评分就漂，结论必须绑定模型版本号。</p>
 
-        <h2>七、落地方式与不该碰的情况</h2>
-        <p>选型最常见的错是一次引进三个，最后说不清哪个有用。验证方式是同一组样本各跑一遍：挑十个真实页面或接口，用候选与现有方案同时跑，只看首次跑通耗时、失败能否直接定位、一周后重跑通过率。替换渲染层的工具还要与真实浏览器对照同一批用例，差异必须能解释。</p>
+        <h2>八、OpenMausBot 与 Game Studios：借结构，不借工具</h2>
+        <p>OpenMausBot 把 Agent 做成聊天软件里的联系人，可以分组、设职责与模型，接入已登录的 Claude、Codex，也能连 Gmail、GitHub；需要操作网页或桌面时挂云端 Linux 或隔离环境；有屏幕预览，需要确认的步骤以审批卡片出现在聊天里。它不是测试工具，没有断言和报告，但审批卡片这个交互值得抄：把写操作卡在人工确认之前。</p>
+        <p>搬到测试里就是一条规则加一个钩子：凡涉及删除、支付、改配置的调用，执行前必须等一次显式确认，确认记录里带操作参数与操作人。判断依据很直接，缺陷复盘时能不能回答这一步是谁批准的；回答不了就不算落地。反例是把聊天窗口当测试管理平台，用例状态和缺陷流转都留在聊天记录里，三天后没人找得到。</p>
+        <p>Game Studios 把游戏工作室的分工做成模板，含 49 个 Agent 角色和 74 套 Skill。可借鉴的是角色加 Skill 的拆分：把用例设计、执行、缺陷分析拆成三个角色，每个角色只拿自己需要的上下文与工具。反例是照抄 49 个角色，团队只有三个人，角色比人还多，最后退化成一个万能助手。拆分的标准是这个角色的输出能否被别人独立验收。</p>
+
+        <h2>九、并行对照实验：十个样本怎么比</h2>
+        <p>选型最常见的错是一次引进三个，最后说不清哪个有用。可执行的做法是同一样本集、同一周、并行跑，把主观感受换成四个数：首次跑通耗时、失败定位耗时、一周后重跑通过率、维护工时。</p>
+        <p>样本集要小而有代表性：十个真实页面或接口，覆盖登录、列表、表单提交与一个已知不稳定点。首次跑通从拿到工具开始算，含装环境与读文档；失败定位是从看到红叉到说出原因，这个数最能区分好坏；一周后重跑检验稳定性，只在第一天跑通的工具没有意义；维护工时按人·小时记，含改脚本和查文档。</p>
+        <p>判定规则提前定，避免事后找理由：四个数里只要有一项明显更差且差异无法用功能更多解释，就淘汰；能解释的写进纪要再定。替换渲染层的工具还要与真实浏览器跑同一批用例，差异逐条对齐，对不上的一律按风险处理。</p>
+
+        <h2>十、排错清单：症状、原因、验证与处理</h2>
+        <p>下面是接入阶段最常遇到的，按先看现象再看命令的顺序排，省得在群里问一圈才发现是端口没起。</p>
+        <table>
+          <thead>
+            <tr><th>症状</th><th>可能原因</th><th>验证命令</th><th>处理方式</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>浏览器连不上</td><td>进程没起或端口不是 9222</td><td><code>curl.exe -s http://127.0.0.1:9222/json/version</code></td><td>看启动日志，确认 --port 与实际一致</td></tr>
+            <tr><td>页面整页空白</td><td>等待条件太早，脚本已结束</td><td>打印 <code>page.url</code> 与内容长度</td><td>改 wait_until 为 load 或加显式等待</td></tr>
+            <tr><td>元素定位不到</td><td>懒加载未触发，或该 API 未实现</td><td>先滚动到底，再取一次元素数量</td><td>补滚动；仍失败换真实浏览器复核</td></tr>
+            <tr><td>打分脚本 403</td><td>未带 token 撞上限流</td><td><code>curl.exe -s -I https://api.github.com/rate_limit</code></td><td>配 GITHUB_TOKEN，只给只读权限</td></tr>
+            <tr><td>快照对比全是新增字段</td><td>上游返回结构整体变了</td><td>对比两个快照文件的首层 key</td><td>按新结构更新断言，旧样本留档</td></tr>
+            <tr><td>评测结果每天漂移</td><td>本地模型版本或参数未固定</td><td>记录模型文件哈希与温度参数</td><td>结论绑定版本号，升级后重跑基线</td></tr>
+          </tbody>
+        </table>
+        <p>通用原则：先确认进程与端口，再确认输入，最后才怀疑工具能力。这三步能解决八成的装不上，剩下两成才是真的兼容性缺口。</p>
+
+        <h2>十一、落地方式与不该碰的情况</h2>
+        <p>落地分三步：第一周在一个非关键链路做单点验证，验证的就是第十节那张表；第二周把通过验证的工具接进一条真实流水线，观察误报；第三周才谈推广，前提是有人能回答它挂了谁修。跳过前两步直接推广，通常会在一个月后收获一个没人维护的目录。</p>
         <ul>
-          <li>回归套件已稳定，换工具只是转移维护成本。</li>
-          <li>合规审计、默认遥测、数据流向要先过法务。</li>
-          <li>没人能维护 Node、Go 运行时。</li>
+          <li>回归套件已稳定，换工具只是把维护成本从一个地方挪到另一个地方。</li>
+          <li>合规审计、默认遥测、数据流向要先过法务，事后再补代价更大。</li>
+          <li>团队里没人能维护对应运行时，就不该引入需要它的工具。</li>
         </ul>
-        <p>盘点提供的是候选不是答案，七个里真正能改变流程的通常只有一个。</p>
+        <p>盘点提供的是候选，不是答案。七个项目里真正能改变流程的通常只有一个，剩下的价值在于它们展示了别人怎么组织工作。</p>
 
         <div class="sources">
           <h3>参考来源</h3>

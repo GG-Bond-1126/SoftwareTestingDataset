@@ -4,20 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mobile MCP 实战：让 AI Agent 直接操作安卓与 iPhone 真机 · 软件测试资料集</title>
-<meta name="description" content="无障碍元素树优先、截图坐标兜底，讲清接入命令、指令写法、能力边界与不该托付的场景。">
+<meta name="description" content="无障碍元素树优先、截图坐标兜底，讲清接入命令、指令写法、读屏脚本与排错顺序。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d141d'/%3E%3Ctext x='50%25' y='54%25' text-anchor='middle' dominant-baseline='middle' font-family='monospace' font-size='30' fill='%233ddc84'%3EQA%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="../assets/style.css">
 <link rel="canonical" href="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-mobile-operation.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="软件测试资料集">
 <meta property="og:title" content="Mobile MCP 实战：让 AI Agent 直接操作安卓与 iPhone 真机">
-<meta property="og:description" content="无障碍元素树优先、截图坐标兜底，讲清接入命令、指令写法、能力边界与不该托付的场景。">
+<meta property="og:description" content="无障碍元素树优先、截图坐标兜底，讲清接入命令、指令写法、读屏脚本与排错顺序。">
 <meta property="og:url" content="https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-mobile-operation.html">
 <meta property="og:locale" content="zh_CN">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Mobile MCP 实战：让 AI Agent 直接操作安卓与 iPhone 真机">
-<meta name="twitter:description" content="无障碍元素树优先、截图坐标兜底，讲清接入命令、指令写法、能力边界与不该托付的场景。">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Mobile MCP 实战：让 AI Agent 直接操作安卓与 iPhone 真机","description":"无障碍元素树优先、截图坐标兜底，讲清接入命令、指令写法、能力边界与不该托付的场景。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-mobile-operation.html","articleSection":"APP 自动化","keywords":"mobile-mcp, accessibility-tree, ai-agent","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
+<meta name="twitter:description" content="无障碍元素树优先、截图坐标兜底，讲清接入命令、指令写法、读屏脚本与排错顺序。">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Mobile MCP 实战：让 AI Agent 直接操作安卓与 iPhone 真机","description":"无障碍元素树优先、截图坐标兜底，讲清接入命令、指令写法、读屏脚本与排错顺序。","inLanguage":"zh-CN","url":"https://37lh5701lxo5frtwh6h.traesite.cn/posts/ai-mobile-operation.html","articleSection":"APP 自动化","keywords":"mobile-mcp, accessibility-tree, ai-agent","author":{"@type":"Person","name":"GG Bond"},"publisher":{"@type":"Organization","name":"软件测试资料集"},"datePublished":"2026-11-25","dateModified":"2026-11-25"}</script>
 <meta property="og:image" content="https://37lh5701lxo5frtwh6h.traesite.cn/assets/og-cover.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -58,7 +58,7 @@
           <span class="post-cat">APP 自动化</span> <span class="post-fw">AI 框架</span>
           <span>2026-11-25</span>
           <span>·</span>
-          <span>8 min read</span>
+          <span>10 min read</span>
         </div>
         <h1>Mobile MCP 实战：让 AI Agent 直接操作安卓与 iPhone 真机</h1>
         <button class="fav-btn" id="fav-btn" type="button" data-slug="ai-mobile-operation">☆ 收藏</button>
@@ -66,6 +66,7 @@
 
       <div class="article-body">
         <p>移动端自动化一直卡在同一个地方：脚本写得起，维护不起。选择器一改、弹窗一变，回归就红一片；让人工点一遍，成本又高得离谱。外链介绍的 Mobile MCP 换了条路：不写死选择器，而是把屏幕讲给模型听，让它自己判断该点哪里、填什么。它是开源 MCP 服务器，安卓与 iOS、真机与模拟器都能接，可挂进 Claude Code、Cursor 这类支持 MCP 的客户端，在对话里描述要完成的手机操作。</p>
+        <p>这类工具最容易被误解的地方是「接上就能用」。实际接入只占两成工作量，剩下八成在于：你知道它看到的是哪一份屏幕信息、指令写到什么颗粒度它才不会自作主张、出错时怎么在设备层而不是模型层找原因。下面按这四件事拆开讲，并给出两个可直接运行的辅助脚本。</p>
 
         <h2>一、两条通道：无障碍树优先，截图加坐标兜底</h2>
         <p>它最关键的取舍是优先利用系统提供的无障碍信息。它本来是给视障用户用的，App 会给元素附说明，能告诉模型页面上有哪些文字、按钮、输入框及位置；对暴露完整的界面，大部分操作靠这份清单就能完成。信息不完整或控件难识别时，才退回第二条通道：取截图，让具备图像理解能力的模型看画面，再用坐标去点。</p>
@@ -79,9 +80,11 @@
             <tr><td>稳定性</td><td>轻微改版仍能按文字与属性定位</td><td>分辨率、主题、遮罩都会干扰</td></tr>
             <tr><td>适用界面</td><td>原生控件完整的常规页面</td><td>自绘界面、游戏、标签缺失的页面</td></tr>
             <tr><td>主要风险</td><td>元素未暴露时找不到目标</td><td>坐标漂移误点，且难复现</td></tr>
+            <tr><td>失败时的表现</td><td>明确停在没找到某个按钮</td><td>点偏了，页面变了但没人发现</td></tr>
           </tbody>
         </table>
-        <p>这个顺序别反过来。一上来就截图，模型每步都在猜坐标，操作看着能动，错在哪一步说不清；先拿元素树，失败时会明确停在没找到某个按钮。传统定位思路可以对照 <a class="ilink" href="app-element-locators.html">App 元素定位</a>。</p>
+        <p>这个顺序别反过来。一上来就截图，模型每步都在猜坐标，操作看着能动，错在哪一步说不清；先拿元素树，失败时会明确停在没找到某个按钮。传统定位思路可以对照 <a class="ilink" href="app-element-locators.html">App 元素定位</a>，两者的差别在于谁来写定位规则——你写，还是模型现场推。</p>
+        <p>还有一层容易忽略的差异：元素树是文本，可被日志完整记录，出了问题能逐条比对；截图是像素，只能靠人眼看。回归失败要归因时，前者能直接贴进缺陷单，后者还得再补描述。这也是为什么下面要先用脚本把元素树单独拉出来看一遍。</p>
 
         <h2>二、四步接入：从 adb devices 到 MCP 连上</h2>
         <p>外链给的是电脑连本地设备的路径。先备好 Node.js 22 或更高版本与可用的 MCP 客户端，再确认系统层面能看到设备：</p>
@@ -104,31 +107,253 @@ xcrun simctl list devices booted</code></pre>
     }
   }
 }</code></pre>
-        <p>首次启动需联网拉包。保存后重新加载服务，在 Claude Code 里用 /mcp 看状态。验收时先让它列设备，再读屏并截图，都正常返回才去试打开 App 与输入。</p>
+        <p>首次启动需联网拉包。保存后重新加载服务，在 Claude Code 里用 /mcp 看状态。验收时先让它列设备，再读屏并截图，都正常返回才去试打开 App 与输入。顺序不要跳：设备列表为空时去调指令，只会拿到一堆看着合理的猜测。</p>
+        <p>把注册配置写进项目里的好处是换机器时不用回忆参数。团队协作时建议把这段 JSON 放进仓库的示例配置，真实路径与设备编号留在本机，避免别人照着你的绝对路径改。</p>
 
         <h2>三、指令怎么写，Agent 才不会乱点</h2>
         <p>四类能力是设备管理、应用管理、屏幕交互、输入导航，落到日常就是装包、启动、点击输入、截图录屏、取日志。指令写得粗，模型就自己补细节，补出来往往不是你想要的。</p>
-        <p>稳的写法是把一次操作拆成三句：先指定设备，再要求列出可交互元素，最后执行动作并要求回传证据。多设备时必须写明设备名称或编号，否则模型可能连到另一台机器，日志一切正常，测的却是别的机型。要求每次返回元素清单与截图，等于顺手把取证做了。这类做法本质是把 MCP 当成受控的操作接口暴露给模型，封装原则见 <a class="ilink" href="api-ai-mcp.html">MCP 工具封装</a>；区别在于它的返回里含大量界面文本，脱敏要求更高——屏幕上什么都可能出现。</p>
+        <p>稳的写法是把一次操作拆成三句：先指定设备，再要求列出可交互元素，最后执行动作并要求回传证据。多设备时必须写明设备名称或编号，否则模型可能连到另一台机器，日志一切正常，测的却是别的机型。要求每次返回元素清单与截图，等于顺手把取证做了。</p>
+        <div class="code-head"><span>text · 指令模板（照抄改目标即可）</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>设备：Pixel 7（adb 编号 emulator-5554），只用这台。
+第一步：打开设置里的「关于手机」，列出当前可见的可点击元素及其文字。
+第二步：点击「版本号」连续 7 次，每次点击后回报是否出现提示文案。
+第三步：回到桌面，截一张图，把三步里出现过的元素文字整理成清单。
+不要使用坐标点击，元素树里找不到目标就停下来告诉我缺什么。</code></pre>
+        <p>这段模板里有三个约束值得固定下来：设备锁定、元素树优先、找不到就停。前两个减少误操作，第三个把「模型瞎猜」变成「明确报缺」，排查成本差一个量级。这类做法本质是把 MCP 当成受控的操作接口暴露给模型，封装原则见 <a class="ilink" href="api-ai-mcp.html">MCP 工具封装</a>；区别在于它的返回里含大量界面文本，脱敏要求更高——屏幕上什么都可能出现，通知栏、聊天记录、账号信息都可能被读进上下文。</p>
 
-        <h2>四、四条最常见的失败链路</h2>
+        <h2>四、先自己读一遍屏幕：元素树解析脚本</h2>
+        <p>在把屏幕交给模型之前，先用脚本确认目标控件到底有没有被系统暴露。这一步能省掉大量来回：模型说找不到按钮，你要能立刻判断是元素缺失，还是它没读懂。</p>
+        <p>安卓侧可以直接用系统自带的界面导出，不需要装 Appium 或任何驱动。下面这个脚本把当前界面导成 XML、拉回本机、解析出可交互元素清单，输出成 JSON，字段包括文字、控件类型、中心坐标与尺寸。</p>
+        <div class="code-head"><span>python · demo_dump_screen.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>"""读取安卓当前界面元素树，输出可交互元素清单。
+
+用途：把屏幕交给模型之前，先确认目标控件是否被系统暴露，避免误判为模型看不懂。
+依赖：Python 3.8+，Android SDK Platform-Tools（adb 在 PATH 中），设备已授权调试。
+运行：
+    python demo_dump_screen.py
+    python demo_dump_screen.py --serial emulator-5554 --min-size 40 --out screen.json
+"""
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+REMOTE_XML = "/sdcard/window_dump.xml"
+
+
+def run(cmd, timeout=30):
+    """执行命令并返回标准输出；失败时抛出带命令行的异常，便于定位。"""
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    if proc.returncode != 0:
+        raise RuntimeError("命令失败：%s\n%s" % (" ".join(cmd), proc.stderr.strip()))
+    return proc.stdout
+
+
+def dump_tree(serial):
+    """先让设备把界面写到 sdcard，再拉回本机临时目录。"""
+    base = ["adb"] + (["-s", serial] if serial else [])
+    run(base + ["shell", "uiautomator", "dump", REMOTE_XML])
+    local = Path(tempfile.gettempdir()) / "window_dump.xml"
+    run(base + ["pull", REMOTE_XML, str(local)])
+    return local
+
+
+def parse_bounds(text):
+    """bounds 形如 [x1,y1][x2,y2]，转成中心点与宽高；格式异常返回 None。"""
+    nums = [int(n) for n in re.findall(r"-?\d+", text or "")]
+    if len(nums) != 4:
+        return None
+    x1, y1, x2, y2 = nums
+    return {"x": (x1 + x2) // 2, "y": (y1 + y2) // 2, "w": x2 - x1, "h": y2 - y1}
+
+
+def collect(node, min_size, out):
+    """递归收集有文字或有点击属性的节点，过滤掉尺寸过小的装饰元素。"""
+    box = parse_bounds(node.get("bounds"))
+    text = (node.get("text") or "").strip()
+    desc = (node.get("content-desc") or "").strip()
+    clickable = node.get("clickable") == "true"
+    if box and (clickable or text or desc) and box["w"] >= min_size and box["h"] >= min_size:
+        out.append({
+            "text": text,
+            "desc": desc,
+            "type": node.get("class", "").rsplit(".", 1)[-1],
+            "clickable": clickable,
+            "enabled": node.get("enabled") == "true",
+            "center": [box["x"], box["y"]],
+            "size": [box["w"], box["h"]],
+        })
+    for child in node:
+        collect(child, min_size, out)
+
+
+def main():
+    ap = argparse.ArgumentParser(description="导出安卓无障碍元素清单")
+    ap.add_argument("--serial", default="", help="多设备时指定 adb 设备编号")
+    ap.add_argument("--min-size", type=int, default=8, help="过滤过小元素的边长阈值")
+    ap.add_argument("--out", default="screen.json", help="输出文件路径")
+    args = ap.parse_args()
+
+    try:
+        xml_path = dump_tree(args.serial)
+    except Exception as exc:
+        print("[失败] 拉取元素树出错：%s" % exc)
+        print("排查：adb devices 是否有 device 状态、手机是否点了允许调试")
+        return 2
+
+    try:
+        root = ET.parse(str(xml_path)).getroot()
+    except ET.ParseError as exc:
+        print("[失败] XML 解析不了：%s" % exc)
+        return 2
+
+    items = []
+    collect(root, args.min_size, items)
+    Path(args.out).write_text(
+        json.dumps({"count": len(items), "items": items}, ensure_ascii=False, indent=2),
+        encoding="utf-8")
+    print("可交互元素 %d 个，已写入 %s" % (len(items), args.out))
+    for item in items[:15]:
+        print("  [%s] %s @%s" % (item["type"], item["text"] or item["desc"], item["center"]))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+</code></pre>
+        <p>输出里几个字段要会读。text 为空但有 desc 的，通常是图标按钮，模型看到的是 desc；clickable 为 false 但整行可点的，多半是父容器持有点击事件，需要向上找一层；size 特别小的，往往是角标或分割线，不参与决策。跑完对照真机画面，能迅速判断界面暴露得够不够。</p>
+        <p>两种常见情况要提前知道。一是自绘界面与游戏，整屏只有一个大的画布节点，元素树几乎为空，这时只能走截图路线。二是内嵌网页，容器节点有内容但子节点是空的，需要确认 WebView 是否开了无障碍支持；没开的话，元素树里看不到网页内部文字，截图是唯一选择。</p>
+
+        <h2>五、把操作过程留成证据：截图与清单归档</h2>
+        <p>探索式操作最大的浪费是事后说不清。AI 点了五步走到报错页，你只看到最后一张截图，前面做了什么全靠猜。解决方式很朴素：每一步都留一份现场。</p>
+        <div class="code-head"><span>python · demo_evidence.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>"""把当前界面截图与元素树归档成可追溯的证据包。
+
+用途：探索式操作结束后能按时间回看每一步界面，失败时不用凭记忆复述。
+依赖：Python 3.8+，adb；元素树依赖系统 uiautomator，无需额外安装。
+运行：
+    python demo_evidence.py --note 首页进入我的
+    python demo_evidence.py --serial emulator-5554 --keep 20
+"""
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+REMOTE_XML = "/sdcard/window_dump.xml"
+
+
+def adb(serial, *args, timeout=30):
+    """统一出口：拼设备参数、检查返回码、失败直接抛错。"""
+    cmd = ["adb"] + (["-s", serial] if serial else []) + list(args)
+    proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
+    if proc.returncode != 0:
+        msg = proc.stderr.decode("utf-8", "ignore").strip()
+        raise RuntimeError("adb 执行失败：%s\n%s" % (" ".join(cmd), msg))
+    return proc.stdout
+
+
+def snapshot(serial, folder, note):
+    """截一张图、导一份元素树，返回本条记录的元数据。"""
+    folder.mkdir(parents=True, exist_ok=True)
+    shot = folder / "screen.png"
+    shot.write_bytes(adb(serial, "exec-out", "screencap", "-p"))
+
+    xml_local = folder / "window.xml"
+    adb(serial, "shell", "uiautomator", "dump", REMOTE_XML)
+    adb(serial, "pull", REMOTE_XML, str(xml_local))
+
+    return {
+        "note": note,
+        "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "png": shot.name,
+        "xml": xml_local.name,
+        "png_bytes": shot.stat().st_size,
+    }
+
+
+def prune(root, keep):
+    """只保留最近 keep 个目录，避免证据包越攒越大。"""
+    dirs = sorted([p for p in root.iterdir() if p.is_dir()])
+    for old in dirs[:-keep] if len(dirs) > keep else []:
+        shutil.rmtree(old, ignore_errors=True)
+
+
+def main():
+    ap = argparse.ArgumentParser(description="归档安卓操作现场")
+    ap.add_argument("--serial", default="", help="多设备时指定 adb 设备编号")
+    ap.add_argument("--dir", default="evidence", help="证据根目录")
+    ap.add_argument("--note", default="", help="这一步在做什么，写给自己看的")
+    ap.add_argument("--keep", type=int, default=30, help="最多保留多少个步骤目录")
+    args = ap.parse_args()
+
+    root = Path(args.dir)
+    root.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    name = stamp + ("-" + args.note if args.note else "")
+    folder = root / name.replace(" ", "_").replace("/", "_")
+
+    try:
+        record = snapshot(args.serial, folder, args.note)
+    except Exception as exc:
+        print("[失败] 归档中断：%s" % exc)
+        return 2
+
+    index_path = root / "index.json"
+    history = []
+    if index_path.exists():
+        try:
+            history = json.loads(index_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            print("[提示] index.json 损坏，将从本条重新记录")
+    history.append(dict(record, folder=folder.name))
+    index_path.write_text(json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    prune(root, max(args.keep, 1))
+    print("已归档 %s（截图 %d 字节）" % (folder, record["png_bytes"]))
+    print("索引：%s，共 %d 条" % (index_path, len(history)))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+</code></pre>
+        <p>目录结构是「一个步骤一个文件夹，加一份总索引」，好处是不依赖任何工具就能看：文件夹名带时间与备注，截图直接双击，元素树用编辑器打开就能搜文字。缺陷单里贴一句「见 evidence/20261125-143012-首页进入我的」，比描述半天更有效。</p>
+        <p>两个细节值得注意。截图用 exec-out 而不是先存到 sdcard 再拉回，省一步且避免残留文件；元素树导出会短暂抢占界面焦点，在需要连续快速操作的场景里，别每一步都导，改为关键节点导出。keep 参数是防呆设计，探索一周后目录能有几千个，不清理会拖慢同步盘。</p>
+
+        <h2>六、排错清单：症状、原因、验证与处理</h2>
         <table>
           <thead>
-            <tr><th>现象</th><th>常见原因</th><th>处理顺序</th></tr>
+            <tr><th>症状</th><th>可能原因</th><th>验证命令</th><th>处理方式</th></tr>
           </thead>
           <tbody>
-            <tr><td>adb devices 显示 unauthorized</td><td>手机上的调试授权未确认</td><td>看手机弹窗，重新信任这台电脑</td></tr>
-            <tr><td>adb devices 列表为空</td><td>线不支持数据传输、USB 模式不对、驱动缺失</td><td>换线、切模式、装驱动逐项排除</td></tr>
-            <tr><td>服务已连接但找不到手机</td><td>设备层没连上，MCP 只负责转发</td><td>回到 adb devices 或模拟器状态重查</td></tr>
-            <tr><td>iOS 模拟器命令无输出</td><td>Xcode 与运行时未装齐，或设备未启动</td><td>补齐运行时，启动后再查</td></tr>
+            <tr><td>adb devices 显示 unauthorized</td><td>手机上的调试授权未确认</td><td>adb devices -l</td><td>看手机弹窗，重新信任这台电脑</td></tr>
+            <tr><td>adb devices 列表为空</td><td>线不支持数据传输、USB 模式不对、驱动缺失</td><td>adb kill-server 后 adb devices</td><td>换线、切文件传输模式、装厂商驱动</td></tr>
+            <tr><td>服务已连接但找不到手机</td><td>设备层没连上，MCP 只负责转发</td><td>adb devices 或 xcrun simctl list devices booted</td><td>回到设备层重查，别改提示词</td></tr>
+            <tr><td>iOS 模拟器命令无输出</td><td>Xcode 与运行时未装齐，或设备未启动</td><td>xcrun simctl list runtimes</td><td>补齐运行时，启动后再查</td></tr>
+            <tr><td>元素树为空或只有一个大节点</td><td>自绘界面、游戏画面、WebView 未开无障碍</td><td>python demo_dump_screen.py --out s.json</td><td>改用截图通道，或让开发补无障碍标签</td></tr>
+            <tr><td>模型点错位置</td><td>坐标漂移，或多设备连错</td><td>核对指令里的设备编号</td><td>改为按文字定位，坐标只作兜底</td></tr>
+            <tr><td>操作成功但断言失败</td><td>页面异步加载，读屏早于渲染完成</td><td>连续两次读屏比对元素数量</td><td>读屏前固定等待或轮询目标文字</td></tr>
           </tbody>
         </table>
         <p>规律很清楚：绝大多数「AI 连不上手机」都出在设备层，不在模型层。排查顺序必须是设备可见、授权完成、服务连接，最后才轮到指令。跳过前两步改提示词，只会浪费时间。</p>
+        <p>最后一行值得单独说。移动端的渲染是异步的，点击后立刻读屏，经常拿到的是上一屏的元素。稳妥做法是轮询：每隔几百毫秒读一次，直到目标文字出现或超时。这比固定 sleep 更可靠，也比让模型「再试一次」便宜。</p>
         <p>iPhone 真机也支持，但除 USB 连接与授权外，还要完成对应的 iOS 自动化环境配置；原文没有展开具体组件与版本，只提醒旧教程里的命令要按当前文档核对。</p>
 
-        <h2>五、能干什么，不该用来干什么</h2>
+        <h2>七、能干什么，不该用来干什么</h2>
         <p>最直接的用法是页面检查。改完页面让 AI 自己打开 App，核对按钮位置、文案与跳转，本来要靠人点，现在交给 Agent，还顺手留下元素清单与截图。再往前是探索与冒烟：给它一段流程描述，让它按界面实际反馈往下走，走到哪出问题，截图就是现场证据。这条路线与 <a class="ilink" href="ai-app-testing-intro.html">AI 驱动的 App 测试</a>同源，重点在覆盖未知路径，而不是重复执行已知步骤。</p>
         <p>不适合的地方也要说清。确定性回归不该交给它：同一份清单要每次结果一致、失败可复现，而这套机制每步都依赖模型判断，天然带随机性，正确做法是把探索出的路径固化成脚本。性能、弱网、耗电这类要量化数据的场景也不行，它只能操作界面，给不出可信指标。并发能力与流水线集成细节，原文未说明，别默认它能顶替传统自动化的编排。</p>
-        <p>一个务实的定位：把它当人手的延伸，而不是脚本的替代。人工点太贵、写脚本又太早的探索阶段最划算；路径稳定下来就固化成常规脚本。工具开源、接入只有一条命令，门槛在环境准备与指令习惯，半天能练出来。</p>
+        <p>还有一类场景要格外小心：涉及资金、删除、权限授予的操作。模型判断失误的代价不是一条红色用例，而是真实的业务后果。这类流程可以让它走到确认页就停，把最后一步留给人。</p>
+        <p>一个务实的定位：把它当人手的延伸，而不是脚本的替代。人工点太贵、写脚本又太早的探索阶段最划算；路径稳定下来就固化成常规脚本。工具开源、接入只有一条命令，门槛在环境准备与指令习惯，半天能练出来。真正的门槛在于你是否愿意在每步留下证据——没有证据的探索，第二次还得从头再来。</p>
 
         <div class="sources">
           <h3>参考来源</h3>

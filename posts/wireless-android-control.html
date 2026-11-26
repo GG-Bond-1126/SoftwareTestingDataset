@@ -65,11 +65,11 @@
       </header>
 
       <div class="article-body">
-        <p>真机自动化最琐碎的部分不是写脚本，而是让脚本能碰到手机。设备一多就是一排数据线；线松了、驱动抽风、手机息屏，半夜挂掉的用例常死在这些地方。想不插线，多数团队只能买按小时计费的云真机。外链介绍的 Droidline 换了个方向：手机装一个普通 App，扫码配对，之后由电脑用命令驱动这台真机。PC 端用 Go、手机端用 Kotlin，MIT 协议，2026 年 10 月 7 日开源，作者是韩国开发者 KnifeLemon，官网 droidline.dev，App、报错与文档均提供中英韩三语。</p>
+        <p>真机自动化最琐碎的部分不是写脚本，而是让脚本能碰到手机。设备一多就是一排数据线；线松了、驱动抽风、手机息屏，半夜挂掉的用例常死在这些地方。想不插线，多数团队只能买按小时计费的云真机。外链介绍的 Droidline 换了个方向：手机装一个普通 App，扫码配对，之后由电脑用命令驱动这台真机。PC 端用 Go、手机端用 Kotlin，MIT 协议，2026 年 10 月 7 日开源，作者是韩国开发者 KnifeLemon，官网 droidline.dev，App、报错与文档均提供中英韩三语。下面按「它换掉了哪一层、环境怎么备、脚本怎么写、什么时候别用」拆开讲，末尾带两段可以照着跑的脚本和一张排错表。</p>
 
         <h2>一、它替掉的不是 Appium，而是插线与 ADB 那一段</h2>
         <p>Appium 与 uiautomator2 跑了很多年，好用，但前提一样不少：开发者选项、USB 调试、数据线。Droidline 把这层拿掉——手机端只装普通 App，开无障碍服务和自带键盘，扫码后手机自己往外连，PC 一个端口都不用开。方向反过来，安全模型也顺了：配对决定谁能控这台手机，握手后每行通信端到端加密，隧道和中继只搬密文。断网重连从断点接着跑，执行中的命令由手机侧缓存应答，不会整条重跑。</p>
-        <p>它并不替换定位体系：定位仍按 text、id 去找，等待逻辑内置，换掉的只是「怎么连上手机」。脚本资产多的团队，迁移成本落在连接层与等待策略，用例设计本身可以搬过去。</p>
+        <p>值不值得换，看三条依据：一是真机超过三台且经常因为线、驱动、休眠掉链子；二是设备必须和执行机分离，甚至要跨网络；三是远程控真机得先过安全评审，要求链路加密。三条里占两条，这套方案就有讨论价值。反例同样清楚：只有一两台机器、脚本已经稳跑半年、用例依赖强停与清数据，为了省一根线搬家并不划算。还有一条常被忽略——它不替换定位体系：定位仍按 text、id 去找，等待逻辑内置，换掉的只是「怎么连上手机」。所以迁移成本落在连接层与等待策略，用例设计本身可以原样搬过去。</p>
         <table>
           <thead>
             <tr><th>环节</th><th>传统 adb 链路</th><th>扫码直连</th></tr>
@@ -84,7 +84,25 @@
         </table>
         <p>表里真正改变体验的是后两行：加密决定远程控真机能否过安全评审，断点续跑决定弱网和换网时用例会不会成片失败。</p>
 
-        <h2>二、两条命令完成配对，先用设置页跑一个最小闭环</h2>
+        <h2>二、环境准备：三样东西没齐，后面全是白忙</h2>
+        <p>接入卡住的人，八成卡在环境而不是命令。要准备的东西只有三样，但缺一样都会以「命令没反应」这种模糊症状出现，所以在动手写脚本前先逐项确认。PC 端三个平台都有发布包，下载后把可执行文件放进 PATH，能用 <code>droidline serve</code> 起服务就算装好；手机要求 Android 9 及以上，安装 <code>droidline-agent.apk</code>；网络要求电脑与手机在同一个 Wi-Fi、同一个子网，且路由器没有开 AP 隔离——访客网络常默认打开，症状是配对成功但连接一直超时。</p>
+        <p>手机上还有两个开关必须开：无障碍服务与自带的 Droidline 键盘。前者决定能不能拿到元素树，后者决定输入的文字能不能送进输入框。顺手把该 App 的电池优化关掉，否则息屏十几分钟后服务被系统回收，表现是连接还在、所有命令都超时。</p>
+        <table>
+          <thead>
+            <tr><th>前置条件</th><th>具体要求</th><th>不满足时的典型表现</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>PC 端发布包</td><td>可执行文件在 PATH，serve 能启动</td><td>提示找不到命令，或双击后窗口一闪而过</td></tr>
+            <tr><td>手机系统</td><td>Android 9 及以上，安装 agent</td><td>安装失败或启动即闪退</td></tr>
+            <tr><td>无障碍服务</td><td>在系统设置里为 agent 打开</td><td>dump() 返回空树，元素缺文案</td></tr>
+            <tr><td>自带键盘</td><td>启用 Droidline 键盘并切换过去</td><td>input 执行成功但输入框没有变化</td></tr>
+            <tr><td>网络</td><td>同子网，关闭 AP 隔离</td><td>pair 成功但 connect 超时</td></tr>
+            <tr><td>电源策略</td><td>关闭电池优化，测试机保持插电</td><td>跑十几分钟后全部命令超时</td></tr>
+          </tbody>
+        </table>
+        <p>失败先查什么，按这个顺序：连不上先看网络（同子网、AP 隔离、端口有没有抄错），连上但读不到界面先看无障碍，能读界面但输入无效先看键盘。这三个原因的报错长得很像，都表现为「命令没反应」，按顺序排除比逐条试错快得多。</p>
+
+        <h2>三、两条命令完成配对，先用设置页跑一个最小闭环</h2>
         <p>PC 端三个平台都有发布包，手机要求 Android 9 及以上；发布包带 fakephone 模拟器，没真机也能照官方教程写第一个脚本。装好后两条命令：</p>
         <div class="code-head"><span>bash · 首次配对</span><button class="copy-btn" type="button">复制</button></div>
         <pre><code>droidline serve          # 常驻服务，所有入口都连它的 8780 端口
@@ -108,17 +126,246 @@ d.touch("text", "Log in")
 print(d.get_text("id", "greeting"))</code></pre>
         <p>示例先判断关闭广告弹窗再登录，值得留意：启动广告、权限弹窗、升级提示是真机上最常见的脏动作，写进流程开头比在断言里补救稳。组件记三个就够：serve 是常驻服务，pair 管配对，mcp 是给 Agent 用的适配器；inspect 能录脚本并推荐选择器，webdriver 让 Appium 客户端直接接管，按需再开。</p>
 
-        <h2>三、一份规格生成五个入口，多端 SDK 不会各说各话</h2>
+        <h2>四、一份规格生成五个入口，多端 SDK 不会各说各话</h2>
         <p>仓库根目录的 spec/commands.json 定义全部命令与三语错误文案，Python、Node.js、.NET 三个 SDK 和 MCP 工具清单都由它生成，CI 里跑一致性校验，对不上直接挂。所以 touch 在五个入口里都叫 touch，文档只维护一份。</p>
         <p>这一点比工具本体更值得抄。多端 SDK 贵在不一致：Python 叫 tap、Node 叫 click、就描述再各写一遍，文档三份、错误文案三套，改一处要追五个仓库，最后没人敢动。把命令、参数、错误消息收敛成一份机器可读的规格，再让 CI 做门禁，改一处就全局生效。封装 <a class="ilink" href="api-ai-mcp.html">MCP 工具</a>时，同样的坑会以工具描述与参数 schema 的形式再来一次。</p>
         <p>报错也照这个思路做。找不到元素时直接给出停在哪个页面、等了多久，形如 <code>NOT_FOUND: Could not find text 'Log in' within 10s</code>；配合 dump() 把屏幕拉成元素树，失败时一眼能看出是文案改了还是页面没跳过去。定位方式的取舍见 <a class="ilink" href="app-element-locators.html">App 元素定位</a>。</p>
 
-        <h2>四、权限边界：把做不到的事写进 README 更值钱</h2>
+        <h2>五、权限边界：把做不到的事写进 README 更值钱</h2>
         <p>手机端只用无障碍服务和自装键盘，也就是普通 App 能拿到的权限。代价 README 直接列了清单：解不开 PIN 锁，没有强停、清数据的单命令，打不开别的 App 未导出的页面。这三条恰好是测试里最常用的小动作，接入前得先确认用例有没有踩到。</p>
         <p>还有两条上限属于路线决定的天花板，不是修一版能解决的。游戏和自绘界面拿不到元素，只能退回坐标点击加颜色判断，稳定性立刻掉一档；Android 15 起系统把一次性验证码从通知里藏起来，工具只能知道码到了，仍然得进 App 里读。</p>
         <p>版本还在 0.1。作者在 Status 页写明，服务端与 SDK 的测试目前都是对着手机模拟器跑的，跨品牌真机验证仍在进行。这意味着它现在适合先拿自己的机器趟一遍，不适合直接压进生产回归流水线。</p>
 
-        <h2>五、谁适合用，以及怎么小步接入</h2>
+        <h2>六、写一个可复跑的闭环脚本：等待、重试、留证据</h2>
+        <p>演示代码只验证通路，真正能进日常的是带等待、重试和证据的版本。真机最大的不确定性是「页面还没准备好就去找元素」，所以所有定位都必须包在显式等待里，失败时把元素树和一屏截图一起存下来，否则第二天没人知道当时发生了什么。</p>
+        <div class="code-head"><span>python · demo_droidline_flow.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>"""扫码直连真机的最小可复跑闭环：前置等待、动作重试、失败留证。
+
+用途：在日常回归里跑一条带脏动作的流程，失败时能直接看出卡在哪一屏。
+依赖：Python 3.9+；pip install droidline；手机已扫码配对，serve 正在运行。
+运行：
+    python demo_droidline_flow.py --app dev.droidline.demo
+    python demo_droidline_flow.py --app dev.droidline.demo --shots evidence --retry 2
+"""
+
+import argparse
+import sys
+import time
+from pathlib import Path
+
+try:
+    from droidline import connect
+except ImportError:
+    print("[失败] 未安装 droidline，先执行 pip install droidline", file=sys.stderr)
+    raise SystemExit(2)
+
+# 启动就弹的脏动作：广告、权限申请、版本升级，按文案逐一放过
+NOISE = ["Close ad", "Skip", "Allow", "Not now", "以后再说"]
+
+
+def wait_for(device, by, value, timeout=10.0, interval=0.4):
+    """显式等待元素出现，超时返回 False，不抛异常，由调用方决定怎么记。"""
+    deadline = time.time() + timeout
+    while time.time() &lt; deadline:
+        try:
+            if device.exists(by, value):
+                return True
+        except Exception:                 # 重连瞬间可能抛错，忽略后继续等
+            pass
+        time.sleep(interval)
+    return False
+
+
+def dismiss_noise(device):
+    """逐个检查脏动作并关闭，返回关掉了哪些，便于写进报告。"""
+    closed = []
+    for text in NOISE:
+        if wait_for(device, "text", text, timeout=1.5):
+            device.touch("text", text)
+            closed.append(text)
+            time.sleep(0.3)
+    return closed
+
+
+def snapshot_evidence(device, out_dir, tag):
+    """失败现场留证：元素树文本 + 截图，文件名带阶段名，便于对照。"""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%H%M%S")
+    try:
+        tree = device.dump()
+        text = str(tree)
+        (out_dir / ("%s-%s-tree.txt" % (tag, stamp))).write_text(text, encoding="utf-8")
+    except Exception as exc:
+        print("[警告] 取元素树失败：%s" % exc)
+    try:
+        device.screenshot(str(out_dir / ("%s-%s.png" % (tag, stamp))))
+    except Exception as exc:
+        print("[警告] 截图失败：%s" % exc)
+
+
+def step(name, func, device, out_dir, retry=1):
+    """执行一步动作，失败重试，全部失败则留证并返回 False。"""
+    for attempt in range(1, retry + 1):
+        try:
+            func()
+            print("[通过] %s（第 %d 次）" % (name, attempt))
+            return True
+        except Exception as exc:
+            print("[重试] %s 第 %d 次失败：%s" % (name, attempt, exc))
+            time.sleep(1.0)
+    snapshot_evidence(device, out_dir, name.replace(" ", "_"))
+    print("[失败] %s 重试用尽，证据已写入 %s" % (name, out_dir))
+    return False
+
+
+def main():
+    ap = argparse.ArgumentParser(description="扫码直连真机闭环示例")
+    ap.add_argument("--app", required=True, help="被测应用包名")
+    ap.add_argument("--email", default="qa-demo@example.com", help="登录账号")
+    ap.add_argument("--password", default="qa-demo-only", help="登录口令")
+    ap.add_argument("--expect", default="Welcome", help="登录后应出现的文案")
+    ap.add_argument("--retry", type=int, default=2, help="单步重试次数")
+    ap.add_argument("--shots", default="evidence", help="失败证据目录")
+    ap.add_argument("--timeout", type=float, default=10.0, help="等待元素秒数")
+    args = ap.parse_args()
+
+    out_dir = Path(args.shots)
+    try:
+        device = connect()
+    except Exception as exc:
+        print("[失败] 连接失败，先看 serve 是否在跑、手机是否已配对：%s" % exc)
+        return 2
+
+    flow = [
+        ("launch", lambda: device.launch(args.app)),
+        ("dismiss noise", lambda: dismiss_noise(device)),
+        ("open login", lambda: device.touch("text", "Log in")),
+        ("fill email", lambda: device.input("id", "email", args.email)),
+        ("fill password", lambda: device.input("id", "password", args.password)),
+        ("submit", lambda: device.touch("text", "Log in")),
+    ]
+
+    for name, func in flow:
+        if not step(name, func, device, out_dir, args.retry):
+            return 1
+
+    # 断言放在最后，且必须是显式等待：提交后跳转需要时间
+    if not wait_for(device, "text", args.expect, timeout=args.timeout):
+        snapshot_evidence(device, out_dir, "assert_%s" % args.expect)
+        print("[失败] 等了 %.0fs 仍未见 %s，看证据目录判断是文案改了还是没跳过去"
+              % (args.timeout, args.expect))
+        return 1
+
+    print("[成功] 流程走通，末页出现 %s" % args.expect)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+</code></pre>
+        <p>三个设计点值得照抄。第一，<code>wait_for</code> 自己轮询而不是依赖内置等待，超时返回 False 而不是抛异常，失败路径可控。第二，<code>dismiss_noise</code> 用 1.5 秒的短超时逐个探测脏动作，有就关没有就走，比在流程里插固定 <code>sleep</code> 稳。第三，失败一律留证据，元素树能看出「文案改了」，截图能看出「卡在错误弹窗」，两类原因的修法完全不同。</p>
+
+        <h2>七、多机并行：名字、代理与断点续跑</h2>
+        <p>同一台电脑带一排手机时，最容易出的错是「命令发到了错的机器」。做法是给每台设备起名字，在入口处就绑定，脚本里不允许出现「默认设备」。</p>
+        <div class="code-head"><span>python · demo_multi_device.py</span><button class="copy-btn" type="button">复制</button></div>
+        <pre><code>"""多机并行骨架：设备命名、按名分发、结果汇总、退出码可进 CI。
+
+用途：一台执行机带多台真机时，避免命令发错设备，并让失败可定位到具体机器。
+依赖：Python 3.9+；pip install droidline；各手机均已扫码配对并被命名。
+运行：
+    python demo_multi_device.py --devices lab-01 lab-02 --app dev.droidline.demo
+    python demo_multi_device.py --devices lab-01 --app dev.droidline.demo --check welcome
+"""
+
+import argparse
+import concurrent.futures
+import sys
+import time
+from typing import NamedTuple
+
+from droidline import connect
+
+
+class RunResult(NamedTuple):
+    device: str
+    ok: bool
+    seconds: float
+    note: str
+
+
+def run_one(serial, app, check, timeout):
+    """单台设备的执行体，异常一律转成结果，不向外抛。"""
+    started = time.time()
+    try:
+        device = connect(name=serial)
+    except Exception as exc:
+        return RunResult(serial, False, 0.0, "连接失败：%s" % exc)
+
+    try:
+        device.launch(app)
+        deadline = time.time() + timeout
+        while time.time() &lt; deadline:
+            if not check or device.exists("text", check):
+                return RunResult(serial, True, round(time.time() - started, 1), "通过")
+            time.sleep(0.5)
+        return RunResult(serial, False, round(time.time() - started, 1),
+                         "等待 %s 超时" % check)
+    except Exception as exc:
+        return RunResult(serial, False, round(time.time() - started, 1), "执行异常：%s" % exc)
+
+
+def main():
+    ap = argparse.ArgumentParser(description="多设备并行执行骨架")
+    ap.add_argument("--devices", nargs="+", required=True, help="设备名，与配对时设置的一致")
+    ap.add_argument("--app", required=True, help="被测包名")
+    ap.add_argument("--check", default="", help="出现该文案视为通过，留空只看能否启动")
+    ap.add_argument("--timeout", type=float, default=30.0, help="单机等待上限秒数")
+    ap.add_argument("--workers", type=int, default=4, help="并行度，别超过设备数")
+    args = ap.parse_args()
+
+    if len(set(args.devices)) != len(args.devices):
+        print("[失败] 设备名有重复，先改名为唯一再跑", file=sys.stderr)
+        return 2
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
+        futures = [pool.submit(run_one, s, args.app, args.check, args.timeout)
+                   for s in args.devices]
+        results = [f.result() for f in futures]
+
+    print("\n%-10s %6s %8s  %s" % ("设备", "结果", "耗时", "说明"))
+    for item in results:
+        print("%-10s %6s %7.1fs  %s" % (
+            item.device, "通过" if item.ok else "失败", item.seconds, item.note))
+
+    bad = [r.device for r in results if not r.ok]
+    if bad:
+        print("\n[提示] 失败设备：%s。先逐台跑一次最小闭环，别直接重跑整批" % "、".join(bad))
+    # 有任一设备失败即非零退出，方便接进流水线
+    return 1 if bad else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+</code></pre>
+        <p>命名为参数而不是配置里的默认值，是这套骨架最关键的一条：命令必须显式带设备名，写错会报连接失败而不是默默跑到别的机器上。并行度不要超过设备数，超过只会让所有设备一起变慢，等待超时反而更容易出现。</p>
+
+        <h2>八、排错清单：命令没反应时按序排除</h2>
+        <p>所有接入问题的表象都高度相似：命令发出后没反应、超时、或返回空。按下面这张表的顺序查，比随机试快得多。</p>
+        <table>
+          <thead>
+            <tr><th>症状</th><th>可能原因</th><th>验证命令</th><th>处理方式</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>pair 二维码扫不出或超时</td><td>手机不在同子网，或路由器开了 AP 隔离</td><td>在手机上访问电脑 IP 的 8780 端口，看能否连通</td><td>换同一网段，联系网管关隔离</td></tr>
+            <tr><td>connect 成功但 dump() 返回空树</td><td>无障碍服务未开</td><td>在系统无障碍设置里检查 agent 是否启用</td><td>启用无障碍服务后重连</td></tr>
+            <tr><td>input 返回成功但输入框没变化</td><td>当前输入法不是 Droidline 键盘</td><td>dump() 后检查输入框节点属性</td><td>在输入法列表里切回 Droidline 键盘</td></tr>
+            <tr><td>跑十几分钟后所有命令超时</td><td>电池优化回收了后台服务</td><td>在应用信息里看 agent 是否被省电策略管住</td><td>关闭电池优化，测试机保持插电</td></tr>
+            <tr><td>touch 报 NOT_FOUND，等待超时</td><td>文案改了或页面没跳过去</td><td>dump() 拉元素树，搜目标文案是否还在</td><td>改定位文案，或先加一步确认当前页面</td></tr>
+            <tr><td>断网重连后任务从头跑</td><td>中继或隧道断了，手机侧缓存未生效</td><td>看 serve 日志里重连时刻的缓存写入记录</td><td>确认版本支持断点续跑，旧版本需升级</td></tr>
+          </tbody>
+        </table>
+
+        <h2>九、谁适合用，以及怎么小步接入</h2>
         <p>接入顺序建议这样走：一台备机跑系统设置页，确认连接与元素定位；再跑仓库自带的演示 App 登录，确认输入与读文本；第三步才是跨 App 收短信验证码的完整流程，这也是它相对插线方案真正的差异点——不需要为跳转额外准备连接配置。三步都过了再谈多机并行。</p>
         <p>一台电脑带一排手机是另一个卖点：不同手机并行跑、每台有名字，还能给每台单独配 socks5 或 http 代理；配合 cuts_network 在飞行模式换 IP 后任务接着跑，这类需求常见于采集与造数。</p>
         <p>不适合换的场景也说清楚：脚本资产已经稳稳跑在 <a class="ilink" href="app-automation-intro.html">App 自动化</a>框架上、用例需要强停或清数据、依赖云真机平台做弹性扩容的团队，为了省一根线搬家并不划算。真正可迁移的是两个设计：用单一规格生成多端入口，以及手机主动外连加端到端加密的远程控制模型。</p>
